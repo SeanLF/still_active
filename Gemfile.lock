@@ -1,0 +1,124 @@
+PATH
+  remote: .
+  specs:
+    still_active (0.1.0)
+      async
+      gems
+      github_api
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    addressable (2.8.0)
+      public_suffix (>= 2.0.2, < 5.0)
+    ast (2.4.2)
+    async (1.30.1)
+      console (~> 1.10)
+      nio4r (~> 2.3)
+      timers (~> 4.1)
+    console (1.13.1)
+      fiber-local
+    debug (1.3.4)
+      irb (>= 1.3.6)
+      reline (>= 0.2.7)
+    descendants_tracker (0.0.4)
+      thread_safe (~> 0.3, >= 0.3.1)
+    diff-lcs (1.4.4)
+    faraday (1.8.0)
+      faraday-em_http (~> 1.0)
+      faraday-em_synchrony (~> 1.0)
+      faraday-excon (~> 1.1)
+      faraday-httpclient (~> 1.0.1)
+      faraday-net_http (~> 1.0)
+      faraday-net_http_persistent (~> 1.1)
+      faraday-patron (~> 1.0)
+      faraday-rack (~> 1.0)
+      multipart-post (>= 1.2, < 3)
+      ruby2_keywords (>= 0.0.4)
+    faraday-em_http (1.0.0)
+    faraday-em_synchrony (1.0.0)
+    faraday-excon (1.1.0)
+    faraday-httpclient (1.0.1)
+    faraday-net_http (1.0.1)
+    faraday-net_http_persistent (1.2.0)
+    faraday-patron (1.0.0)
+    faraday-rack (1.0.0)
+    fiber-local (1.0.0)
+    gems (1.2.0)
+    github_api (0.19.0)
+      addressable (~> 2.4)
+      descendants_tracker (~> 0.0.4)
+      faraday (>= 0.8, < 2)
+      hashie (~> 3.5, >= 3.5.2)
+      oauth2 (~> 1.0)
+    hashie (3.6.0)
+    io-console (0.5.9)
+    irb (1.3.7)
+      reline (>= 0.2.7)
+    jwt (2.3.0)
+    multi_json (1.15.0)
+    multi_xml (0.6.0)
+    multipart-post (2.1.1)
+    nio4r (2.5.8)
+    oauth2 (1.4.7)
+      faraday (>= 0.8, < 2.0)
+      jwt (>= 1.0, < 3.0)
+      multi_json (~> 1.3)
+      multi_xml (~> 0.5)
+      rack (>= 1.2, < 3)
+    parallel (1.21.0)
+    parser (3.0.2.0)
+      ast (~> 2.4.1)
+    public_suffix (4.0.6)
+    rack (2.2.3)
+    rainbow (3.0.0)
+    rake (13.0.6)
+    regexp_parser (2.1.1)
+    reline (0.2.7)
+      io-console (~> 0.5)
+    rexml (3.2.5)
+    rspec (3.10.0)
+      rspec-core (~> 3.10.0)
+      rspec-expectations (~> 3.10.0)
+      rspec-mocks (~> 3.10.0)
+    rspec-core (3.10.1)
+      rspec-support (~> 3.10.0)
+    rspec-expectations (3.10.1)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.10.0)
+    rspec-mocks (3.10.2)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.10.0)
+    rspec-support (3.10.3)
+    rubocop (1.22.3)
+      parallel (~> 1.10)
+      parser (>= 3.0.0.0)
+      rainbow (>= 2.2.2, < 4.0)
+      regexp_parser (>= 1.8, < 3.0)
+      rexml
+      rubocop-ast (>= 1.12.0, < 2.0)
+      ruby-progressbar (~> 1.7)
+      unicode-display_width (>= 1.4.0, < 3.0)
+    rubocop-ast (1.12.0)
+      parser (>= 3.0.1.1)
+    rubocop-shopify (2.3.0)
+      rubocop (~> 1.22)
+    ruby-progressbar (1.11.0)
+    ruby2_keywords (0.0.5)
+    thread_safe (0.3.6)
+    timers (4.3.3)
+    unicode-display_width (2.1.0)
+
+PLATFORMS
+  x86_64-darwin-21
+
+DEPENDENCIES
+  debug
+  rake (~> 13.0)
+  rspec (~> 3.0)
+  rubocop
+  rubocop-shopify
+  still_active!
+
+BUNDLED WITH
+   2.2.22
