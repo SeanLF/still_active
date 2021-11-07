@@ -1,9 +1,10 @@
 PATH
   remote: .
   specs:
-    still_active (0.1.0)
+    still_active (0.1.1)
       activesupport
       async
+      async-http
       gems
       github_api
 
@@ -23,6 +24,17 @@ GEM
       console (~> 1.10)
       nio4r (~> 2.3)
       timers (~> 4.1)
+    async-http (0.56.5)
+      async (>= 1.25)
+      async-io (>= 1.28)
+      async-pool (>= 0.2)
+      protocol-http (~> 0.22.0)
+      protocol-http1 (~> 0.14.0)
+      protocol-http2 (~> 0.14.0)
+    async-io (1.32.2)
+      async
+    async-pool (0.3.9)
+      async (>= 1.25)
     concurrent-ruby (1.1.9)
     console (1.13.1)
       fiber-local
@@ -83,6 +95,13 @@ GEM
     parallel (1.21.0)
     parser (3.0.2.0)
       ast (~> 2.4.1)
+    protocol-hpack (1.4.2)
+    protocol-http (0.22.5)
+    protocol-http1 (0.14.2)
+      protocol-http (~> 0.22)
+    protocol-http2 (0.14.2)
+      protocol-hpack (~> 1.4)
+      protocol-http (~> 0.18)
     public_suffix (4.0.6)
     rack (2.2.3)
     rainbow (3.0.0)
@@ -130,7 +149,6 @@ PLATFORMS
   x86_64-darwin-21
 
 DEPENDENCIES
-  activesupport
   dead_end
   debug
   faker
