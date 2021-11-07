@@ -6,7 +6,7 @@ module StillActive
   module EmojiHelper
     extend self
     def inactive_gem_emoji(result_hash)
-      most_recent_activity = [result_hash.dig(:version_used_release_date), result_hash.dig(:latest_version_release_date),
+      most_recent_activity = [result_hash.dig(:last_commit_date), result_hash.dig(:latest_version_release_date),
                               result_hash.dig(:latest_pre_release_version_release_date),].compact.sort.last
       return StillActive.config.unsure_emoji if most_recent_activity.nil?
 
