@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description   = "Obtain last release, pre-release, and last commit date to determine if a gem is still under active development."
   spec.homepage      = "https://github.com/SeanLF/still_active."
   spec.license       = "MIT"
-  spec.required_ruby_version = ">= 2.4.0"
+  spec.required_ruby_version = ">= 2.6.0"
 
   # spec.metadata["allowed_push_host"] = "TODO: Set to 'https://mygemserver.com'"
 
