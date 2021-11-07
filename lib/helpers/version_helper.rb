@@ -3,10 +3,12 @@
 module StillActive
   module VersionHelper
     def find_version(versions:, version_string: nil, pre_release: false)
-      if !version_string.nil?
-        versions.find { |v| v["number"] == version_string }
+      if version_string && pre_release
+        versions&.find { |v| v["number"] == version_string && v["prerelease"] == pre_release }
+      elsif !version_string.nil?
+        versions&.find { |v| v["number"] == version_string }
       else
-        versions.find { |v| v["prerelease"] == pre_release }
+        versions&.find { |v| v["prerelease"] == pre_release }
       end
     end
 
