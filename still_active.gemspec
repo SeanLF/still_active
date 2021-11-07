@@ -37,6 +37,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency("rubocop")
   spec.add_development_dependency("rubocop-shopify")
 
+  spec.add_runtime_dependency("activesupport")
   spec.add_runtime_dependency("async")
   # spec.add_runtime_dependency("cli-ui")
   # spec.add_runtime_dependency("async-http")

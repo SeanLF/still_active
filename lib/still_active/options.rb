@@ -62,10 +62,6 @@ module StillActive
         "maximum number of years since last activity to be considered safe") do |value|
         StillActive.config { |config| config.safe_range_end = value }
       end
-      opts.on("--warning-range-start=YEARS", Integer,
-        "minimum number of years since last activity to be considered worrying") do |value|
-        StillActive.config { |config| config.warning_range_start = value }
-      end
       opts.on("--warning-range-end=YEARS", Integer,
         "maximum number of years since last activity to be considered worrying") do |value|
         StillActive.config { |config| config.warning_range_end = value }

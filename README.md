@@ -23,7 +23,6 @@ Usage: still_active [options]
         --json                       Prints output in JSON format
         --github-oauth-token=TOKEN   GitHub OAuth token to make API calls
         --safe-range-end=YEARS       maximum number of years since last activity to be considered safe
-        --warning-range-start=YEARS  minimum number of years since last activity to be considered worrying
         --warning-range-end=YEARS    maximum number of years since last activity to be considered worrying
         --critical-warning-emoji=EMOJI
         --futurist-emoji=EMOJI
@@ -71,9 +70,8 @@ Outputs:
 - `success_emoji` ✅
 - `unsure_emoji` ❓
 - `warning_emoji` ⚠️
-- `safe_range_end` 1 (safe range is by default [0..1])
-- `warning_range_start`  2 (warning range is by default [2..3])
-- `warning_range_end`  3
+- `safe_range_end` 1 (considered safe if last activity is at most 1 year ago)
+- `warning_range_end`  3 (warns if last activity is between 1 and 3 years ago)
 
 ## Development
 
