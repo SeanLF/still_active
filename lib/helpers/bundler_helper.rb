@@ -5,8 +5,8 @@ module StillActive
     extend self
 
     def gemfile_dependencies(gemfile_path: StillActive.config.gemfile_path)
-      Bundler::SharedHelpers.set_env("BUNDLE_GEMFILE", File.expand_path(gemfile_path))
-      gemfile_gems = Bundler.definition.dependencies.map(&:name)
+      ::Bundler::SharedHelpers.set_env("BUNDLE_GEMFILE", File.expand_path(gemfile_path))
+      gemfile_gems = ::Bundler.definition.dependencies.map(&:name)
       Bundler
         .definition
         .locked_gems

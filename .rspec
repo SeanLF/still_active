@@ -2,4 +2,6 @@
 --color
 --require dead_end
 --require spec_helper
+
+--require debug
 --require faker
