@@ -6,7 +6,6 @@ require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
 require_relative "../helpers/version_helper"
 require_relative "workflow"
-require "debug"
 # require "cli/ui"
 
 module StillActive
