@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
 
   spec.summary       = "Check if gems are under active development."
   spec.description   = "Obtain last release, pre-release, and last commit date to determine if a gem is still under active development."
-  spec.homepage      = "https://github.com/SeanLF/still_active."
+  spec.homepage      = "https://github.com/SeanLF/still_active"
   spec.license       = "MIT"
   spec.required_ruby_version = ">= 2.6.0"
 
