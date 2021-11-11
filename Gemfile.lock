@@ -35,6 +35,8 @@ GEM
       async
     async-pool (0.3.9)
       async (>= 1.25)
+    code-scanning-rubocop (0.5.0)
+      rubocop (~> 1.0)
     concurrent-ruby (1.1.9)
     console (1.13.1)
       fiber-local
@@ -149,6 +151,7 @@ PLATFORMS
   x86_64-darwin-21
 
 DEPENDENCIES
+  code-scanning-rubocop
   dead_end
   debug
   faker
@@ -159,4 +162,4 @@ DEPENDENCIES
   still_active!
 
 BUNDLED WITH
-   2.2.30
+   2.2.31
