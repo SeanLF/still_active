@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [0.3.0] - 2021-11-11
+
+- Change `safe_range_end` to `no_warning_range_end`
+- Fixes for Ruby 2.6 and 2.7
+
 ## [0.2.0] - 2021-11-11
 
 - Add `simultaneous-requests` command line parameter (and config option) to specify the maximum number of simultaneous requests
