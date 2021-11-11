@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description   = "Obtain last release, pre-release, and last commit date to determine if a gem is still under active development."
   spec.homepage      = "https://github.com/SeanLF/still_active"
   spec.license       = "MIT"
-  spec.required_ruby_version = ">= 2.6.0"
+  spec.required_ruby_version = ">= 2.7.0"
 
   # spec.metadata["allowed_push_host"] = "TODO: Set to 'https://mygemserver.com'"
 
@@ -43,6 +43,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency("async")
   # spec.add_runtime_dependency("cli-ui")
   spec.add_runtime_dependency("async-http")
+  spec.add_runtime_dependency("bundler", ">= 2.0")
   spec.add_runtime_dependency("gems")
   spec.add_runtime_dependency("github_api")
   # spec.add_runtime_dependency("gitlab")

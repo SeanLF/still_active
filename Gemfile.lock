@@ -5,6 +5,7 @@ PATH
       activesupport
       async
       async-http
+      bundler (>= 2.0)
       gems
       github_api
 
