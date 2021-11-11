@@ -39,14 +39,14 @@ module StillActive
       repo_info = repository_info(gem_name: gem_name, versions: vs)
       last_commit_date = last_commit_date(source: repo_info[:source], repository_owner: repo_info[:owner],
         repository_name: repo_info[:name])
-      last_release = find_version(versions: vs, pre_release: false)
-      last_pre_release = find_version(versions: vs, pre_release: true)
+      last_release = VersionHelper.find_version(versions: vs, pre_release: false)
+      last_pre_release = VersionHelper.find_version(versions: vs, pre_release: true)
       result_object[gem_name].merge!({
-        latest_version: gem_version(version_hash: last_release),
-        latest_version_release_date: release_date(version_hash: last_release),
+        latest_version: VersionHelper.gem_version(version_hash: last_release),
+        latest_version_release_date: VersionHelper.release_date(version_hash: last_release),
 
-        latest_pre_release_version: gem_version(version_hash: last_pre_release),
-        latest_pre_release_version_release_date: release_date(version_hash: last_pre_release),
+        latest_pre_release_version: VersionHelper.gem_version(version_hash: last_pre_release),
+        latest_pre_release_version_release_date: VersionHelper.release_date(version_hash: last_pre_release),
 
         repository_url: repo_info[:url],
         last_commit_date: last_commit_date,
@@ -57,17 +57,16 @@ module StillActive
       end
 
       if gem_version
-        version_used = find_version(versions: vs, version_string: gem_version)
+        version_used = VersionHelper.find_version(versions: vs, version_string: gem_version)
         result_object[gem_name].merge!({
-          # global_warning: global_warning,
           up_to_date:
-            up_to_date?(
-              version_used: version_used,
-              latest_version: last_release,
-              latest_pre_release_version: last_pre_release
-            ),
+          VersionHelper.up_to_date?(
+            version_used: version_used,
+            latest_version: last_release,
+            latest_pre_release_version: last_pre_release
+          ),
 
-          version_used_release_date: release_date(version_hash: version_used),
+          version_used_release_date: VersionHelper.release_date(version_hash: version_used),
         })
       end
     rescue StandardError => e
@@ -82,7 +81,6 @@ module StillActive
     end
 
     def repository_info(gem_name:, versions:)
-      # binding.break # if gem_name == "still_active"
       valid_repository_url =
         installed_gem_urls(gem_name: gem_name).find { |url| Repository.valid?(url: url) } ||
         rubygems_versions_repository_url(versions: versions).find { |url| Repository.valid?(url: url) } ||
@@ -90,7 +88,6 @@ module StillActive
       Repository.url_with_owner_and_name(url: valid_repository_url)
     end
 
-    # does not make network requests
     def installed_gem_urls(gem_name:)
       info = Gem::Dependency.new(gem_name).matching_specs.first
       return [] if info.nil?
@@ -101,14 +98,12 @@ module StillActive
       ].compact.uniq
     end
 
-    # does not make network requests
     def rubygems_versions_repository_url(versions:)
       versions
         .filter_map { |version| version.dig("metadata", "source_code_uri") }
         .uniq
     end
 
-    # makes network request
     def rubygems_gem_repository_url(gem_name:)
       info = Gems.info(gem_name)
       return [] if info.nil?
@@ -121,7 +116,6 @@ module StillActive
       []
     end
 
-    # makes network request
     def last_commit(source:, repository_owner:, repository_name:)
       case source.to_sym
       when :github
@@ -131,7 +125,6 @@ module StillActive
       end
     end
 
-    # makes network request
     def last_commit_date(source:, repository_owner:, repository_name:)
       commit = last_commit(source: source, repository_owner: repository_owner, repository_name: repository_name)
       case source.to_sym

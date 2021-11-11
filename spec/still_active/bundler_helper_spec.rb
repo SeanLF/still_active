@@ -13,7 +13,10 @@ RSpec.describe(StillActive::BundlerHelper) do
       ]
     end
 
-    after { Bundler.reset_settings_and_root! }
+    after do
+      Bundler.reset!
+      Bundler.try(:reset_settings_and_root!)
+    end
 
     it("returns the versioned gems specified in the gemfile") do
       expected_results.each { |expected_result| expect(gemfile_dependencies).to(include(expected_result)) }

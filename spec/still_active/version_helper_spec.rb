@@ -3,11 +3,9 @@
 require "json"
 
 RSpec.describe(StillActive::VersionHelper) do
-  let(:version_helper) { Class.new { extend StillActive::VersionHelper } }
-
   describe("#find_version") do
     context("when versions is nil") do
-      subject { version_helper.find_version(versions: versions) }
+      subject { described_class.find_version(versions: versions) }
 
       let(:versions) { nil }
 
@@ -15,7 +13,7 @@ RSpec.describe(StillActive::VersionHelper) do
     end
 
     context("when versions is valid") do
-      subject { version_helper.find_version(versions: versions, version_string: version_string, pre_release: pre_release) }
+      subject { described_class.find_version(versions: versions, version_string: version_string, pre_release: pre_release) }
 
       let(:pre_release) { false }
       let(:version_string) { nil }
@@ -70,7 +68,7 @@ RSpec.describe(StillActive::VersionHelper) do
 
     it("returns the right result") do
       test_cases.each_with_index do |test_case, index|
-        subject = version_helper.up_to_date?(**test_case)
+        subject = described_class.up_to_date?(**test_case)
         expected_result = expected_results[index]
 
         expect(subject).to(eq(expected_result))
@@ -79,7 +77,7 @@ RSpec.describe(StillActive::VersionHelper) do
   end
 
   describe("#gem_version") do
-    subject { version_helper.gem_version(version_hash: version_hash) }
+    subject { described_class.gem_version(version_hash: version_hash) }
 
     context("when version_hash is nil") do
       let(:version_hash) { nil }
@@ -95,7 +93,7 @@ RSpec.describe(StillActive::VersionHelper) do
   end
 
   describe("#release_date") do
-    subject { version_helper.release_date(version_hash: version_hash) }
+    subject { described_class.release_date(version_hash: version_hash) }
 
     context("when version hash is nil") do
       let(:version_hash) { nil }

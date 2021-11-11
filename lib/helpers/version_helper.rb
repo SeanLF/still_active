@@ -2,6 +2,8 @@
 
 module StillActive
   module VersionHelper
+    extend self
+
     def find_version(versions:, version_string: nil, pre_release: false)
       if version_string && pre_release
         versions&.find { |v| v["number"] == version_string && v["prerelease"] == pre_release }
