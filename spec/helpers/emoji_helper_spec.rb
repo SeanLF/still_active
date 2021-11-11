@@ -27,7 +27,7 @@ RSpec.describe(StillActive::EmojiHelper) do
               now - num.year + 1.day
             end
           end
-          [:version_used_release_date, :latest_version_release_date, :latest_pre_release_version_release_date]
+          [:last_commit_date, :latest_version_release_date, :latest_pre_release_version_release_date]
             .zip(times)
             .to_h
         end
