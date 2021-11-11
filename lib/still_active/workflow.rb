@@ -16,7 +16,7 @@ module StillActive
     def call
       task = Async do
         barrier = Async::Barrier.new
-        semaphore = Async::Semaphore.new(StillActive.config.simultaneous_request_quantity, parent: barrier)
+        semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result_object = {}
         StillActive.config.gems.each_with_object(result_object) do |gem, hash|
           semaphore.async do

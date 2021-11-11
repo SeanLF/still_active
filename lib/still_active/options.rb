@@ -60,7 +60,7 @@ module StillActive
 
     def add_parallelism_options(opts)
       opts.on("--simultaneous-requests=QTY", Integer, "Number of simultaneous requests made") do |value|
-        StillActive.config { |config| config.simultaneous_request_quantity = value }
+        StillActive.config { |config| config.parallelism = value }
       end
     end
 
