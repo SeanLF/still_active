@@ -8,7 +8,7 @@ RSpec.describe(StillActive::EmojiHelper) do
     let(:hash_keys) { [:last_commit_date, :latest_version_release_date, :latest_pre_release_version_release_date] }
     let(:test_cases) do
       [
-        :safe_range_end,
+        :no_warning_range_end,
         :warning_range_end,
       ]
         .map { |method| StillActive.config.public_send(method) }

@@ -11,9 +11,9 @@ module StillActive
       return StillActive.config.unsure_emoji if most_recent_activity.nil?
 
       case most_recent_activity
-      when (StillActive.config.safe_range_end.years.ago)..(Time.now)
+      when (StillActive.config.no_warning_range_end.years.ago)..(Time.now)
         ""
-      when (StillActive.config.warning_range_end.years.ago)..(StillActive.config.safe_range_end.years.ago)
+      when (StillActive.config.warning_range_end.years.ago)..(StillActive.config.no_warning_range_end.years.ago)
         StillActive.config.warning_emoji
       else
         StillActive.config.critical_warning_emoji

@@ -36,7 +36,7 @@ module StillActive
       last_commit_date = data.dig(:last_commit_date)
       last_commit_url = repository_url
 
-      inactive_repository_emoji = data.dig(:last_activity_worrying_emoji)
+      inactive_repository_emoji = data.dig(:last_activity_warning_emoj)
       using_latest_version_emoji = data.dig(:up_to_date_emoji)
 
       formatted_name = markdown_url(text: gem_name, url: repository_url)

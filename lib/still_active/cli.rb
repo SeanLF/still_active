@@ -27,7 +27,7 @@ module StillActive
         puts MarkdownHelper.markdown_table_header_line
         result.keys.sort.each do |name|
           result[name].merge!({
-            last_activity_worrying_emoji: EmojiHelper.inactive_gem_emoji(result[name]),
+            last_activity_warning_emoj: EmojiHelper.inactive_gem_emoji(result[name]),
             up_to_date_emoji: EmojiHelper.using_latest_emoji(
               using_last_release: VersionHelper.up_to_date?(
                 version_used: result[name].dig(:version_used), latest_version: result[name].dig(:latest_version)
