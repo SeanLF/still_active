@@ -3,14 +3,17 @@ name: RSpec tests
 on: [push,pull_request]
 
 jobs:
-  build:
+  test:
+    strategy:
+       matrix:
+         ruby: [2.6, 2.7, 3.0, head, jruby, jruby-head, truffleruby, truffleruby-head]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: 3.0.2
+        ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
     - name: Execute the tests
       run: bundle exec rspec
