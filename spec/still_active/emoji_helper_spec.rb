@@ -5,6 +5,7 @@ require "active_support/core_ext/integer/time"
 RSpec.describe(StillActive::EmojiHelper) do
   describe("#inactive_gem_emoji") do
     let(:now) { Time.now }
+    let(:hash_keys) { [:last_commit_date, :latest_version_release_date, :latest_pre_release_version_release_date] }
     let(:test_cases) do
       [
         :safe_range_end,
@@ -27,22 +28,22 @@ RSpec.describe(StillActive::EmojiHelper) do
               now - num.year + 1.day
             end
           end
-          [:last_commit_date, :latest_version_release_date, :latest_pre_release_version_release_date]
+          hash_keys
             .zip(times)
             .to_h
         end
     end
     let(:expected_results) do
-      43.times.map { "" }.push(
-        2.times.map { StillActive.config.warning_emoji },
-        2.times.map { "" },
-        2.times.map { StillActive.config.warning_emoji },
-        10.times.map { "" },
-        2.times.map { StillActive.config.warning_emoji },
-        2.times.map { "" },
-        1.times.map { StillActive.config.warning_emoji },
-        1.times.map { StillActive.config.critical_warning_emoji },
-        1.times.map { StillActive.config.unsure_emoji },
+      Array.new(43) { "" }.push(
+        Array.new(2) { StillActive.config.warning_emoji },
+        Array.new(2) { "" },
+        Array.new(2) { StillActive.config.warning_emoji },
+        Array.new(10) { "" },
+        Array.new(2) { StillActive.config.warning_emoji },
+        Array.new(2) { "" },
+        Array.new(1) { StillActive.config.warning_emoji },
+        Array.new(1) { StillActive.config.critical_warning_emoji },
+        Array.new(1) { StillActive.config.unsure_emoji },
       ).flatten
     end
 
@@ -58,6 +59,7 @@ RSpec.describe(StillActive::EmojiHelper) do
 
   describe("#using_latest_emoji") do
     let(:test_cases) { [nil, false, true].repeated_permutation(2).to_a }
+    let(:hash_keys) { [:using_last_release, :using_last_pre_release] }
     let(:expected_results) do
       [
         StillActive.config.unsure_emoji,
@@ -74,7 +76,7 @@ RSpec.describe(StillActive::EmojiHelper) do
 
     it("returns the expected emoji") do
       test_cases.each_with_index do |test_case, index|
-        params = [:using_last_release, :using_last_pre_release].zip(test_case).to_h
+        params = hash_keys.zip(test_case).to_h
         subject = described_class.using_latest_emoji(**params)
         expected_result = expected_results[index]
 

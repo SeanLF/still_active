@@ -81,13 +81,13 @@ RSpec.describe(StillActive::VersionHelper) do
   describe("#gem_version") do
     subject { version_helper.gem_version(version_hash: version_hash) }
 
-    context("version_hash is nil") do
+    context("when version_hash is nil") do
       let(:version_hash) { nil }
 
       it { is_expected.to(be_nil) }
     end
 
-    context("version hash is not nil") do
+    context("when version hash is not nil") do
       let(:version_hash) { JSON.parse('{"authors":"Sean Floyd","built_at":"2021-11-07T00:00:00.000Z","created_at":"2021-11-07T13:07:51.346Z","description":"Obtain last release, pre-release, and last commit date to determine if a gem is still under active development.","downloads_count":52,"metadata":{"homepage_uri":"https://github.com/SeanLF/still_active.","changelog_uri":"https://github.com/SeanLF/still_active./blob/main/CHANGELOG.md","source_code_uri":"https://github.com/SeanLF/still_active."},"number":"0.1.0","summary":"Check if gems are under active development.","platform":"ruby","rubygems_version":"\u003e= 0","ruby_version":"\u003e= 2.4.0","prerelease":false,"licenses":["MIT"],"requirements":[],"sha":"e582da6edc04e43149345d23d12784a3d96081cf69e92bf5ae6ee0f42873a819"}') }
 
       it { is_expected.to(eq("0.1.0")) }
@@ -97,13 +97,13 @@ RSpec.describe(StillActive::VersionHelper) do
   describe("#release_date") do
     subject { version_helper.release_date(version_hash: version_hash) }
 
-    context("version hash is nil") do
+    context("when version hash is nil") do
       let(:version_hash) { nil }
 
       it { is_expected.to(be_nil) }
     end
 
-    context("version hash is not nil") do
+    context("when version hash is not nil") do
       let(:version_hash) { JSON.parse('{"authors":"Sean Floyd","built_at":"2021-11-07T00:00:00.000Z","created_at":"2021-11-07T13:07:51.346Z","description":"Obtain last release, pre-release, and last commit date to determine if a gem is still under active development.","downloads_count":52,"metadata":{"homepage_uri":"https://github.com/SeanLF/still_active.","changelog_uri":"https://github.com/SeanLF/still_active./blob/main/CHANGELOG.md","source_code_uri":"https://github.com/SeanLF/still_active."},"number":"0.1.0","summary":"Check if gems are under active development.","platform":"ruby","rubygems_version":"\u003e= 0","ruby_version":"\u003e= 2.4.0","prerelease":false,"licenses":["MIT"],"requirements":[],"sha":"e582da6edc04e43149345d23d12784a3d96081cf69e92bf5ae6ee0f42873a819"}') }
       let(:release_date) { Time.parse("2021-11-07T13:07:51.346Z") }
 

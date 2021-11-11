@@ -5,6 +5,9 @@ module StillActive
     GITHUB_REGEX = %r{(http(?:s)?://(?:www\.)?(github)\.com/((?:\w|_|-)+)/((?:\w|_|-)+))}i
     GITLAB_REGEX = %r{(http(?:s)?://(?:www\.)?(gitlab)\.com/((?:\w|_|-)+)/((?:\w|_|-)+))}i
 
+    HASH_KEYS = [:url, :source, :owner, :name]
+    private_constant :HASH_KEYS
+
     extend self
 
     def valid?(url:)
@@ -18,7 +21,7 @@ module StillActive
         values = url&.scan(regex)&.first
         next if values.nil? || values.empty?
 
-        return [:url, :source, :owner, :name].zip(values).to_h
+        return HASH_KEYS.zip(values).to_h
       end
       { source: :unhandled, owner: nil, name: nil }
     end

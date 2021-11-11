@@ -9,7 +9,7 @@ end
 
 RSpec.describe(StillActive::Workflow) do
   describe("#call") do
-    subject { described_class.call }
+    subject(:result) { described_class.call }
 
     context("when configured to use gems") do
       let(:gems) { ["rails", "nokogiri"] }
@@ -18,7 +18,7 @@ RSpec.describe(StillActive::Workflow) do
 
       it("returns a hash containing information about gems") do
         VCR.use_cassette("gems") do
-          expect(subject).to(include(**{
+          expect(result).to(include(**{
             "rails" => {
               latest_version: "6.1.4.1",
               latest_version_release_date: Time.parse("2021-08-19 16:27:05.901 UTC"),
@@ -45,12 +45,13 @@ RSpec.describe(StillActive::Workflow) do
     context("when configured to use gems with versions") do
       let(:gems) { ["rails", "nokogiri"] }
       let(:versions) { ["6.1.3.2", "1.12.5"] }
+      let(:hash_keys) { [:name, :version] }
 
-      before { StillActive.config.gems = gems.zip(versions).map { |info| [:name, :version].zip(info).to_h } }
+      before { StillActive.config.gems = gems.zip(versions).map { |info| hash_keys.zip(info).to_h } }
 
       it("returns a hash containing information about gems") do
         VCR.use_cassette("gems") do
-          expect(subject).to(include(**{
+          expect(result).to(include(**{
             "rails" => {
               version_used: "6.1.3.2",
               latest_version: "6.1.4.1",

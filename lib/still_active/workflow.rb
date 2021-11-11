@@ -104,8 +104,7 @@ module StillActive
     # does not make network requests
     def rubygems_versions_repository_url(versions:)
       versions
-        .map { |version| version.dig("metadata", "source_code_uri") }
-        .compact
+        .filter_map { |version| version.dig("metadata", "source_code_uri") }
         .uniq
     end
 

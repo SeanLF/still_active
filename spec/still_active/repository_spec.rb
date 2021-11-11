@@ -18,7 +18,7 @@ RSpec.describe(StillActive::Repository) do
   end
 
   describe("#valid?") do
-    context("for valid URLs") do
+    context("with valid URLs") do
       it("returns valid") do
         valid_urls.each do |url|
           subject = described_class.valid?(url: url)
@@ -27,39 +27,45 @@ RSpec.describe(StillActive::Repository) do
       end
     end
 
-    context("for invalid URLs") do
-      subject { described_class.valid?(url: Faker::Internet.url) }
+    context("with invalid URLs") do
+      subject(:result) { described_class.valid?(url: Faker::Internet.url) }
 
       it("returns invalid") do
-        expect(subject).to(be_falsy)
+        expect(result).to(be_falsy)
       end
     end
   end
 
   describe("#url_with_owner_and_name") do
-    context("for valid URLs") do
-      it("returns valid") do
-        valid_github_urls.each do |url|
-          subject = described_class.url_with_owner_and_name(url: url)
-          expected_result = { source: "github", owner: "seanlf", name: "still_active" }
-          expect(subject).to(include(expected_result))
+    context("with valid URLs") do
+      context("with a Github URL") do
+        it("returns valid") do
+          valid_github_urls.each do |url|
+            subject = described_class.url_with_owner_and_name(url: url)
+            expected_result = { source: "github", owner: "seanlf", name: "still_active" }
+            expect(subject).to(include(expected_result))
+          end
         end
+      end
 
-        valid_gitlab_urls.each do |url|
-          subject = described_class.url_with_owner_and_name(url: url)
-          expected_result = { source: "gitlab", owner: "gitlab-org", name: "gitlab" }
-          expect(subject).to(include(expected_result))
+      context("with a Gitlab URL") do
+        it("returns valid") do
+          valid_gitlab_urls.each do |url|
+            subject = described_class.url_with_owner_and_name(url: url)
+            expected_result = { source: "gitlab", owner: "gitlab-org", name: "gitlab" }
+            expect(subject).to(include(expected_result))
+          end
         end
       end
     end
 
-    context("for invalid URLs") do
-      subject { described_class.url_with_owner_and_name(url: Faker::Internet.url) }
+    context("with invalid URLs") do
+      subject(:result) { described_class.url_with_owner_and_name(url: Faker::Internet.url) }
 
       let(:expected_result) { { source: :unhandled, owner: nil, name: nil } }
 
       it("returns invalid") do
-        expect(subject).to(include(expected_result))
+        expect(result).to(include(expected_result))
       end
     end
   end

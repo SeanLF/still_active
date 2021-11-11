@@ -3,10 +3,17 @@ require:
   - rubocop-rspec
 
 AllCops:
+  NewCops: enable
   TargetRubyVersion: 3.0.2
 
 inherit_gem:
   rubocop-shopify: rubocop.yml
 
 Layout/LineLength:
+  Enabled: false
+
+RSpec/ExampleLength:
+  Enabled: false
+
+RSpec/NestedGroups:
   Enabled: false
