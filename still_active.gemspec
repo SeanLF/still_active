@@ -34,8 +34,10 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency("dead_end")
   spec.add_development_dependency("debug")
   spec.add_development_dependency("faker")
-  spec.add_development_dependency("rubocop")
+  spec.add_development_dependency("rubocop-performance")
+  spec.add_development_dependency("rubocop-rspec")
   spec.add_development_dependency("rubocop-shopify")
+  spec.add_development_dependency("rubocop")
 
   spec.add_runtime_dependency("activesupport")
   spec.add_runtime_dependency("async")
