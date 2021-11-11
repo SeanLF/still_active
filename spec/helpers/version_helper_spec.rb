@@ -8,12 +8,15 @@ RSpec.describe(StillActive::VersionHelper) do
   describe("#find_version") do
     context("when versions is nil") do
       subject { version_helper.find_version(versions: versions) }
+
       let(:versions) { nil }
+
       it { is_expected.to(be_nil) }
     end
 
     context("when versions is valid") do
       subject { version_helper.find_version(versions: versions, version_string: version_string, pre_release: pre_release) }
+
       let(:pre_release) { false }
       let(:version_string) { nil }
       let(:versions) do
@@ -22,11 +25,13 @@ RSpec.describe(StillActive::VersionHelper) do
 
       context("when a version string is specified") do
         let(:version_string) { "1.3.4" }
+
         context("when pre-release is requested") do
           let(:pre_release) { true }
 
           it { is_expected.to(be_nil) }
         end
+
         context("when no pre-release is specified") do
           it { is_expected.to(eq(versions.first)) }
         end
@@ -38,6 +43,7 @@ RSpec.describe(StillActive::VersionHelper) do
 
           it { is_expected.to(eq(versions[12])) }
         end
+
         context("when no pre-release is specified") do
           it { is_expected.to(eq(versions.first)) }
         end
@@ -77,10 +83,13 @@ RSpec.describe(StillActive::VersionHelper) do
 
     context("version_hash is nil") do
       let(:version_hash) { nil }
+
       it { is_expected.to(be_nil) }
     end
+
     context("version hash is not nil") do
       let(:version_hash) { JSON.parse('{"authors":"Sean Floyd","built_at":"2021-11-07T00:00:00.000Z","created_at":"2021-11-07T13:07:51.346Z","description":"Obtain last release, pre-release, and last commit date to determine if a gem is still under active development.","downloads_count":52,"metadata":{"homepage_uri":"https://github.com/SeanLF/still_active.","changelog_uri":"https://github.com/SeanLF/still_active./blob/main/CHANGELOG.md","source_code_uri":"https://github.com/SeanLF/still_active."},"number":"0.1.0","summary":"Check if gems are under active development.","platform":"ruby","rubygems_version":"\u003e= 0","ruby_version":"\u003e= 2.4.0","prerelease":false,"licenses":["MIT"],"requirements":[],"sha":"e582da6edc04e43149345d23d12784a3d96081cf69e92bf5ae6ee0f42873a819"}') }
+
       it { is_expected.to(eq("0.1.0")) }
     end
   end
@@ -90,6 +99,7 @@ RSpec.describe(StillActive::VersionHelper) do
 
     context("version hash is nil") do
       let(:version_hash) { nil }
+
       it { is_expected.to(be_nil) }
     end
 

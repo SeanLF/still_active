@@ -33,9 +33,7 @@ module StillActive
 
     def gem_info(gem_name:, result_object:, gem_version: nil)
       result_object[gem_name] = {}
-      result_object[gem_name].merge!({
-        version_used: gem_version,
-      }) if gem_version
+      result_object[gem_name][:version_used] = gem_version if gem_version
 
       vs = versions(gem_name: gem_name)
       repo_info = repository_info(gem_name: gem_name, versions: vs)
@@ -55,7 +53,7 @@ module StillActive
       })
 
       unless vs.empty?
-        result_object[gem_name].merge!({ ruby_gems_url: "https://rubygems.org/gems/#{gem_name}" })
+        result_object[gem_name][:ruby_gems_url] = "https://rubygems.org/gems/#{gem_name}"
       end
 
       if gem_version

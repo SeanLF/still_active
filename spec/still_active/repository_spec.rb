@@ -29,6 +29,7 @@ RSpec.describe(StillActive::Repository) do
 
     context("for invalid URLs") do
       subject { described_class.valid?(url: Faker::Internet.url) }
+
       it("returns invalid") do
         expect(subject).to(be_falsy)
       end
@@ -54,7 +55,9 @@ RSpec.describe(StillActive::Repository) do
 
     context("for invalid URLs") do
       subject { described_class.url_with_owner_and_name(url: Faker::Internet.url) }
+
       let(:expected_result) { { source: :unhandled, owner: nil, name: nil } }
+
       it("returns invalid") do
         expect(subject).to(include(expected_result))
       end
