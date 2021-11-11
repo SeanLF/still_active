@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## [0.4.0] - 2021-11-11
+
+- Change minimum version of Ruby to 2.7
+
 ## [0.3.0] - 2021-11-11
 
 - Change `safe_range_end` to `no_warning_range_end`
