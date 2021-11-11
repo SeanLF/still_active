@@ -1,6 +1,12 @@
-# StillActive
+# `still_active`
 
 Identify which of your dependencies are no longer under active development.
+
+[![Gem Version](https://badge.fury.io/rb/still_active.svg)](https://badge.fury.io/rb/still_active)
+
+![Code Quality analysis](https://github.com/SeanLF/still_active/actions/workflows/codeql-analysis.yml/badge.svg)
+![RSpec](https://github.com/SeanLF/still_active/actions/workflows/rspec.yml/badge.svg)
+![Rubocop analysis](https://github.com/SeanLF/still_active/actions/workflows/rubocop-analysis.yml/badge.svg)
 
 ## Installation
 
