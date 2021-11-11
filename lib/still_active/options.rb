@@ -15,6 +15,7 @@ module StillActive
         add_gems_option(opts)
         add_output_options(opts)
         add_token_options(opts)
+        add_parallelism_options(opts)
         add_range_options(opts)
         add_emoji_options(opts)
       end
@@ -54,6 +55,12 @@ module StillActive
     def add_token_options(opts)
       opts.on("--github-oauth-token=TOKEN", String, "GitHub OAuth token to make API calls") do |value|
         StillActive.config { |config| config.github_oauth_token = value }
+      end
+    end
+
+    def add_parallelism_options(opts)
+      opts.on("--simultaneous-requests=QTY", Integer, "Number of simultaneous requests made") do |value|
+        StillActive.config { |config| config.simultaneous_request_quantity = value }
       end
     end
 

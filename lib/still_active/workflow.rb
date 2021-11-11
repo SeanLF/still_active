@@ -4,6 +4,7 @@ require_relative "repository"
 require_relative "../helpers/version_helper"
 require "async"
 require "async/barrier"
+require "async/semaphore"
 require "gems"
 require "github_api"
 
@@ -15,9 +16,10 @@ module StillActive
     def call
       task = Async do
         barrier = Async::Barrier.new
+        semaphore = Async::Semaphore.new(StillActive.config.simultaneous_request_quantity, parent: barrier)
         result_object = {}
         StillActive.config.gems.each_with_object(result_object) do |gem, hash|
-          barrier.async do
+          semaphore.async do
             gem_info(gem_name: gem[:name], result_object: hash, gem_version: gem.dig(:version))
           end
         end
