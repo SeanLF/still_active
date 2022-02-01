@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [0.4.1] - 2022-01-01
+
+- Explicitly test against ruby 3.1
+- Fix for using ActiveSupport 7
+- schedule running CI once per month
+
 ## [0.4.0] - 2021-11-11
 
 - Change minimum version of Ruby to 2.7
