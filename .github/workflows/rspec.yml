@@ -1,12 +1,19 @@
 name: RSpec tests
 
-on: [push,pull_request]
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ master ]
+  schedule:
+    - cron: '0 0 1 * *'
 
 jobs:
   test:
     strategy:
        matrix:
-         ruby: [2.7, 3.0, head, truffleruby, truffleruby-head]
+         ruby: [2.7, 3.0, 3.1, head, truffleruby, truffleruby-head]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
