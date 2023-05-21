@@ -3,10 +3,10 @@ name: "Rubocop"
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [ master ]
+    branches: [ main ]
   schedule:
     - cron: '0 0 1 * *'
 
@@ -25,7 +25,7 @@ jobs:
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: 3.1.0
+        ruby-version: 3.2.0
 
     # This step is not necessary if you add the gem to your Gemfile
     # - name: Install Code Scanning integration

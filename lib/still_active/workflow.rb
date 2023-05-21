@@ -37,8 +37,11 @@ module StillActive
 
       vs = versions(gem_name: gem_name)
       repo_info = repository_info(gem_name: gem_name, versions: vs)
-      last_commit_date = last_commit_date(source: repo_info[:source], repository_owner: repo_info[:owner],
-        repository_name: repo_info[:name])
+      last_commit_date = last_commit_date(
+        source: repo_info[:source],
+        repository_owner: repo_info[:owner],
+        repository_name: repo_info[:name],
+      )
       last_release = VersionHelper.find_version(versions: vs, pre_release: false)
       last_pre_release = VersionHelper.find_version(versions: vs, pre_release: true)
       result_object[gem_name].merge!({
@@ -63,7 +66,7 @@ module StillActive
           VersionHelper.up_to_date?(
             version_used: version_used,
             latest_version: last_release,
-            latest_pre_release_version: last_pre_release
+            latest_pre_release_version: last_pre_release,
           ),
 
           version_used_release_date: VersionHelper.release_date(version_hash: version_used),

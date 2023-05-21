@@ -4,12 +4,12 @@ RSpec.describe(StillActive::Repository) do
   let(:valid_github_urls) do
     [
       "https://github.com/seanlf/still_active",
-      "https://github.com/seanlf/still_active/blob/master/lib",
+      "https://github.com/seanlf/still_active/blob/main/lib",
     ]
   end
   let(:valid_gitlab_urls) do
     [
-      "https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/graphql/types/query_type.rb",
+      "https://gitlab.com/gitlab-org/gitlab/-/blob/main/app/graphql/types/query_type.rb",
       "https://gitlab.com/gitlab-org/gitlab/",
     ]
   end

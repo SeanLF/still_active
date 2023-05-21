@@ -4,8 +4,18 @@ require "bundler"
 
 module StillActive
   class Config
-    attr_accessor :critical_warning_emoji, :futurist_emoji, :gemfile_path, :gems, :github_oauth_token, :output_format,
-      :parallelism, :no_warning_range_end, :success_emoji, :unsure_emoji, :warning_emoji, :warning_range_end
+    attr_accessor :critical_warning_emoji,
+      :futurist_emoji,
+      :gemfile_path,
+      :gems,
+      :github_oauth_token,
+      :output_format,
+      :parallelism,
+      :no_warning_range_end,
+      :success_emoji,
+      :unsure_emoji,
+      :warning_emoji,
+      :warning_range_end
 
     def initialize
       @gemfile_path = Bundler.default_gemfile.to_s

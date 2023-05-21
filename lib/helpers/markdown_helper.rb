@@ -47,8 +47,10 @@ module StillActive
       formatted_latest_release_version = markdown_url(text: latest_version, url: latest_version_url)
       formatted_latest_release_date = year_month(latest_version_release_date)
 
-      formatted_latest_pre_release_version = markdown_url(text: latest_version_prerelease,
-        url: latest_version_prerelease_url)
+      formatted_latest_pre_release_version = markdown_url(
+        text: latest_version_prerelease,
+        url: latest_version_prerelease_url,
+      )
       formatted_latest_pre_release_date = year_month(latest_version_prerelease_date)
 
       formatted_last_commit_date = markdown_url(text: year_month(last_commit_date), url: last_commit_url)
