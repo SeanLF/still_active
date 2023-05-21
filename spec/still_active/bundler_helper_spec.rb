@@ -9,7 +9,7 @@ RSpec.describe(StillActive::BundlerHelper) do
     let(:expected_results) do
       [
         { name: "rake", version: "13.0.6" },
-        { name: "rspec", version: "3.10.0" },
+        { name: "rspec", version: "3.12.0" },
       ]
     end
 

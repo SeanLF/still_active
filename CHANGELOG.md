@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.5.0] - 2023-05-21
+
+- Explicitly test against ruby 3.2
+- Remove support for ruby 2.7
+- Bump dependencies
+- Lint
+
 ## [0.4.1] - 2022-01-01
 
 - Explicitly test against ruby 3.1

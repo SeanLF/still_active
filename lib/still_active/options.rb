@@ -65,12 +65,18 @@ module StillActive
     end
 
     def add_range_options(opts)
-      opts.on("--no-warning-range-end=YEARS", Integer,
-        "maximum number of years since last activity until which you do not want to be warned about ") do |value|
+      opts.on(
+        "--no-warning-range-end=YEARS",
+        Integer,
+        "maximum number of years since last activity until which you do not want to be warned about ",
+      ) do |value|
         StillActive.config { |config| config.no_warning_range_end = value }
       end
-      opts.on("--warning-range-end=YEARS", Integer,
-        "maximum number of years since last activity that you want to be warned about") do |value|
+      opts.on(
+        "--warning-range-end=YEARS",
+        Integer,
+        "maximum number of years since last activity that you want to be warned about",
+      ) do |value|
         StillActive.config { |config| config.warning_range_end = value }
       end
     end
