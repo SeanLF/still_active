@@ -5,7 +5,7 @@
 ## [0.5.0] - 2023-05-21
 
 - Explicitly test against ruby 3.2
-- Remove support for ruby 2.7
+- Remove support for ruby 2.7, truffleruby
 - Bump dependencies
 - Lint
 - Migrate references from master to main
