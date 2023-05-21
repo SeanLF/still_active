@@ -8,6 +8,7 @@
 - Remove support for ruby 2.7
 - Bump dependencies
 - Lint
+- Migrate references from master to main
 
 ## [0.4.1] - 2022-01-01
 
