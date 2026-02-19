@@ -9,9 +9,13 @@
 - `--fail-if-critical` and `--fail-if-warning` flags for CI quality gating
 - deps.dev integration: OpenSSF Scorecard scores and known CVEs in output
 - Autopublish to RubyGems via GitHub Releases (trusted publishing)
+- Coloured terminal table as default output format with summary line
+- Auto-detection: terminal output for TTY, JSON when piped
 
 ### Changed
 
+- Markdown output collapsed from 12 to 9 columns (dates inlined with versions)
+- `--markdown` is now an explicit opt-in (was the default)
 - Replace `activesupport` with lightweight `CoreExt` refinement
 - Remove unused `async-http` dependency (82 -> 66 installed gems)
 - Re-record VCR cassettes against live APIs
