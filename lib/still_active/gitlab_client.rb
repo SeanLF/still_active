@@ -9,6 +9,21 @@ module StillActive
 
     BASE_URI = URI("https://gitlab.com/")
 
+    def archived?(owner:, name:)
+      return if owner.nil? || name.nil?
+
+      project_id = URI.encode_www_form_component("#{owner}/#{name}")
+      headers = {}
+      token = StillActive.config.gitlab_token
+      headers["PRIVATE-TOKEN"] = token if token
+
+      path = "/api/v4/projects/#{project_id}"
+      body = HttpHelper.get_json(BASE_URI, path, headers: headers)
+      return if body.nil?
+
+      body["archived"] == true
+    end
+
     def last_commit_date(owner:, name:)
       return if owner.nil? || name.nil?
 

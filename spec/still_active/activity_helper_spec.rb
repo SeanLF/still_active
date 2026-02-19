@@ -41,5 +41,15 @@ RSpec.describe(StillActive::ActivityHelper) do
       data = gem_data(last_commit: nil, release: nil, pre_release: 2.years.ago)
       expect(described_class.activity_level(data)).to(eq(:stale))
     end
+
+    it("returns :archived when repo is archived regardless of dates") do
+      data = gem_data(last_commit: Time.now).merge(archived: true)
+      expect(described_class.activity_level(data)).to(eq(:archived))
+    end
+
+    it("does not return :archived when archived is false") do
+      data = gem_data(last_commit: Time.now).merge(archived: false)
+      expect(described_class.activity_level(data)).to(eq(:ok))
+    end
   end
 end

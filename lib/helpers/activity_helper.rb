@@ -8,8 +8,10 @@ module StillActive
 
     using StillActive::CoreExt
 
-    # Returns :ok, :stale, :critical, or :unknown
+    # Returns :archived, :ok, :stale, :critical, or :unknown
     def activity_level(gem_data)
+      return :archived if gem_data[:archived]
+
       most_recent = [
         gem_data[:last_commit_date],
         gem_data[:latest_version_release_date],

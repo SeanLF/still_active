@@ -10,7 +10,7 @@ module StillActive
       case ActivityHelper.activity_level(result_hash)
       when :ok then ""
       when :stale then StillActive.config.warning_emoji
-      when :critical then StillActive.config.critical_warning_emoji
+      when :archived, :critical then StillActive.config.critical_warning_emoji
       when :unknown then StillActive.config.unsure_emoji
       end
     end
