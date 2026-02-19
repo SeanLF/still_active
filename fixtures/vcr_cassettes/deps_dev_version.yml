@@ -1,0 +1,56 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: https://api.deps.dev/v3alpha/systems/rubygems/packages/nokogiri/versions/1.19.1
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Host:
+      - api.deps.dev
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Access-Control-Allow-Origin:
+      - "*"
+      Cache-Control:
+      - public, max-age=3600
+      Content-Type:
+      - application/json; charset=utf-8
+      Strict-Transport-Security:
+      - max-age=2592000; includeSubDomains
+      Vary:
+      - Accept-Encoding
+      Date:
+      - Thu, 19 Feb 2026 15:07:04 GMT
+      Via:
+      - 1.1 google
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: ASCII-8BIT
+      string: '{"versionKey":{"system":"RUBYGEMS", "name":"nokogiri", "version":"1.19.1"},
+        "purl":"pkg:gem/nokogiri@1.19.1", "publishedAt":"2026-02-16T23:31:21Z", "isDefault":true,
+        "isDeprecated":false, "licenses":["MIT"], "licenseDetails":[{"license":"MIT",
+        "spdx":"MIT"}], "advisoryKeys":[], "links":[{"label":"SOURCE_REPO", "url":"https://github.com/sparklemotion/nokogiri"},
+        {"label":"ISSUE_TRACKER", "url":"https://github.com/sparklemotion/nokogiri/issues"},
+        {"label":"HOMEPAGE", "url":"https://nokogiri.org"}, {"label":"DOCUMENTATION",
+        "url":"https://nokogiri.org/rdoc/index.html"}], "slsaProvenances":[], "attestations":[],
+        "registries":["https://rubygems.org/"], "relatedProjects":[{"projectKey":{"id":"github.com/sparklemotion/nokogiri"},
+        "relationProvenance":"UNVERIFIED_METADATA", "relationType":"SOURCE_REPO"},
+        {"projectKey":{"id":"github.com/sparklemotion/nokogiri"}, "relationProvenance":"UNVERIFIED_METADATA",
+        "relationType":"ISSUE_TRACKER"}], "upstreamIdentifiers":[{"packageName":"nokogiri",
+        "versionString":"1.19.1", "source":"RUBYGEMS_ORG"}]}'
+  recorded_at: Thu, 19 Feb 2026 15:07:04 GMT
+recorded_with: VCR 6.4.0
