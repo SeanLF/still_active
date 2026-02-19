@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
-require "active_support/isolated_execution_state"
-require "active_support/core_ext/integer/time"
+require_relative "../still_active/core_ext"
 
 module StillActive
   module EmojiHelper
     extend self
+
+    using StillActive::CoreExt
 
     def inactive_gem_emoji(result_hash)
       most_recent_activity = [

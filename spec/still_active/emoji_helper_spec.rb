@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
-require "active_support/core_ext/integer/time"
+require_relative "../../lib/still_active/core_ext"
+
+using StillActive::CoreExt
 
 RSpec.describe(StillActive::EmojiHelper) do
   describe("#inactive_gem_emoji") do
@@ -25,7 +27,7 @@ RSpec.describe(StillActive::EmojiHelper) do
             elsif num.zero?
               now
             else
-              now - num.year + 1.day
+              now - num.years + 1.days
             end
           end
           hash_keys

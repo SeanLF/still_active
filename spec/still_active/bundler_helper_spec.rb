@@ -8,7 +8,7 @@ RSpec.describe(StillActive::BundlerHelper) do
 
     after do
       Bundler.reset!
-      Bundler.try(:reset_settings_and_root!)
+      Bundler.reset_settings_and_root! if Bundler.respond_to?(:reset_settings_and_root!)
     end
 
     it("returns the versioned gems specified in the gemfile") do
