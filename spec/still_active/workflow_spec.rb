@@ -1,14 +1,5 @@
 # frozen_string_literal: true
 
-require "vcr"
-
-VCR.configure do |config|
-  config.cassette_library_dir = "fixtures/vcr_cassettes"
-  config.hook_into(:webmock)
-  config.filter_sensitive_data("<GITHUB_TOKEN>") { ENV.fetch("GITHUB_TOKEN", "") }
-  config.filter_sensitive_data("<RUBYGEMS_API_KEY>") { ENV.fetch("RUBYGEMS_API_KEY", "") }
-end
-
 RSpec.describe(StillActive::Workflow) do
   describe("#call") do
     subject(:result) { described_class.call }

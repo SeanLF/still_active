@@ -87,5 +87,11 @@ RSpec.describe(StillActive::TerminalHelper) do
         expect(line.strip).not_to(be_empty)
       end
     end
+
+    context("with empty results") do
+      it("does not raise") do
+        expect { described_class.render({}) }.not_to(raise_error)
+      end
+    end
   end
 end

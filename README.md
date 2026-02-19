@@ -1,6 +1,6 @@
 # `still_active`
 
-Identify which of your dependencies are no longer under active development.
+Analyses your Gemfile dependencies for staleness: latest releases, last commit dates (GitHub and GitLab), OpenSSF Scorecard scores, and known vulnerabilities via deps.dev. Outputs coloured terminal tables, markdown, or JSON with CI gating support.
 
 [![Gem Version](https://badge.fury.io/rb/still_active.svg)](https://badge.fury.io/rb/still_active)
 
@@ -16,7 +16,7 @@ gem install still_active
 
 ## Usage
 
-The most important flags are the API tokens -- without a GitHub token you will most certainly get rate limited. The GitLab token is optional for public repos but required for private ones.
+Tokens are read from `GITHUB_TOKEN` and `GITLAB_TOKEN` environment variables by default. Without a GitHub token you will most certainly get rate limited. The GitLab token is optional for public repos but required for private ones. CLI flags override the env vars.
 
 ```text
 Usage: still_active [options]
@@ -31,8 +31,8 @@ Usage: still_active [options]
         --github-oauth-token=TOKEN   GitHub OAuth token to make API calls
         --gitlab-token=TOKEN         GitLab personal access token for API calls
         --simultaneous-requests=QTY  Number of simultaneous requests made
-        --no-warning-range-end=YEARS maximum number of years since last activity until which you do not want to be warned about
-        --warning-range-end=YEARS    maximum number of years since last activity that you want to be warned about
+        --safe-range-end=YEARS       maximum years since last activity considered safe (no warning)
+        --warning-range-end=YEARS    maximum years since last activity that triggers a warning (beyond this is critical)
         --fail-if-critical           Exit 1 if any gem has critical activity warning
         --fail-if-warning            Exit 1 if any gem has warning or critical activity warning
         --critical-warning-emoji=EMOJI
@@ -86,19 +86,19 @@ still_active --markdown
 
 Outputs:
 
-| activity | up to date? | scorecard | vulns | name | version used | latest version | latest pre-release | last commit |
-| -------- | ----------- | --------- | ----- | ---- | ------------ | -------------- | ------------------ | ----------- |
-| ⚠️ | ✅ | 3.1/10 | ✅ | [code-scanning-rubocop](https://github.com/arthurnn/code-scanning-rubocop) | [0.6.1](https://rubygems.org/gems/code-scanning-rubocop/versions/0.6.1) (2022/02) | [0.6.1](https://rubygems.org/gems/code-scanning-rubocop/versions/0.6.1) (2022/02) | ❓ | [2024/06](https://github.com/arthurnn/code-scanning-rubocop) |
-| | ✅ | 5.2/10 | ✅ | [debug](https://github.com/ruby/debug) | [1.11.1](https://rubygems.org/gems/debug/versions/1.11.1) (2025/12) | [1.11.1](https://rubygems.org/gems/debug/versions/1.11.1) (2025/12) | [1.0.0.rc2](https://rubygems.org/gems/debug/versions/1.0.0.rc2) (2021/09) | [2025/12](https://github.com/ruby/debug) |
-| | ✅ | 7.4/10 | ✅ | [faker](https://github.com/faker-ruby/faker) | [3.6.0](https://rubygems.org/gems/faker/versions/3.6.0) (2026/01) | [3.6.0](https://rubygems.org/gems/faker/versions/3.6.0) (2026/01) | ❓ | [2026/02](https://github.com/faker-ruby/faker) |
-| | ✅ | 5.3/10 | ✅ | [rake](https://github.com/ruby/rake) | [13.3.1](https://rubygems.org/gems/rake/versions/13.3.1) (2025/10) | [13.3.1](https://rubygems.org/gems/rake/versions/13.3.1) (2025/10) | [13.0.0.pre.1](https://rubygems.org/gems/rake/versions/13.0.0.pre.1) (2019/09) | [2026/02](https://github.com/ruby/rake) |
-| | ✅ | 6.9/10 | ✅ | [rspec](https://github.com/rspec/rspec) | [3.13.2](https://rubygems.org/gems/rspec/versions/3.13.2) (2025/10) | [3.13.2](https://rubygems.org/gems/rspec/versions/3.13.2) (2025/10) | [4.0.0.beta1](https://rubygems.org/gems/rspec/versions/4.0.0.beta1) (2026/02) | [2026/02](https://github.com/rspec/rspec) |
-| | ✅ | 5.9/10 | ✅ | [rubocop](https://github.com/rubocop/rubocop) | [1.84.2](https://rubygems.org/gems/rubocop/versions/1.84.2) (2026/02) | [1.84.2](https://rubygems.org/gems/rubocop/versions/1.84.2) (2026/02) | ❓ | [2026/02](https://github.com/rubocop/rubocop) |
-| | ✅ | ❓ | ✅ | [rubocop-performance](https://github.com/rubocop/rubocop-performance) | [1.26.1](https://rubygems.org/gems/rubocop-performance/versions/1.26.1) (2025/10) | [1.26.1](https://rubygems.org/gems/rubocop-performance/versions/1.26.1) (2025/10) | ❓ | [2026/01](https://github.com/rubocop/rubocop-performance) |
-| | ✅ | ❓ | ✅ | [rubocop-rspec](https://github.com/rubocop/rubocop-rspec) | [3.9.0](https://rubygems.org/gems/rubocop-rspec/versions/3.9.0) (2026/01) | [3.9.0](https://rubygems.org/gems/rubocop-rspec/versions/3.9.0) (2026/01) | [3.0.0.pre](https://rubygems.org/gems/rubocop-rspec/versions/3.0.0.pre) (2024/06) | [2026/02](https://github.com/rubocop/rubocop-rspec) |
-| | ✅ | ❓ | ✅ | [rubocop-shopify](https://github.com/Shopify/ruby-style-guide) | [2.18.0](https://rubygems.org/gems/rubocop-shopify/versions/2.18.0) (2025/10) | [2.18.0](https://rubygems.org/gems/rubocop-shopify/versions/2.18.0) (2025/10) | ❓ | [2026/01](https://github.com/Shopify/ruby-style-guide) |
-| | ✅ | ❓ | ✅ | [vcr](https://github.com/vcr/vcr) | [6.4.0](https://rubygems.org/gems/vcr/versions/6.4.0) (2025/12) | [6.4.0](https://rubygems.org/gems/vcr/versions/6.4.0) (2025/12) | [2.0.0.rc2](https://rubygems.org/gems/vcr/versions/2.0.0.rc2) (2012/02) | [2026/01](https://github.com/vcr/vcr) |
-| | ✅ | 4.2/10 | ✅ | [webmock](https://github.com/bblimke/webmock) | [3.26.1](https://rubygems.org/gems/webmock/versions/3.26.1) (2025/10) | [3.26.1](https://rubygems.org/gems/webmock/versions/3.26.1) (2025/10) | [2.0.0.beta2](https://rubygems.org/gems/webmock/versions/2.0.0.beta2) (2016/04) | [2026/01](https://github.com/bblimke/webmock) |
+| activity | up to date? | OpenSSF | vulns | name                                                                       | version used                                                                      | latest version                                                                    | latest pre-release                                                                | last commit                                                  |
+| -------- | ----------- | ------- | ----- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| ⚠️       | ✅          | 3.1/10  | ✅    | [code-scanning-rubocop](https://github.com/arthurnn/code-scanning-rubocop) | [0.6.1](https://rubygems.org/gems/code-scanning-rubocop/versions/0.6.1) (2022/02) | [0.6.1](https://rubygems.org/gems/code-scanning-rubocop/versions/0.6.1) (2022/02) | ❓                                                                                | [2024/06](https://github.com/arthurnn/code-scanning-rubocop) |
+|          | ✅          | 5.2/10  | ✅    | [debug](https://github.com/ruby/debug)                                     | [1.11.1](https://rubygems.org/gems/debug/versions/1.11.1) (2025/12)               | [1.11.1](https://rubygems.org/gems/debug/versions/1.11.1) (2025/12)               | [1.0.0.rc2](https://rubygems.org/gems/debug/versions/1.0.0.rc2) (2021/09)         | [2025/12](https://github.com/ruby/debug)                     |
+|          | ✅          | 7.4/10  | ✅    | [faker](https://github.com/faker-ruby/faker)                               | [3.6.0](https://rubygems.org/gems/faker/versions/3.6.0) (2026/01)                 | [3.6.0](https://rubygems.org/gems/faker/versions/3.6.0) (2026/01)                 | ❓                                                                                | [2026/02](https://github.com/faker-ruby/faker)               |
+|          | ✅          | 5.3/10  | ✅    | [rake](https://github.com/ruby/rake)                                       | [13.3.1](https://rubygems.org/gems/rake/versions/13.3.1) (2025/10)                | [13.3.1](https://rubygems.org/gems/rake/versions/13.3.1) (2025/10)                | [13.0.0.pre.1](https://rubygems.org/gems/rake/versions/13.0.0.pre.1) (2019/09)    | [2026/02](https://github.com/ruby/rake)                      |
+|          | ✅          | 6.9/10  | ✅    | [rspec](https://github.com/rspec/rspec)                                    | [3.13.2](https://rubygems.org/gems/rspec/versions/3.13.2) (2025/10)               | [3.13.2](https://rubygems.org/gems/rspec/versions/3.13.2) (2025/10)               | [4.0.0.beta1](https://rubygems.org/gems/rspec/versions/4.0.0.beta1) (2026/02)     | [2026/02](https://github.com/rspec/rspec)                    |
+|          | ✅          | 5.9/10  | ✅    | [rubocop](https://github.com/rubocop/rubocop)                              | [1.84.2](https://rubygems.org/gems/rubocop/versions/1.84.2) (2026/02)             | [1.84.2](https://rubygems.org/gems/rubocop/versions/1.84.2) (2026/02)             | ❓                                                                                | [2026/02](https://github.com/rubocop/rubocop)                |
+|          | ✅          | ❓      | ✅    | [rubocop-performance](https://github.com/rubocop/rubocop-performance)      | [1.26.1](https://rubygems.org/gems/rubocop-performance/versions/1.26.1) (2025/10) | [1.26.1](https://rubygems.org/gems/rubocop-performance/versions/1.26.1) (2025/10) | ❓                                                                                | [2026/01](https://github.com/rubocop/rubocop-performance)    |
+|          | ✅          | ❓      | ✅    | [rubocop-rspec](https://github.com/rubocop/rubocop-rspec)                  | [3.9.0](https://rubygems.org/gems/rubocop-rspec/versions/3.9.0) (2026/01)         | [3.9.0](https://rubygems.org/gems/rubocop-rspec/versions/3.9.0) (2026/01)         | [3.0.0.pre](https://rubygems.org/gems/rubocop-rspec/versions/3.0.0.pre) (2024/06) | [2026/02](https://github.com/rubocop/rubocop-rspec)          |
+|          | ✅          | ❓      | ✅    | [rubocop-shopify](https://github.com/Shopify/ruby-style-guide)             | [2.18.0](https://rubygems.org/gems/rubocop-shopify/versions/2.18.0) (2025/10)     | [2.18.0](https://rubygems.org/gems/rubocop-shopify/versions/2.18.0) (2025/10)     | ❓                                                                                | [2026/01](https://github.com/Shopify/ruby-style-guide)       |
+|          | ✅          | ❓      | ✅    | [vcr](https://github.com/vcr/vcr)                                          | [6.4.0](https://rubygems.org/gems/vcr/versions/6.4.0) (2025/12)                   | [6.4.0](https://rubygems.org/gems/vcr/versions/6.4.0) (2025/12)                   | [2.0.0.rc2](https://rubygems.org/gems/vcr/versions/2.0.0.rc2) (2012/02)           | [2026/01](https://github.com/vcr/vcr)                        |
+|          | ✅          | 4.2/10  | ✅    | [webmock](https://github.com/bblimke/webmock)                              | [3.26.1](https://rubygems.org/gems/webmock/versions/3.26.1) (2025/10)             | [3.26.1](https://rubygems.org/gems/webmock/versions/3.26.1) (2025/10)             | [2.0.0.beta2](https://rubygems.org/gems/webmock/versions/2.0.0.beta2) (2016/04)   | [2026/01](https://github.com/bblimke/webmock)                |
 
 ### CI quality gating
 
@@ -107,6 +107,12 @@ Use `--fail-if-critical` or `--fail-if-warning` to fail CI pipelines when depend
 ```bash
 still_active --gemfile=Gemfile --fail-if-warning --json
 ```
+
+### Data sources
+
+- **Versions and release dates** from [RubyGems.org](https://rubygems.org)
+- **Last commit date** from the [GitHub](https://docs.github.com/en/rest) or [GitLab](https://docs.gitlab.com/ee/api/) API
+- **OpenSSF Scorecard** and **vulnerability counts** from Google's [deps.dev](https://deps.dev) API
 
 ### Configuration options
 
@@ -117,8 +123,8 @@ still_active --gemfile=Gemfile --fail-if-warning --json
 - `success_emoji` ✅
 - `unsure_emoji` ❓
 - `warning_emoji` ⚠️
-- `no_warning_range_end` 1 (considered safe if last activity is at most 1 year ago)
-- `warning_range_end` 3 (warns if last activity is between 1 and 3 years ago)
+- `safe_range_end` 1 (considered safe if last activity is at most 1 year ago)
+- `warning_range_end` 3 (warns if last activity is between 1 and 3 years ago; beyond 3 is critical)
 
 ## Development
 

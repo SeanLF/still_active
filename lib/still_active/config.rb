@@ -26,6 +26,8 @@ module StillActive
       @fail_if_warning = false
       @gemfile_path = Bundler.default_gemfile.to_s
       @gems = []
+      @github_oauth_token = ENV["GITHUB_TOKEN"]
+      @gitlab_token = ENV["GITLAB_TOKEN"]
 
       @parallelism = 10
 

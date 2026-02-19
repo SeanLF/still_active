@@ -8,7 +8,7 @@ module StillActive
   module TerminalHelper
     extend self
 
-    HEADERS = ["Name", "Version", "Activity", "Scorecard", "Vulns"].freeze
+    HEADERS = ["Name", "Version", "Activity", "OpenSSF", "Vulns"].freeze
 
     def render(result)
       rows = result.keys.sort.map { |name| build_row(name, result[name]) }
@@ -70,6 +70,8 @@ module StillActive
     end
 
     def column_widths(rows)
+      return HEADERS.map { |h| h.length + 2 } if rows.empty?
+
       HEADERS.zip(rows.transpose).map do |header, cells|
         widths = cells.map { AnsiHelper.visible_length(_1) }
         [header.length, *widths].max + 2

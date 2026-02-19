@@ -49,7 +49,7 @@ module StillActive
     end
 
     def add_output_options(opts)
-      opts.on("--terminal", "Coloured terminal output (default)") { StillActive.config { |config| config.output_format = :terminal } }
+      opts.on("--terminal", "Coloured terminal output (default in TTY)") { StillActive.config { |config| config.output_format = :terminal } }
       opts.on("--markdown", "Markdown table output") { StillActive.config { |config| config.output_format = :markdown } }
       opts.on("--json", "JSON output (default when piped)") { StillActive.config { |config| config.output_format = :json } }
     end
@@ -71,16 +71,16 @@ module StillActive
 
     def add_range_options(opts)
       opts.on(
-        "--no-warning-range-end=YEARS",
+        "--safe-range-end=YEARS",
         Integer,
-        "maximum number of years since last activity until which you do not want to be warned about ",
+        "maximum years since last activity considered safe (no warning)",
       ) do |value|
         StillActive.config { |config| config.no_warning_range_end = value }
       end
       opts.on(
         "--warning-range-end=YEARS",
         Integer,
-        "maximum number of years since last activity that you want to be warned about",
+        "maximum years since last activity that triggers a warning (beyond this is critical)",
       ) do |value|
         StillActive.config { |config| config.warning_range_end = value }
       end

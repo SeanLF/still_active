@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
-require "net/http"
-require "json"
+require_relative "../helpers/http_helper"
 
 module StillActive
   module DepsDevClient
@@ -13,7 +12,7 @@ module StillActive
       return if gem_name.nil? || version.nil?
 
       path = "/v3alpha/systems/rubygems/packages/#{encode(gem_name)}/versions/#{encode(version)}"
-      body = get(path)
+      body = HttpHelper.get_json(BASE_URI, path)
       return if body.nil?
 
       {
@@ -26,7 +25,7 @@ module StillActive
       return if project_id.nil?
 
       path = "/v3alpha/projects/#{encode(project_id)}"
-      body = get(path)
+      body = HttpHelper.get_json(BASE_URI, path)
       return if body.nil?
 
       scorecard = body["scorecard"]
@@ -49,22 +48,6 @@ module StillActive
       path = url.delete_prefix("https://").delete_prefix("http://")
       segments = path.split("/")
       segments[0..2].join("/") if segments.length >= 3
-    end
-
-    def get(path)
-      uri = BASE_URI.dup
-      uri.path = path
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = true
-      http.open_timeout = 10
-      http.read_timeout = 10
-
-      response = http.request(Net::HTTP::Get.new(uri))
-      return unless response.is_a?(Net::HTTPSuccess)
-
-      JSON.parse(response.body)
-    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED
-      nil
     end
 
     def encode(value)

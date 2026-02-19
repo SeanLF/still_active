@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
-require "webmock/rspec"
-require_relative "../../lib/still_active/gitlab_client"
-
 RSpec.describe(StillActive::GitlabClient) do
+  before { StillActive.reset }
+
   let(:owner) { "inkscape" }
   let(:name) { "inkscape" }
   let(:api_url) { "https://gitlab.com/api/v4/projects/#{owner}%2F#{name}/repository/commits?per_page=1" }

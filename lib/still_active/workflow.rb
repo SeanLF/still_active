@@ -12,7 +12,6 @@ require "gems"
 module StillActive
   module Workflow
     extend self
-    include VersionHelper
 
     def call
       task = Async do
@@ -38,7 +37,7 @@ module StillActive
 
       vs = versions(gem_name: gem_name)
       repo_info = repository_info(gem_name: gem_name, versions: vs)
-      last_commit_date = last_commit_date(
+      commit_date = last_commit_date(
         source: repo_info[:source],
         repository_owner: repo_info[:owner],
         repository_name: repo_info[:name],
@@ -57,7 +56,7 @@ module StillActive
         latest_pre_release_version_release_date: VersionHelper.release_date(version_hash: last_pre_release),
 
         repository_url: repo_info[:url],
-        last_commit_date: last_commit_date,
+        last_commit_date: commit_date,
         **deps_dev,
       })
 
@@ -78,7 +77,7 @@ module StillActive
         })
       end
     rescue StandardError => e
-      puts "error occured for #{gem_name}: #{e.class}\n\t#{e.message}"
+      $stderr.puts "error occurred for #{gem_name}: #{e.class}\n\t#{e.message}"
     end
 
     def fetch_deps_dev_info(gem_name:, version:)
@@ -134,7 +133,7 @@ module StillActive
     end
 
     def last_commit_date(source:, repository_owner:, repository_name:)
-      case source.to_sym
+      case source
       when :github
         commit = StillActive.config.github_client.commits("#{repository_owner}/#{repository_name}", per_page: 1)&.first
         date = commit&.commit&.author&.date

@@ -42,7 +42,7 @@ RSpec.describe(StillActive::Repository) do
         it("returns valid") do
           valid_github_urls.each do |url|
             subject = described_class.url_with_owner_and_name(url: url)
-            expected_result = { source: "github", owner: "seanlf", name: "still_active" }
+            expected_result = { source: :github, owner: "seanlf", name: "still_active" }
             expect(subject).to(include(expected_result))
           end
         end
@@ -52,7 +52,7 @@ RSpec.describe(StillActive::Repository) do
         it("returns valid") do
           valid_gitlab_urls.each do |url|
             subject = described_class.url_with_owner_and_name(url: url)
-            expected_result = { source: "gitlab", owner: "gitlab-org", name: "gitlab" }
+            expected_result = { source: :gitlab, owner: "gitlab-org", name: "gitlab" }
             expect(subject).to(include(expected_result))
           end
         end

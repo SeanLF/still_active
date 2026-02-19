@@ -5,15 +5,15 @@ module StillActive
     extend self
 
     def markdown_table_header_line
-      "| activity | up to date? | scorecard | vulns | name | version used | latest version | latest pre-release | last commit |\n" \
-        "| -------- | ----------- | --------- | ----- | ---- | ------------ | -------------- | ------------------ | ----------- |"
+      "| activity | up to date? | OpenSSF | vulns | name | version used | latest version | latest pre-release | last commit |\n" \
+        "| -------- | ----------- | ------- | ----- | ---- | ------------ | -------------- | ------------------ | ----------- |"
     end
 
     def markdown_table_body_line(gem_name:, data:)
       repository_url = data[:repository_url]
       ruby_gems_url = data[:ruby_gems_url]
 
-      inactive_repository_emoji = data[:last_activity_warning_emoj]
+      inactive_repository_emoji = data[:last_activity_warning_emoji]
       using_latest_version_emoji = data[:up_to_date_emoji]
 
       formatted_name = markdown_url(text: gem_name, url: repository_url)

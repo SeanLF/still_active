@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Added
-
-- GitLab repository support with `--gitlab-token` flag
-
 ## [1.0.0] - 2026-02-19
 
 ### Added
@@ -15,21 +9,37 @@
 - Autopublish to RubyGems via GitHub Releases (trusted publishing)
 - Coloured terminal table as default output format with summary line
 - Auto-detection: terminal output for TTY, JSON when piped
+- GitLab repository support with `--gitlab-token` flag
+- Default token loading from `GITHUB_TOKEN` and `GITLAB_TOKEN` env vars
+- Dependabot for bundler and GitHub Actions (grouped minor/patch updates)
+- Require MFA for RubyGems publishing
 
 ### Changed
 
-- Markdown output collapsed from 12 to 9 columns (dates inlined with versions)
-- `--markdown` is now an explicit opt-in (was the default)
+- **BREAKING:** Rename `--no-warning-range-end` to `--safe-range-end` (fixes OptionParser conflict)
+- **BREAKING:** Default output is now auto-detected (terminal on TTY, JSON when piped); `--markdown` is an explicit opt-in
+- **BREAKING:** Markdown table collapsed from 12 to 9 columns (dates inlined with versions)
 - Replace `activesupport` with lightweight `CoreExt` refinement
 - Remove unused `async-http` dependency (82 -> 66 installed gems)
+- Rename "Scorecard" column to "OpenSSF" for clarity
+- Extract shared HTTP helper from DepsDevClient and GitlabClient
+- Consolidate VCR test configuration into spec_helper
 - Re-record VCR cassettes against live APIs
 
 ### Fixed
 
-- Version comparison uses `Gem::Version` instead of string equality (versions ahead of published no longer appear outdated)
+- Markdown output showed wrong emoji for pre-release version comparison
+- Errors during gem lookup now go to stderr instead of corrupting structured output
+- Repository URL matching handles dots in org/repo names
+- Guard against nil URLs in Repository.valid?
+- Handle malformed JSON responses from APIs gracefully
+- Terminal output no longer crashes on empty results
+- Version comparison uses `Gem::Version` instead of string equality
 - deps.dev project ID parsing handles URLs with trailing paths
 - Add `faraday-retry` runtime dependency to silence Faraday v2 warning
-- Clean up code smells across helpers and workflow
+- Add missing `require "time"` for `Time.parse` in VersionHelper
+- Fix `:last_activity_warning_emoji` key typo
+- Remove dead `Gemfile` module and unused `include VersionHelper`
 
 ## [0.6.0] - 2026-02-19
 

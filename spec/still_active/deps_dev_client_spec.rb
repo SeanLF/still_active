@@ -1,14 +1,5 @@
 # frozen_string_literal: true
 
-require "vcr"
-require "webmock/rspec"
-require_relative "../../lib/still_active/deps_dev_client"
-
-VCR.configure do |config|
-  config.cassette_library_dir = "fixtures/vcr_cassettes"
-  config.hook_into(:webmock)
-end
-
 RSpec.describe(StillActive::DepsDevClient) do
   describe(".version_info") do
     it("returns advisory keys and project id for a known gem") do

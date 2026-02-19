@@ -11,8 +11,6 @@ require_relative "workflow"
 
 module StillActive
   class CLI
-    include VersionHelper
-
     def run(args)
       options = Options.new.parse!(args)
       if options[:provided_gems]
@@ -48,13 +46,13 @@ module StillActive
       puts MarkdownHelper.markdown_table_header_line
       result.keys.sort.each do |name|
         gem_data = result[name]
-        gem_data[:last_activity_warning_emoj] = EmojiHelper.inactive_gem_emoji(gem_data)
+        gem_data[:last_activity_warning_emoji] = EmojiHelper.inactive_gem_emoji(gem_data)
         gem_data[:up_to_date_emoji] = EmojiHelper.using_latest_emoji(
           using_last_release: VersionHelper.up_to_date(
             version_used: gem_data[:version_used], latest_version: gem_data[:latest_version],
           ),
           using_last_pre_release: VersionHelper.up_to_date(
-            version_used: gem_data[:version_used], latest_version: gem_data[:latest_pre_release_version],
+            version_used: gem_data[:version_used], latest_pre_release_version: gem_data[:latest_pre_release_version],
           ),
         )
 
