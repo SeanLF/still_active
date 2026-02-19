@@ -32,7 +32,7 @@ module StillActive
         format_version(data),
         format_activity(data),
         format_scorecard(data[:scorecard_score]),
-        format_vulns(data[:vulnerability_count]),
+        format_vulns(data),
       ]
     end
 
@@ -65,11 +65,28 @@ module StillActive
       score.nil? ? AnsiHelper.dim("-") : "#{score}/10"
     end
 
-    def format_vulns(count)
+    def format_vulns(data)
+      count = data[:vulnerability_count]
       return AnsiHelper.dim("-") if count.nil?
       return AnsiHelper.green("0") if count.zero?
 
-      AnsiHelper.red(count.to_s)
+      severity = highest_severity(data[:vulnerabilities])
+      label = severity ? "#{count} (#{severity})" : count.to_s
+      AnsiHelper.red(label)
+    end
+
+    def highest_severity(vulnerabilities)
+      return if vulnerabilities.nil? || vulnerabilities.empty?
+
+      max_score = vulnerabilities.filter_map { |v| v[:cvss3_score] }.max
+      return if max_score.nil?
+
+      case max_score
+      when 9.0..Float::INFINITY then "critical"
+      when 7.0...9.0 then "high"
+      when 4.0...7.0 then "medium"
+      else "low"
+      end
     end
 
     def column_widths(rows)

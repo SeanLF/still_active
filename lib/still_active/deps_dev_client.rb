@@ -37,6 +37,23 @@ module StillActive
       }
     end
 
+    def advisory_detail(advisory_id:)
+      return if advisory_id.nil?
+
+      path = "/v3alpha/advisories/#{encode(advisory_id)}"
+      body = HttpHelper.get_json(BASE_URI, path)
+      return if body.nil?
+
+      {
+        id: body.dig("advisoryKey", "id"),
+        url: body["url"],
+        title: body["title"],
+        aliases: body["aliases"]&.map { |a| a["id"] } || [],
+        cvss3_score: body["cvss3Score"],
+        cvss3_vector: body["cvss3Vector"],
+      }
+    end
+
     private
 
     # Extracts "host/owner/repo" from the SOURCE_REPO link URL.

@@ -95,9 +95,12 @@ module StillActive
     def fetch_deps_dev_info(gem_name:, version:)
       info = DepsDevClient.version_info(gem_name: gem_name, version: version)
       scorecard = DepsDevClient.project_scorecard(project_id: info&.dig(:project_id))
+      advisory_keys = info&.dig(:advisory_keys) || []
+      vulnerabilities = advisory_keys.filter_map { |id| DepsDevClient.advisory_detail(advisory_id: id) }
       {
         scorecard_score: scorecard&.dig(:score),
-        vulnerability_count: info&.dig(:advisory_keys)&.length,
+        vulnerability_count: advisory_keys.length,
+        vulnerabilities: vulnerabilities,
       }
     end
 

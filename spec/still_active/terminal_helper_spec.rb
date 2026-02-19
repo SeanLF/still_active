@@ -28,6 +28,11 @@ RSpec.describe(StillActive::TerminalHelper) do
         latest_pre_release_version_release_date: nil,
         scorecard_score: nil,
         vulnerability_count: 3,
+        vulnerabilities: [
+          { id: "GHSA-1", cvss3_score: 9.8 },
+          { id: "GHSA-2", cvss3_score: 5.0 },
+          { id: "GHSA-3", cvss3_score: 3.0 },
+        ],
         repository_url: "https://github.com/example/stale",
         ruby_gems_url: "https://rubygems.org/gems/stale_gem",
         libyear: 2.5,
@@ -67,8 +72,8 @@ RSpec.describe(StillActive::TerminalHelper) do
       expect(output).to(include("5.7/10"))
     end
 
-    it("shows vulnerability count") do
-      expect(output).to(include("3"))
+    it("shows vulnerability count with severity") do
+      expect(output).to(include("3 (critical)"))
     end
 
     it("includes a summary line") do

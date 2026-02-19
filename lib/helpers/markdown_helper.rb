@@ -48,7 +48,7 @@ module StillActive
         inactive_repository_emoji || unsure,
         using_latest_version_emoji || unsure,
         format_scorecard(data[:scorecard_score]),
-        format_vulns(data[:vulnerability_count]),
+        format_vulns(data),
         formatted_name,
         formatted_version_used || unsure,
         formatted_latest_version || unsure,
@@ -90,11 +90,32 @@ module StillActive
       "#{value}y"
     end
 
-    def format_vulns(count)
+    def format_vulns(data)
+      count = data[:vulnerability_count]
       return StillActive.config.unsure_emoji if count.nil?
       return StillActive.config.success_emoji if count.zero?
 
-      count.to_s
+      vulnerabilities = data[:vulnerabilities] || []
+      severity = highest_severity(vulnerabilities)
+      ids = vulnerabilities.flat_map { |v| [v[:id], *v[:aliases]] }.compact.uniq.first(3)
+
+      parts = [severity ? "#{count} (#{severity})" : count.to_s]
+      parts << ids.join(", ") unless ids.empty?
+      parts.join(" ")
+    end
+
+    def highest_severity(vulnerabilities)
+      return if vulnerabilities.empty?
+
+      max_score = vulnerabilities.filter_map { |v| v[:cvss3_score] }.max
+      return if max_score.nil?
+
+      case max_score
+      when 9.0..Float::INFINITY then "critical"
+      when 7.0...9.0 then "high"
+      when 4.0...7.0 then "medium"
+      else "low"
+      end
     end
 
     def markdown_url(text:, url:)

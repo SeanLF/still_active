@@ -90,7 +90,7 @@ RSpec.describe(StillActive::MarkdownHelper) do
       end
     end
 
-    context("when vulnerability count is nonzero") do
+    context("when vulnerability count is nonzero with details") do
       let(:data) do
         {
           last_activity_warning_emoji: "",
@@ -105,12 +105,17 @@ RSpec.describe(StillActive::MarkdownHelper) do
           ruby_gems_url: "https://rubygems.org/gems/gem",
           last_commit_date: Time.now,
           scorecard_score: 5.0,
-          vulnerability_count: 3,
+          vulnerability_count: 2,
+          vulnerabilities: [
+            { id: "GHSA-abc", aliases: ["CVE-2024-1234"], cvss3_score: 9.1 },
+            { id: "GHSA-def", aliases: [], cvss3_score: 5.0 },
+          ],
         }
       end
 
-      it("shows the count as a number") do
-        expect(line).to(include("3"))
+      it("shows count with severity and advisory IDs") do
+        expect(line).to(include("2 (critical)"))
+        expect(line).to(include("GHSA-abc"))
       end
     end
   end

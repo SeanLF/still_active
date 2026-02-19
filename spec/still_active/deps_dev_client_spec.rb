@@ -34,6 +34,39 @@ RSpec.describe(StillActive::DepsDevClient) do
     end
   end
 
+  describe(".advisory_detail") do
+    it("returns advisory details for a known advisory") do
+      body = {
+        "advisoryKey" => { "id" => "GHSA-test-1234" },
+        "url" => "https://github.com/advisories/GHSA-test-1234",
+        "title" => "Test vulnerability",
+        "aliases" => [{ "id" => "CVE-2024-1234" }],
+        "cvss3Score" => 9.8,
+        "cvss3Vector" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      }
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/}).to_return(
+        status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" },
+      )
+
+      result = described_class.advisory_detail(advisory_id: "GHSA-test-1234")
+      expect(result).to(include(
+        id: "GHSA-test-1234",
+        title: "Test vulnerability",
+        cvss3_score: 9.8,
+        aliases: ["CVE-2024-1234"],
+      ))
+    end
+
+    it("returns nil when advisory_id is nil") do
+      expect(described_class.advisory_detail(advisory_id: nil)).to(be_nil)
+    end
+
+    it("returns nil on timeout") do
+      stub_request(:get, /api\.deps\.dev/).to_timeout
+      expect(described_class.advisory_detail(advisory_id: "GHSA-test")).to(be_nil)
+    end
+  end
+
   describe(".project_scorecard") do
     it("returns score and date for a known project") do
       VCR.use_cassette("deps_dev_project") do
