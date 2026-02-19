@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.2] - 2026-02-19
+
+### Changed
+
+- Reduce gem package from 2.4MB to essentials only (lib/, bin/still_active, LICENSE, README, CHANGELOG, gemspec)
+
 ## [1.0.1] - 2026-02-19
 
 ### Changed
