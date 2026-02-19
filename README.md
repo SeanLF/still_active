@@ -16,7 +16,7 @@ gem install still_active
 
 ## Usage
 
-The most important flag is the GitHub OAuth token, without which you will most certainly get rate limited.
+The most important flags are the API tokens -- without a GitHub token you will most certainly get rate limited. The GitLab token is optional for public repos but required for private ones.
 
 ```text
 Usage: still_active [options]
@@ -29,6 +29,7 @@ Usage: still_active [options]
         --markdown                   Markdown table output
         --json                       JSON output (default when piped)
         --github-oauth-token=TOKEN   GitHub OAuth token to make API calls
+        --gitlab-token=TOKEN         GitLab personal access token for API calls
         --simultaneous-requests=QTY  Number of simultaneous requests made
         --no-warning-range-end=YEARS maximum number of years since last activity until which you do not want to be warned about
         --warning-range-end=YEARS    maximum number of years since last activity that you want to be warned about

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- GitLab repository support with `--gitlab-token` flag
+
 ## [1.0.0] - 2026-02-19
 
 ### Added
@@ -22,6 +26,9 @@
 
 ### Fixed
 
+- Version comparison uses `Gem::Version` instead of string equality (versions ahead of published no longer appear outdated)
+- deps.dev project ID parsing handles URLs with trailing paths
+- Add `faraday-retry` runtime dependency to silence Faraday v2 warning
 - Clean up code smells across helpers and workflow
 
 ## [0.6.0] - 2026-02-19
