@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.0] - 2026-02-19
+
+### Added
+
+- `--ignore=GEM,GEM2,...` flag to exclude gems from pass/fail checks while keeping them in output
+- `--fail-below-score=SCORE` flag for health-based CI gating (exit 1 if any gem scores below threshold)
+- Yanked version detection: flags pinned versions that have been pulled from RubyGems
+- Archived repo detection via GitHub and GitLab APIs, treated as critical for exit checks
+- Libyear metric: years between installed and latest release per gem, total in summary
+- Advisory enrichment: CVSS scores, titles, and IDs from deps.dev per vulnerability
+- Composite health score (0-100) combining version freshness, activity, OpenSSF Scorecard, and vulnerabilities
+- Health column in terminal and markdown output, system average in terminal summary
+
+### Changed
+
+- Vulnerability column shows count with highest severity label (e.g. "3 (critical)")
+- Markdown vulnerability column shows advisory IDs
+- Markdown table adds libyear and health columns
+- Terminal summary includes libyear total and health average
+
 ## [1.0.2] - 2026-02-19
 
 ### Changed
