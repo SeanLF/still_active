@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "deps_dev_client"
+require_relative "gitlab_client"
 require_relative "repository"
 require_relative "../helpers/version_helper"
 require "async"
@@ -141,6 +142,8 @@ module StillActive
         when Time then date
         when String then Time.parse(date)
         end
+      when :gitlab
+        GitlabClient.last_commit_date(owner: repository_owner, name: repository_name)
       end
     end
   end

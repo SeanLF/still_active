@@ -12,6 +12,7 @@ module StillActive
       :gemfile_path,
       :gems,
       :github_oauth_token,
+      :gitlab_token,
       :output_format,
       :parallelism,
       :no_warning_range_end,

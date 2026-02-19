@@ -58,6 +58,9 @@ module StillActive
       opts.on("--github-oauth-token=TOKEN", String, "GitHub OAuth token to make API calls") do |value|
         StillActive.config { |config| config.github_oauth_token = value }
       end
+      opts.on("--gitlab-token=TOKEN", String, "GitLab personal access token for API calls") do |value|
+        StillActive.config { |config| config.gitlab_token = value }
+      end
     end
 
     def add_parallelism_options(opts)
