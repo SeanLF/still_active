@@ -122,6 +122,55 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
+  describe("--fail-below-score") do
+    context("when a gem's health score is below threshold") do
+      let(:workflow_result) do
+        { "weak_gem" => gem_data(last_commit_date: recent_date).merge(health_score: 40) }
+      end
+
+      it("exits 1") do
+        expect { cli.run(["--gems=weak_gem", "--json", "--fail-below-score=50"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+    end
+
+    context("when all gems meet the threshold") do
+      let(:workflow_result) do
+        { "strong_gem" => gem_data(last_commit_date: recent_date).merge(health_score: 90) }
+      end
+
+      it("exits 0") do
+        expect { cli.run(["--gems=strong_gem", "--json", "--fail-below-score=50"]) }
+          .not_to(raise_error)
+      end
+    end
+
+    context("when ignored gem is below threshold") do
+      let(:workflow_result) do
+        {
+          "weak_gem" => gem_data(last_commit_date: recent_date).merge(health_score: 20),
+          "strong_gem" => gem_data(last_commit_date: recent_date).merge(health_score: 90),
+        }
+      end
+
+      it("does not exit 1") do
+        expect { cli.run(["--gems=weak_gem,strong_gem", "--json", "--fail-below-score=50", "--ignore=weak_gem"]) }
+          .not_to(raise_error)
+      end
+    end
+
+    context("when a gem has nil health score") do
+      let(:workflow_result) do
+        { "unknown_gem" => gem_data(last_commit_date: recent_date).merge(health_score: nil) }
+      end
+
+      it("skips nil scores gracefully") do
+        expect { cli.run(["--gems=unknown_gem", "--json", "--fail-below-score=50"]) }
+          .not_to(raise_error)
+      end
+    end
+  end
+
   describe("--fail-if-warning") do
     context("when a gem has warning activity") do
       let(:workflow_result) { { "aging_gem" => gem_data(last_commit_date: old_date) } }

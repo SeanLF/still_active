@@ -62,14 +62,22 @@ module StillActive
 
     def check_exit_status(result)
       config = StillActive.config
-      return unless config.fail_if_critical || config.fail_if_warning
+      return unless config.fail_if_critical || config.fail_if_warning || config.fail_below_score
 
       ignored = config.ignored_gems
       checked = result.reject { |name, _| ignored.include?(name) }
-      levels = checked.each_value.map { |gem_data| ActivityHelper.activity_level(gem_data) }
 
-      exit(1) if config.fail_if_warning && levels.intersect?([:stale, :critical, :archived])
-      exit(1) if config.fail_if_critical && levels.intersect?([:critical, :archived])
+      if config.fail_if_critical || config.fail_if_warning
+        levels = checked.each_value.map { |gem_data| ActivityHelper.activity_level(gem_data) }
+        exit(1) if config.fail_if_warning && levels.intersect?([:stale, :critical, :archived])
+        exit(1) if config.fail_if_critical && levels.intersect?([:critical, :archived])
+      end
+
+      if config.fail_below_score
+        threshold = config.fail_below_score
+        failing = checked.each_value.any? { |d| d[:health_score] && d[:health_score] < threshold }
+        exit(1) if failing
+      end
     end
   end
 end

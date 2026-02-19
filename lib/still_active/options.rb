@@ -100,6 +100,9 @@ module StillActive
       opts.on("--fail-if-warning", "Exit 1 if any gem has warning or critical activity warning") do
         StillActive.config { |config| config.fail_if_warning = true }
       end
+      opts.on("--fail-below-score=SCORE", Integer, "Exit 1 if any gem's health score is below SCORE (0-100)") do |value|
+        StillActive.config { |config| config.fail_below_score = value }
+      end
     end
 
     def add_emoji_options(opts)

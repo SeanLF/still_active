@@ -13,6 +13,7 @@ module StillActive
       :gems,
       :github_oauth_token,
       :gitlab_token,
+      :fail_below_score,
       :ignored_gems,
       :output_format,
       :parallelism,
@@ -23,6 +24,7 @@ module StillActive
       :warning_range_end
 
     def initialize
+      @fail_below_score = nil
       @fail_if_critical = false
       @fail_if_warning = false
       @gemfile_path = Bundler.default_gemfile.to_s

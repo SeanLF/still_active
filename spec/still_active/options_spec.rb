@@ -66,6 +66,11 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.warning_range_end).to(eq(5))
     end
 
+    it("sets fail-below-score threshold") do
+      described_class.new.parse!(["--fail-below-score=70", "--gems=rails"])
+      expect(StillActive.config.fail_below_score).to(eq(70))
+    end
+
     it("sets ignored gems from comma-separated list") do
       described_class.new.parse!(["--ignore=nokogiri,puma", "--gems=rails"])
       expect(StillActive.config.ignored_gems).to(eq(["nokogiri", "puma"]))
