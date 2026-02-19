@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "options"
+require_relative "../helpers/activity_helper"
 require_relative "../helpers/bundler_helper"
 require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
@@ -51,12 +52,10 @@ module StillActive
       config = StillActive.config
       return unless config.fail_if_critical || config.fail_if_warning
 
-      activity_emojis = result.each_value.map { |gem_data| EmojiHelper.inactive_gem_emoji(gem_data) }
-      has_critical = activity_emojis.include?(config.critical_warning_emoji)
-      has_warning = activity_emojis.include?(config.warning_emoji)
+      levels = result.each_value.map { |gem_data| ActivityHelper.activity_level(gem_data) }
 
-      exit(1) if config.fail_if_warning && (has_warning || has_critical)
-      exit(1) if config.fail_if_critical && has_critical
+      exit(1) if config.fail_if_warning && levels.intersect?([:stale, :critical])
+      exit(1) if config.fail_if_critical && levels.include?(:critical)
     end
   end
 end
