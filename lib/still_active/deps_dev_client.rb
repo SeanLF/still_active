@@ -18,8 +18,7 @@ module StillActive
 
       {
         advisory_keys: body.dig("advisoryKeys")&.map { |a| a["id"] } || [],
-        project_id: body.dig("links")&.find { |l| l["label"] == "SOURCE_REPO" }&.dig("url")
-          &.then { |url| url&.delete_prefix("https://") },
+        project_id: extract_project_id(body),
       }
     end
 
@@ -40,6 +39,17 @@ module StillActive
     end
 
     private
+
+    # Extracts "host/owner/repo" from the SOURCE_REPO link URL.
+    # URLs may have trailing slashes or extra path segments (e.g. /tree/v1.0).
+    def extract_project_id(body)
+      url = body.dig("links")&.find { |l| l["label"] == "SOURCE_REPO" }&.dig("url")
+      return if url.nil?
+
+      path = url.delete_prefix("https://").delete_prefix("http://")
+      segments = path.split("/")
+      segments[0..2].join("/") if segments.length >= 3
+    end
 
     def get(path)
       uri = BASE_URI.dup
