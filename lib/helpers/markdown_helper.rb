@@ -5,81 +5,73 @@ module StillActive
     extend self
 
     def markdown_table_header_line
-      "| gem activity old? | up to date? | scorecard | vulns | name | version used | release date | latest version | release date | latest pre-release version  | release date | last commit date |\n" \
-        "| ----------------- | ----------- | --------- | ----- | ---- | ------------ | ------------ | -------------- | ------------ | --------------------------- | ------------ | ---------------- |"
+      "| activity | up to date? | scorecard | vulns | name | version used | latest version | latest pre-release | last commit |\n" \
+        "| -------- | ----------- | --------- | ----- | ---- | ------------ | -------------- | ------------------ | ----------- |"
     end
 
     def markdown_table_body_line(gem_name:, data:)
       repository_url = data[:repository_url]
       ruby_gems_url = data[:ruby_gems_url]
 
-      version_used = data[:version_used]
-      version_used_url =
-        if version_used && ruby_gems_url
-          "#{ruby_gems_url}/versions/#{version_used}"
-        end
-      version_used_release_date = data[:version_used_release_date]
-
-      latest_version = data[:latest_version]
-      latest_version_url =
-        if latest_version && ruby_gems_url
-          "#{ruby_gems_url}/versions/#{latest_version}"
-        end
-      latest_version_release_date = data[:latest_version_release_date]
-
-      latest_version_prerelease = data[:latest_pre_release_version]
-      latest_version_prerelease_url =
-        if latest_version_prerelease && ruby_gems_url
-          "#{ruby_gems_url}/versions/#{latest_version_prerelease}"
-        end
-      latest_version_prerelease_date = data[:latest_pre_release_version_release_date]
-
-      last_commit_date = data[:last_commit_date]
-      last_commit_url = repository_url
-
       inactive_repository_emoji = data[:last_activity_warning_emoj]
       using_latest_version_emoji = data[:up_to_date_emoji]
 
       formatted_name = markdown_url(text: gem_name, url: repository_url)
 
-      formatted_version_used = markdown_url(text: version_used, url: version_used_url)
-      formatted_version_used_date = year_month(version_used_release_date)
-
-      formatted_latest_release_version = markdown_url(text: latest_version, url: latest_version_url)
-      formatted_latest_release_date = year_month(latest_version_release_date)
-
-      formatted_latest_pre_release_version = markdown_url(
-        text: latest_version_prerelease,
-        url: latest_version_prerelease_url,
+      formatted_version_used = version_with_date(
+        text: data[:version_used],
+        url: version_url(ruby_gems_url, data[:version_used]),
+        date: data[:version_used_release_date],
       )
-      formatted_latest_pre_release_date = year_month(latest_version_prerelease_date)
 
-      formatted_last_commit_date = markdown_url(text: year_month(last_commit_date), url: last_commit_url)
+      formatted_latest_version = version_with_date(
+        text: data[:latest_version],
+        url: version_url(ruby_gems_url, data[:latest_version]),
+        date: data[:latest_version_release_date],
+      )
 
-      formatted_scorecard = format_scorecard(data[:scorecard_score])
-      formatted_vulns = format_vulns(data[:vulnerability_count])
+      formatted_latest_pre_release = version_with_date(
+        text: data[:latest_pre_release_version],
+        url: version_url(ruby_gems_url, data[:latest_pre_release_version]),
+        date: data[:latest_pre_release_version_release_date],
+      )
 
-      formatted_markdown_table_line =
-        [
-          inactive_repository_emoji || StillActive.config.unsure_emoji,
-          using_latest_version_emoji || StillActive.config.unsure_emoji,
-          formatted_scorecard,
-          formatted_vulns,
-          formatted_name,
-          formatted_version_used,
-          formatted_version_used_date || StillActive.config.unsure_emoji,
-          formatted_latest_release_version || StillActive.config.unsure_emoji,
-          formatted_latest_release_date || StillActive.config.unsure_emoji,
-          formatted_latest_pre_release_version || StillActive.config.unsure_emoji,
-          formatted_latest_pre_release_date || StillActive.config.unsure_emoji,
-          formatted_last_commit_date || StillActive.config.unsure_emoji,
-        ]
-          .join(" | ")
+      formatted_last_commit = markdown_url(text: year_month(data[:last_commit_date]), url: repository_url)
 
-      "| #{formatted_markdown_table_line} |"
+      unsure = StillActive.config.unsure_emoji
+
+      cells = [
+        inactive_repository_emoji || unsure,
+        using_latest_version_emoji || unsure,
+        format_scorecard(data[:scorecard_score]),
+        format_vulns(data[:vulnerability_count]),
+        formatted_name,
+        formatted_version_used || unsure,
+        formatted_latest_version || unsure,
+        formatted_latest_pre_release || unsure,
+        formatted_last_commit || unsure,
+      ]
+
+      "| #{cells.join(" | ")} |"
     end
 
     private
+
+    def version_with_date(text:, url:, date:)
+      version_part = markdown_url(text: text, url: url)
+      return if version_part.nil?
+
+      date_part = year_month(date)
+      return version_part unless date_part
+
+      "#{version_part} (#{date_part})"
+    end
+
+    def version_url(ruby_gems_url, version)
+      return if ruby_gems_url.nil? || version.nil?
+
+      "#{ruby_gems_url}/versions/#{version}"
+    end
 
     def format_scorecard(score)
       return StillActive.config.unsure_emoji if score.nil?
