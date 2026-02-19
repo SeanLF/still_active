@@ -66,6 +66,11 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.warning_range_end).to(eq(5))
     end
 
+    it("sets ignored gems from comma-separated list") do
+      described_class.new.parse!(["--ignore=nokogiri,puma", "--gems=rails"])
+      expect(StillActive.config.ignored_gems).to(eq(["nokogiri", "puma"]))
+    end
+
     it("raises when both gemfile and gems are provided") do
       expect { described_class.new.parse!(["--gemfile=Gemfile", "--gems=rails"]) }
         .to(raise_error(ArgumentError, /provide gemfile or gems, not both/))

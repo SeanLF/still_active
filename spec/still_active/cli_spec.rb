@@ -79,6 +79,49 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
+  describe("--ignore") do
+    context("when ignored gem has critical activity") do
+      let(:workflow_result) do
+        {
+          "stale_gem" => gem_data(last_commit_date: ancient_date),
+          "fresh_gem" => gem_data(last_commit_date: recent_date),
+        }
+      end
+
+      it("does not exit 1 when only ignored gems are critical") do
+        expect { cli.run(["--gems=stale_gem,fresh_gem", "--json", "--fail-if-critical", "--ignore=stale_gem"]) }
+          .not_to(raise_error)
+      end
+    end
+
+    context("when non-ignored gem has critical activity") do
+      let(:workflow_result) do
+        {
+          "stale_gem" => gem_data(last_commit_date: ancient_date),
+          "fresh_gem" => gem_data(last_commit_date: recent_date),
+        }
+      end
+
+      it("exits 1 for non-ignored critical gem") do
+        expect { cli.run(["--gems=stale_gem,fresh_gem", "--json", "--fail-if-critical", "--ignore=fresh_gem"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+    end
+  end
+
+  describe("archived repo with --fail-if-critical") do
+    context("when a gem's repo is archived") do
+      let(:workflow_result) do
+        { "dead_gem" => gem_data(last_commit_date: recent_date).merge(archived: true) }
+      end
+
+      it("exits 1") do
+        expect { cli.run(["--gems=dead_gem", "--json", "--fail-if-critical"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+    end
+  end
+
   describe("--fail-if-warning") do
     context("when a gem has warning activity") do
       let(:workflow_result) { { "aging_gem" => gem_data(last_commit_date: old_date) } }

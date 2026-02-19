@@ -13,6 +13,7 @@ module StillActive
       :gems,
       :github_oauth_token,
       :gitlab_token,
+      :ignored_gems,
       :output_format,
       :parallelism,
       :no_warning_range_end,
@@ -26,6 +27,7 @@ module StillActive
       @fail_if_warning = false
       @gemfile_path = Bundler.default_gemfile.to_s
       @gems = []
+      @ignored_gems = []
       @github_oauth_token = ENV["GITHUB_TOKEN"]
       @gitlab_token = ENV["GITLAB_TOKEN"]
 

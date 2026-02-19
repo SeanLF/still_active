@@ -13,6 +13,7 @@ module StillActive
         add_tail_options(opts)
         add_gemfile_option(opts)
         add_gems_option(opts)
+        add_ignore_option(opts)
         add_output_options(opts)
         add_token_options(opts)
         add_parallelism_options(opts)
@@ -45,6 +46,12 @@ module StillActive
       opts.on("--gems=GEM,GEM2,...", Array, "Gem(s)") do |value|
         options[:provided_gems] = true
         StillActive.config { |config| config.gems = value }
+      end
+    end
+
+    def add_ignore_option(opts)
+      opts.on("--ignore=GEM,GEM2,...", Array, "Gem(s) to exclude from pass/fail checks") do |value|
+        StillActive.config { |config| config.ignored_gems = value }
       end
     end
 

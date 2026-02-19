@@ -64,10 +64,12 @@ module StillActive
       config = StillActive.config
       return unless config.fail_if_critical || config.fail_if_warning
 
-      levels = result.each_value.map { |gem_data| ActivityHelper.activity_level(gem_data) }
+      ignored = config.ignored_gems
+      checked = result.reject { |name, _| ignored.include?(name) }
+      levels = checked.each_value.map { |gem_data| ActivityHelper.activity_level(gem_data) }
 
-      exit(1) if config.fail_if_warning && levels.intersect?([:stale, :critical])
-      exit(1) if config.fail_if_critical && levels.include?(:critical)
+      exit(1) if config.fail_if_warning && levels.intersect?([:stale, :critical, :archived])
+      exit(1) if config.fail_if_critical && levels.intersect?([:critical, :archived])
     end
   end
 end
