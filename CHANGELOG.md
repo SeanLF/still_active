@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.1] - 2026-02-19
+
+### Changed
+
+- Rewrite gemspec summary and description for discoverability (mentions dependency health, outdated, vulnerabilities, abandoned gems)
+- Restructure README: problem-first opening, terminal output example, comparison table vs bundle outdated/bundler-audit/libyear-bundler, quick start guide
+- Add 13 GitHub topics for search visibility
+- Update GitHub repo description
+
 ## [1.0.0] - 2026-02-19
 
 ### Added

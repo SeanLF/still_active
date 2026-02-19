@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    still_active (1.0.0)
+    still_active (1.0.1)
       async
       bundler (>= 2.0)
       faraday-retry
@@ -225,7 +225,7 @@ CHECKSUMS
   rubocop-shopify (2.18.0) sha256=dafa25e5617ce4600ff86b1de3d5b78e43ab3d58cc5729df38e492b8e10294eb
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
   sawyer (0.9.3) sha256=0d0f19298408047037638639fe62f4794483fb04320269169bd41af2bdcf5e41
-  still_active (1.0.0)
+  still_active (1.0.1)
   stringio (3.2.0) sha256=c37cb2e58b4ffbd33fe5cd948c05934af997b36e0b6ca6fdf43afa234cf222e1
   traces (0.18.2) sha256=80f1649cb4daace1d7174b81f3b3b7427af0b93047759ba349960cb8f315e214
   tsort (0.2.0) sha256=9650a793f6859a43b6641671278f79cfead60ac714148aabe4e3f0060480089f

@@ -8,11 +8,13 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Sean Floyd"]
   spec.email         = ["contact@seanfloyd.dev"]
 
-  spec.summary       = "Check if your Ruby dependencies are still actively maintained."
-  spec.description   = "Analyses your Gemfile dependencies for staleness: latest releases, " \
-    "last commit dates (GitHub and GitLab), OpenSSF Scorecard scores, " \
-    "and known vulnerabilities via deps.dev. " \
-    "Outputs coloured terminal tables, markdown, or JSON with CI gating support."
+  spec.summary       = "Audit your Ruby dependencies for maintenance health, outdated versions, vulnerabilities, and abandoned gems."
+  spec.description   = "Analyses your Gemfile for dependency health: checks if gems are actively maintained " \
+    "(last commit dates via GitHub and GitLab, release dates), outdated versions, " \
+    "OpenSSF Scorecard security scores, and known vulnerabilities via deps.dev. " \
+    "Outputs coloured terminal tables, markdown, or JSON. " \
+    "CI quality gates with --fail-if-critical. " \
+    "A comprehensive alternative to running bundle outdated, bundler-audit, and libyear-bundler separately."
   spec.homepage      = "https://github.com/SeanLF/still_active"
   spec.license       = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
