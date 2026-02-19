@@ -3,6 +3,7 @@
 require_relative "deps_dev_client"
 require_relative "gitlab_client"
 require_relative "repository"
+require_relative "../helpers/health_score_helper"
 require_relative "../helpers/libyear_helper"
 require_relative "../helpers/version_helper"
 require "async"
@@ -88,6 +89,7 @@ module StillActive
           ),
         })
       end
+      result_object[gem_name][:health_score] = HealthScoreHelper.gem_score(result_object[gem_name])
     rescue StandardError => e
       $stderr.puts "error occurred for #{gem_name}: #{e.class}\n\t#{e.message}"
     end

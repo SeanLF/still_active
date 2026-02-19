@@ -2,6 +2,7 @@
 
 require_relative "activity_helper"
 require_relative "ansi_helper"
+require_relative "health_score_helper"
 require_relative "libyear_helper"
 require_relative "version_helper"
 
@@ -9,7 +10,7 @@ module StillActive
   module TerminalHelper
     extend self
 
-    HEADERS = ["Name", "Version", "Activity", "OpenSSF", "Vulns"].freeze
+    HEADERS = ["Name", "Version", "Activity", "OpenSSF", "Vulns", "Health"].freeze
 
     def render(result)
       rows = result.keys.sort.map { |name| build_row(name, result[name]) }
@@ -33,6 +34,7 @@ module StillActive
         format_activity(data),
         format_scorecard(data[:scorecard_score]),
         format_vulns(data),
+        format_health(data[:health_score]),
       ]
     end
 
@@ -73,6 +75,17 @@ module StillActive
       severity = highest_severity(data[:vulnerabilities])
       label = severity ? "#{count} (#{severity})" : count.to_s
       AnsiHelper.red(label)
+    end
+
+    def format_health(score)
+      return AnsiHelper.dim("-") if score.nil?
+
+      text = "#{score}/100"
+      case score
+      when 80..100 then AnsiHelper.green(text)
+      when 50..79 then AnsiHelper.yellow(text)
+      else AnsiHelper.red(text)
+      end
     end
 
     def highest_severity(vulnerabilities)
@@ -137,6 +150,8 @@ module StillActive
       parts << "#{vulns} vulnerabilities"
       total_libyear = LibyearHelper.total_libyear(result)
       parts << "#{total_libyear.round(1)} libyears behind" if total_libyear > 0
+      avg = HealthScoreHelper.system_average(result)
+      parts << "health #{avg}/100" if avg
       parts.join(" · ")
     end
   end

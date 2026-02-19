@@ -5,8 +5,8 @@ module StillActive
     extend self
 
     def markdown_table_header_line
-      "| activity | up to date? | OpenSSF | vulns | name | version used | latest version | latest pre-release | last commit | libyear |\n" \
-        "| -------- | ----------- | ------- | ----- | ---- | ------------ | -------------- | ------------------ | ----------- | ------- |"
+      "| activity | up to date? | OpenSSF | vulns | name | version used | latest version | latest pre-release | last commit | libyear | health |\n" \
+        "| -------- | ----------- | ------- | ----- | ---- | ------------ | -------------- | ------------------ | ----------- | ------- | ------ |"
     end
 
     def markdown_table_body_line(gem_name:, data:)
@@ -55,6 +55,7 @@ module StillActive
         formatted_latest_pre_release || unsure,
         formatted_last_commit || unsure,
         format_libyear(data[:libyear]),
+        format_health(data[:health_score]),
       ]
 
       "| #{cells.join(" | ")} |"
@@ -82,6 +83,12 @@ module StillActive
       return StillActive.config.unsure_emoji if score.nil?
 
       "#{score}/10"
+    end
+
+    def format_health(score)
+      return "-" if score.nil?
+
+      "#{score}/100"
     end
 
     def format_libyear(value)
