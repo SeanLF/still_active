@@ -17,8 +17,13 @@ module StillActive
     def up_to_date(version_used:, latest_version: nil, latest_pre_release_version: nil)
       return if latest_version.nil? && latest_pre_release_version.nil?
 
-      [normalize_version(latest_version), normalize_version(latest_pre_release_version)]
-        .include?(normalize_version(version_used))
+      used = to_gem_version(version_used)
+      return if used.nil?
+
+      [latest_version, latest_pre_release_version]
+        .compact
+        .filter_map { |v| to_gem_version(v) }
+        .any? { |v| used >= v }
     end
 
     def gem_version(version_hash:)
@@ -35,6 +40,11 @@ module StillActive
 
     def normalize_version(version)
       version.is_a?(String) ? version : gem_version(version_hash: version)
+    end
+
+    def to_gem_version(version)
+      str = normalize_version(version)
+      Gem::Version.new(str) if str
     end
   end
 end
