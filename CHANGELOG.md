@@ -21,6 +21,7 @@
 - **BREAKING:** Markdown table collapsed from 12 to 9 columns (dates inlined with versions)
 - Replace `activesupport` with lightweight `CoreExt` refinement
 - Remove unused `async-http` dependency (82 -> 66 installed gems)
+- **BREAKING:** Bump minimum Ruby version to 3.2 (3.1 is EOL)
 - Rename "Scorecard" column to "OpenSSF" for clarity
 - Extract shared HTTP helper from DepsDevClient and GitlabClient
 - Consolidate VCR test configuration into spec_helper
