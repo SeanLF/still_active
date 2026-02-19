@@ -39,5 +39,6 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency("async")
   spec.add_runtime_dependency("bundler", ">= 2.0")
   spec.add_runtime_dependency("gems")
+  spec.add_runtime_dependency("faraday-retry")
   spec.add_runtime_dependency("octokit")
 end
