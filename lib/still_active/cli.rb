@@ -20,6 +20,7 @@ module StillActive
       end
 
       result = Workflow.call
+
       case StillActive.config.output_format
       when :json
         puts result.to_json
@@ -40,6 +41,22 @@ module StillActive
           puts MarkdownHelper.markdown_table_body_line(gem_name: name, data: gem_data)
         end
       end
+
+      check_exit_status(result)
+    end
+
+    private
+
+    def check_exit_status(result)
+      config = StillActive.config
+      return unless config.fail_if_critical || config.fail_if_warning
+
+      activity_emojis = result.each_value.map { |gem_data| EmojiHelper.inactive_gem_emoji(gem_data) }
+      has_critical = activity_emojis.include?(config.critical_warning_emoji)
+      has_warning = activity_emojis.include?(config.warning_emoji)
+
+      exit(1) if config.fail_if_warning && (has_warning || has_critical)
+      exit(1) if config.fail_if_critical && has_critical
     end
   end
 end

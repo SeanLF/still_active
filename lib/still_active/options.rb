@@ -17,6 +17,7 @@ module StillActive
         add_token_options(opts)
         add_parallelism_options(opts)
         add_range_options(opts)
+        add_exit_options(opts)
         add_emoji_options(opts)
       end
     end
@@ -78,6 +79,15 @@ module StillActive
         "maximum number of years since last activity that you want to be warned about",
       ) do |value|
         StillActive.config { |config| config.warning_range_end = value }
+      end
+    end
+
+    def add_exit_options(opts)
+      opts.on("--fail-if-critical", "Exit 1 if any gem has critical activity warning") do
+        StillActive.config { |config| config.fail_if_critical = true }
+      end
+      opts.on("--fail-if-warning", "Exit 1 if any gem has warning or critical activity warning") do
+        StillActive.config { |config| config.fail_if_warning = true }
       end
     end
 

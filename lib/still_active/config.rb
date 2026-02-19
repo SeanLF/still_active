@@ -6,6 +6,8 @@ require "octokit"
 module StillActive
   class Config
     attr_accessor :critical_warning_emoji,
+      :fail_if_critical,
+      :fail_if_warning,
       :futurist_emoji,
       :gemfile_path,
       :gems,
@@ -19,6 +21,8 @@ module StillActive
       :warning_range_end
 
     def initialize
+      @fail_if_critical = false
+      @fail_if_warning = false
       @gemfile_path = Bundler.default_gemfile.to_s
       @gems = []
 
