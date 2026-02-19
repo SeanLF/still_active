@@ -20,13 +20,13 @@ RSpec.describe(StillActive::GitlabClient) do
       expect(described_class.archived?(owner: owner, name: name)).to(be(false))
     end
 
-    it("returns nil when owner is nil") do
-      expect(described_class.archived?(owner: nil, name: name)).to(be_nil)
+    it("returns false when owner is nil") do
+      expect(described_class.archived?(owner: nil, name: name)).to(be(false))
     end
 
-    it("returns nil on timeout") do
+    it("returns false on timeout") do
       stub_request(:get, project_url).to_timeout
-      expect(described_class.archived?(owner: owner, name: name)).to(be_nil)
+      expect(described_class.archived?(owner: owner, name: name)).to(be(false))
     end
   end
 

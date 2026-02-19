@@ -26,9 +26,9 @@ Gem::Specification.new do |spec|
   spec.metadata["rubygems_mfa_required"] = "true"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
-    %x(git ls-files -z).split("\x0").select { |f|
-      f.start_with?("lib/", "bin/still_active") || f.match?(%r{\A(LICENSE|README|CHANGELOG|still_active\.gemspec)\b})
-    }
+    %x(git ls-files -z).split("\x0").select do |f|
+      f.start_with?("lib/", "bin/still_active") || f.match?(/\A(LICENSE|README|CHANGELOG|still_active\.gemspec)\b/)
+    end
   end
   spec.bindir        = "bin"
   spec.executables   = spec.files.grep(%r{\Abin/still_active}) { |f| File.basename(f) }
