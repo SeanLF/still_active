@@ -15,7 +15,7 @@ module StillActive
     end
 
     def up_to_date?(version_used:, latest_version: nil, latest_pre_release_version: nil)
-      return nil if latest_version.nil? && latest_pre_release_version.nil?
+      return nil if latest_version.nil? && latest_pre_release_version.nil? # rubocop:disable Style/ReturnNil,Style/ReturnNilInPredicateMethodDefinition
 
       version_used = if version_used.is_a?(String)
         version_used

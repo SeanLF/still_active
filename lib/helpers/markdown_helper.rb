@@ -3,6 +3,7 @@
 module StillActive
   module MarkdownHelper
     extend self
+
     def markdown_table_header_line
       "| gem activity old? | up to date? | name | version used | release date | latest version | release date | latest pre-release version  | release date | last commit date |\n" \
         "| ----------------- | ----------- | ---- | ------------ | ------------ | -------------- | ------------ | --------------------------- | ------------ | ---------------- |"

@@ -6,20 +6,22 @@ RSpec.describe(StillActive::BundlerHelper) do
   describe("#gemfile_dependencies") do
     subject(:gemfile_dependencies) { described_class.gemfile_dependencies(gemfile_path: gemfile_path) }
 
-    let(:expected_results) do
-      [
-        { name: "rake", version: "13.0.6" },
-        { name: "rspec", version: "3.12.0" },
-      ]
-    end
-
     after do
       Bundler.reset!
       Bundler.try(:reset_settings_and_root!)
     end
 
     it("returns the versioned gems specified in the gemfile") do
-      expected_results.each { |expected_result| expect(gemfile_dependencies).to(include(expected_result)) }
+      gem_names = gemfile_dependencies.map { |dep| dep[:name] }
+      expect(gem_names).to(include("rake", "rspec"))
+    end
+
+    it("includes version strings for each dependency") do
+      gemfile_dependencies.each do |dep|
+        expect(dep).to(have_key(:name))
+        expect(dep).to(have_key(:version))
+        expect(dep[:version]).to(match(/\A\d+\.\d+/))
+      end
     end
   end
 end

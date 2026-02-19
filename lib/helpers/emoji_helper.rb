@@ -6,6 +6,7 @@ require "active_support/core_ext/integer/time"
 module StillActive
   module EmojiHelper
     extend self
+
     def inactive_gem_emoji(result_hash)
       most_recent_activity = [
         result_hash.dig(:last_commit_date),

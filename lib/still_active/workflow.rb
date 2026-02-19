@@ -6,7 +6,6 @@ require "async"
 require "async/barrier"
 require "async/semaphore"
 require "gems"
-require "github_api"
 
 module StillActive
   module Workflow
@@ -122,9 +121,7 @@ module StillActive
     def last_commit(source:, repository_owner:, repository_name:)
       case source.to_sym
       when :github
-        StillActive.config.github_client.repos.commits.all(repository_owner, repository_name, per_page: 1)&.first
-        # when :gitlab
-        #   Gitlab.commits(name, per_page: 1)
+        StillActive.config.github_client.commits("#{repository_owner}/#{repository_name}", per_page: 1)&.first
       end
     end
 
@@ -132,9 +129,11 @@ module StillActive
       commit = last_commit(source: source, repository_owner: repository_owner, repository_name: repository_name)
       case source.to_sym
       when :github
-        commit&.dig("commit", "author", "date").then { |date| Time.parse(date) unless date.nil? }
-        # when :gitlab
-        #   commit
+        date = commit&.commit&.author&.date
+        case date
+        when Time then date
+        when String then Time.parse(date)
+        end
       end
     end
   end

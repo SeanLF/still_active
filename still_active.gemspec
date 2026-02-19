@@ -12,9 +12,7 @@ Gem::Specification.new do |spec|
   spec.description   = "Obtain last release, pre-release, and last commit date to determine if a gem is still under active development."
   spec.homepage      = "https://github.com/SeanLF/still_active"
   spec.license       = "MIT"
-  spec.required_ruby_version = ">= 2.7.0"
-
-  # spec.metadata["allowed_push_host"] = "TODO: Set to 'https://mygemserver.com'"
+  spec.required_ruby_version = ">= 3.1.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
@@ -31,7 +29,6 @@ Gem::Specification.new do |spec|
 
   # For more information and examples about making a new gem, checkout our
   # guide at: https://bundler.io/guides/creating_gem.html
-  spec.add_development_dependency("dead_end")
   spec.add_development_dependency("debug")
   spec.add_development_dependency("faker")
   spec.add_development_dependency("rubocop")
@@ -41,11 +38,8 @@ Gem::Specification.new do |spec|
 
   spec.add_runtime_dependency("activesupport")
   spec.add_runtime_dependency("async")
-  # spec.add_runtime_dependency("cli-ui")
   spec.add_runtime_dependency("async-http")
   spec.add_runtime_dependency("bundler", ">= 2.0")
   spec.add_runtime_dependency("gems")
-  spec.add_runtime_dependency("github_api")
-  # spec.add_runtime_dependency("gitlab")
-  # spec.add_runtime_dependency("tty-progressbar")
+  spec.add_runtime_dependency("octokit")
 end

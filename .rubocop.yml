@@ -1,10 +1,11 @@
-require:
+plugins:
   - rubocop-performance
   - rubocop-rspec
 
 AllCops:
   NewCops: enable
-  TargetRubyVersion: 3.0.2
+  TargetRubyVersion: 3.1
+  SuggestExtensions: false
 
 inherit_gem:
   rubocop-shopify: rubocop.yml
@@ -16,4 +17,7 @@ RSpec/ExampleLength:
   Enabled: false
 
 RSpec/NestedGroups:
+  Enabled: false
+
+RSpec/MultipleExpectations:
   Enabled: false

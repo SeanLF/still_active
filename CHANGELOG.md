@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## [0.6.0] - 2026-02-19
+
+- Replace `github_api` (unmaintained since 2019) with `octokit`
+- Remove `dead_end` dependency (absorbed into Ruby 3.2+ as `syntax_suggest`)
+- Bump minimum Ruby version to 3.1
+- Test against Ruby 3.1, 3.2, 3.3, 3.4, 4.0, and head
+- Bump all dependencies
+- Update GitHub Actions to v4/v3
+- Migrate rubocop config from `require` to `plugins`
+
 ## [0.5.0] - 2023-05-21
 
 - Explicitly test against ruby 3.2

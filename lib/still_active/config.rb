@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "bundler"
+require "octokit"
 
 module StillActive
   class Config
@@ -37,7 +38,7 @@ module StillActive
 
     def github_client
       @github_client ||=
-        Github.new(oauth_token: github_oauth_token)
+        Octokit::Client.new(access_token: github_oauth_token)
     end
   end
 end

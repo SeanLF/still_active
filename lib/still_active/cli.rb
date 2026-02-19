@@ -6,11 +6,11 @@ require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
 require_relative "../helpers/version_helper"
 require_relative "workflow"
-# require "cli/ui"
 
 module StillActive
   class CLI
     include VersionHelper
+
     def run(args)
       options = Options.new.parse!(args)
       if options[:provided_gems]

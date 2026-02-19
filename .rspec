@@ -1,6 +1,4 @@
 --format documentation
 --color
---require dead_end
 --require spec_helper
-
 --require faker
