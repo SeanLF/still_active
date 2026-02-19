@@ -39,6 +39,7 @@ module StillActive
       used = data[:version_used]
       latest = data[:latest_version]
       return AnsiHelper.dim("-") if used.nil? && latest.nil?
+      return AnsiHelper.red("#{used} (YANKED)") if data[:version_yanked]
 
       if VersionHelper.up_to_date(version_used: used, latest_version: latest)
         AnsiHelper.green("#{used} (latest)")
@@ -51,6 +52,7 @@ module StillActive
 
     def format_activity(data)
       case ActivityHelper.activity_level(data)
+      when :archived then AnsiHelper.red("archived")
       when :ok then AnsiHelper.green("ok")
       when :stale then AnsiHelper.yellow("stale")
       when :critical then AnsiHelper.red("critical")
@@ -103,15 +105,18 @@ module StillActive
 
       up_to_date = version_counts.fetch(true, 0)
       outdated = version_counts.fetch(false, 0)
+      yanked = result.each_value.count { |d| d[:version_yanked] }
       active = level_counts.fetch(:ok, 0)
-      stale = level_counts.fetch(:stale, 0) + level_counts.fetch(:critical, 0)
+      archived = level_counts.fetch(:archived, 0)
+      stale = level_counts.fetch(:stale, 0) + level_counts.fetch(:critical, 0) + archived
       vulns = result.each_value.sum { |d| d[:vulnerability_count] || 0 }
 
       parts = [
         "#{total} gems: #{up_to_date} up to date, #{outdated} outdated",
-        "#{active} active, #{stale} stale",
-        "#{vulns} vulnerabilities",
       ]
+      parts.last << ", #{yanked} yanked" if yanked > 0
+      parts << "#{active} active, #{stale} stale"
+      parts << "#{vulns} vulnerabilities"
       parts.join(" · ")
     end
   end

@@ -42,6 +42,11 @@ module StillActive
         repository_owner: repo_info[:owner],
         repository_name: repo_info[:name],
       )
+      archived = repo_archived?(
+        source: repo_info[:source],
+        repository_owner: repo_info[:owner],
+        repository_name: repo_info[:name],
+      )
       last_release = VersionHelper.find_version(versions: vs, pre_release: false)
       last_pre_release = VersionHelper.find_version(versions: vs, pre_release: true)
       deps_dev = fetch_deps_dev_info(
@@ -57,6 +62,7 @@ module StillActive
 
         repository_url: repo_info[:url],
         last_commit_date: commit_date,
+        archived: archived,
         **deps_dev,
       })
 
@@ -74,6 +80,7 @@ module StillActive
           ),
 
           version_used_release_date: VersionHelper.release_date(version_hash: version_used),
+          version_yanked: !vs.empty? && version_used.nil?,
         })
       end
     rescue StandardError => e
@@ -130,6 +137,18 @@ module StillActive
       ].compact.uniq
     rescue Gems::NotFound
       []
+    end
+
+    def repo_archived?(source:, repository_owner:, repository_name:)
+      case source
+      when :github
+        repo = StillActive.config.github_client.repository("#{repository_owner}/#{repository_name}")
+        repo&.archived
+      when :gitlab
+        GitlabClient.archived?(owner: repository_owner, name: repository_name)
+      end
+    rescue StandardError
+      nil
     end
 
     def last_commit_date(source:, repository_owner:, repository_name:)

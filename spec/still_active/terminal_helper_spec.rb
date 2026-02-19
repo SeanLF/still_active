@@ -88,6 +88,54 @@ RSpec.describe(StillActive::TerminalHelper) do
       end
     end
 
+    context("with an archived gem") do
+      let(:result) do
+        {
+          "archived_gem" => {
+            version_used: "1.0.0",
+            latest_version: "1.0.0",
+            latest_pre_release_version: nil,
+            last_commit_date: Time.now,
+            latest_version_release_date: Time.now,
+            latest_pre_release_version_release_date: nil,
+            scorecard_score: nil,
+            vulnerability_count: nil,
+            archived: true,
+          },
+        }
+      end
+
+      it("shows archived in activity column") do
+        expect(output).to(include("archived"))
+      end
+    end
+
+    context("with a yanked gem") do
+      let(:result) do
+        {
+          "yanked_gem" => {
+            version_used: "0.9.0",
+            latest_version: "1.0.0",
+            latest_pre_release_version: nil,
+            last_commit_date: Time.now,
+            latest_version_release_date: Time.now,
+            latest_pre_release_version_release_date: nil,
+            scorecard_score: nil,
+            vulnerability_count: nil,
+            version_yanked: true,
+          },
+        }
+      end
+
+      it("shows YANKED label") do
+        expect(output).to(include("YANKED"))
+      end
+
+      it("includes yanked count in summary") do
+        expect(output).to(include("1 yanked"))
+      end
+    end
+
     context("with empty results") do
       it("does not raise") do
         expect { described_class.render({}) }.not_to(raise_error)

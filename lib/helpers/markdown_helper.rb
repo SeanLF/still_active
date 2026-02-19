@@ -18,11 +18,15 @@ module StillActive
 
       formatted_name = markdown_url(text: gem_name, url: repository_url)
 
-      formatted_version_used = version_with_date(
-        text: data[:version_used],
-        url: version_url(ruby_gems_url, data[:version_used]),
-        date: data[:version_used_release_date],
-      )
+      formatted_version_used = if data[:version_yanked]
+        "#{data[:version_used]} (YANKED #{StillActive.config.critical_warning_emoji})"
+      else
+        version_with_date(
+          text: data[:version_used],
+          url: version_url(ruby_gems_url, data[:version_used]),
+          date: data[:version_used_release_date],
+        )
+      end
 
       formatted_latest_version = version_with_date(
         text: data[:latest_version],

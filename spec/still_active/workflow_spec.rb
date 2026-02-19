@@ -33,6 +33,49 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    context("when a gem version is yanked") do
+      before do
+        StillActive.config.gems = [{ name: "yanked_gem", version: "0.9.0" }]
+
+        # Gem exists but version 0.9.0 is not in the list (yanked)
+        allow(Gems).to(receive(:versions).with("yanked_gem").and_return([
+          { "number" => "1.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z" },
+        ]))
+        allow(Gems).to(receive(:info).with("yanked_gem").and_return({
+          "homepage_uri" => nil,
+          "source_code_uri" => nil,
+        }))
+        allow(StillActive::DepsDevClient).to(receive(:version_info).and_return(nil))
+      end
+
+      it("sets version_yanked to true") do
+        expect(result).to(include(
+          "yanked_gem" => hash_including(version_yanked: true),
+        ))
+      end
+    end
+
+    context("when a gem version is not yanked") do
+      before do
+        StillActive.config.gems = [{ name: "good_gem", version: "1.0.0" }]
+
+        allow(Gems).to(receive(:versions).with("good_gem").and_return([
+          { "number" => "1.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z" },
+        ]))
+        allow(Gems).to(receive(:info).with("good_gem").and_return({
+          "homepage_uri" => nil,
+          "source_code_uri" => nil,
+        }))
+        allow(StillActive::DepsDevClient).to(receive(:version_info).and_return(nil))
+      end
+
+      it("sets version_yanked to false") do
+        expect(result).to(include(
+          "good_gem" => hash_including(version_yanked: false),
+        ))
+      end
+    end
+
     context("when configured to use gems with versions") do
       let(:gems) { ["rails", "nokogiri"] }
       let(:versions) { ["6.1.3.2", "1.12.5"] }
