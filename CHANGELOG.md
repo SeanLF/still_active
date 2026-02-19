@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## [1.0.0] - 2026-02-19
+
+### Added
+
+- `--fail-if-critical` and `--fail-if-warning` flags for CI quality gating
+- deps.dev integration: OpenSSF Scorecard scores and known CVEs in output
+- Autopublish to RubyGems via GitHub Releases (trusted publishing)
+
+### Changed
+
+- Replace `activesupport` with lightweight `CoreExt` refinement
+- Remove unused `async-http` dependency (82 -> 66 installed gems)
+- Re-record VCR cassettes against live APIs
+
+### Fixed
+
+- Clean up code smells across helpers and workflow
+
 ## [0.6.0] - 2026-02-19
 
 - Replace `github_api` (unmaintained since 2019) with `octokit`
