@@ -5,6 +5,8 @@ require "vcr"
 VCR.configure do |config|
   config.cassette_library_dir = "fixtures/vcr_cassettes"
   config.hook_into(:webmock)
+  config.filter_sensitive_data("<GITHUB_TOKEN>") { ENV.fetch("GITHUB_TOKEN", "") }
+  config.filter_sensitive_data("<RUBYGEMS_API_KEY>") { ENV.fetch("RUBYGEMS_API_KEY", "") }
 end
 
 RSpec.describe(StillActive::Workflow) do
@@ -20,21 +22,21 @@ RSpec.describe(StillActive::Workflow) do
         VCR.use_cassette("gems") do
           expect(result).to(include(**{
             "rails" => {
-              latest_version: "6.1.4.1",
-              latest_version_release_date: Time.parse("2021-08-19 16:27:05.901 UTC"),
-              latest_pre_release_version: "7.0.0.alpha2",
-              latest_pre_release_version_release_date: Time.parse("2021-09-15 23:16:26.58 UTC"),
+              latest_version: "8.1.2",
+              latest_version_release_date: Time.parse("2026-01-08 20:18:51.400 UTC"),
+              latest_pre_release_version: "8.1.0.rc1",
+              latest_pre_release_version_release_date: Time.parse("2025-10-15 00:52:14.096 UTC"),
               repository_url: "https://github.com/rails/rails",
-              last_commit_date: Time.parse("2021-11-10 09:05:18 UTC"),
+              last_commit_date: Time.parse("2026-02-19 09:39:03 UTC"),
               ruby_gems_url: "https://rubygems.org/gems/rails",
             },
             "nokogiri" => {
-              latest_version: "1.12.5",
-              latest_version_release_date: Time.parse("2021-09-27 19:03:57.243 UTC"),
-              latest_pre_release_version: "1.12.0.rc1",
-              latest_pre_release_version_release_date: Time.parse("2021-07-09 20:00:11.917 UTC"),
+              latest_version: "1.19.1",
+              latest_version_release_date: Time.parse("2026-02-16 23:31:21.075 UTC"),
+              latest_pre_release_version: "1.18.0.rc1",
+              latest_pre_release_version_release_date: Time.parse("2024-12-16 17:48:44.371 UTC"),
               repository_url: "https://github.com/sparklemotion/nokogiri",
-              last_commit_date: Time.parse("2021-11-06 16:44:55 UTC"),
+              last_commit_date: Time.parse("2026-02-17 19:13:22 UTC"),
               ruby_gems_url: "https://rubygems.org/gems/nokogiri",
             },
           }))
@@ -54,26 +56,26 @@ RSpec.describe(StillActive::Workflow) do
           expect(result).to(include(**{
             "rails" => {
               version_used: "6.1.3.2",
-              latest_version: "6.1.4.1",
-              latest_version_release_date: Time.parse("2021-08-19 16:27:05.901 UTC"),
-              latest_pre_release_version: "7.0.0.alpha2",
-              latest_pre_release_version_release_date: Time.parse("2021-09-15 23:16:26.58 UTC"),
+              latest_version: "8.1.2",
+              latest_version_release_date: Time.parse("2026-01-08 20:18:51.400 UTC"),
+              latest_pre_release_version: "8.1.0.rc1",
+              latest_pre_release_version_release_date: Time.parse("2025-10-15 00:52:14.096 UTC"),
               repository_url: "https://github.com/rails/rails",
-              last_commit_date: Time.parse("2021-11-10 09:05:18 UTC"),
+              last_commit_date: Time.parse("2026-02-19 09:39:03 UTC"),
               ruby_gems_url: "https://rubygems.org/gems/rails",
               up_to_date: false,
               version_used_release_date: Time.parse("2021-05-05 15:47:12.17 UTC"),
             },
             "nokogiri" => {
               version_used: "1.12.5",
-              latest_version: "1.12.5",
-              latest_version_release_date: Time.parse("2021-09-27 19:03:57.243 UTC"),
-              latest_pre_release_version: "1.12.0.rc1",
-              latest_pre_release_version_release_date: Time.parse("2021-07-09 20:00:11.917 UTC"),
+              latest_version: "1.19.1",
+              latest_version_release_date: Time.parse("2026-02-16 23:31:21.075 UTC"),
+              latest_pre_release_version: "1.18.0.rc1",
+              latest_pre_release_version_release_date: Time.parse("2024-12-16 17:48:44.371 UTC"),
               repository_url: "https://github.com/sparklemotion/nokogiri",
-              last_commit_date: Time.parse("2021-11-06 16:44:55 UTC"),
+              last_commit_date: Time.parse("2026-02-17 19:13:22 UTC"),
               ruby_gems_url: "https://rubygems.org/gems/nokogiri",
-              up_to_date: true,
+              up_to_date: false,
               version_used_release_date: Time.parse("2021-09-27 19:03:57.243 UTC"),
             },
           }))
