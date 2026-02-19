@@ -28,7 +28,7 @@ module StillActive
 
       @parallelism = 10
 
-      @output_format = :markdown
+      @output_format = :auto
 
       @critical_warning_emoji = "🚩"
       @futurist_emoji = "🔮"

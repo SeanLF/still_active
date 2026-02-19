@@ -28,6 +28,37 @@ RSpec.describe(StillActive::CLI) do
     }
   end
 
+  describe("output format auto-detection") do
+    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+
+    context("when stdout is a TTY") do
+      before { allow($stdout).to(receive(:tty?).and_return(true)) }
+
+      it("outputs terminal format by default") do
+        cli.run(["--gems=rails"])
+        expect($stdout).to(have_received(:puts).with(include("ok")))
+      end
+    end
+
+    context("when stdout is not a TTY") do
+      before { allow($stdout).to(receive(:tty?).and_return(false)) }
+
+      it("outputs JSON by default") do
+        cli.run(["--gems=rails"])
+        expect($stdout).to(have_received(:puts).with(include('"rails"')))
+      end
+    end
+
+    context("when format is explicitly set") do
+      before { allow($stdout).to(receive(:tty?).and_return(true)) }
+
+      it("respects --json even on a TTY") do
+        cli.run(["--gems=rails", "--json"])
+        expect($stdout).to(have_received(:puts).with(include('"rails"')))
+      end
+    end
+  end
+
   describe("--fail-if-critical") do
     context("when a gem has critical activity warning") do
       let(:workflow_result) { { "stale_gem" => gem_data(last_commit_date: ancient_date) } }

@@ -5,6 +5,7 @@ require_relative "../helpers/activity_helper"
 require_relative "../helpers/bundler_helper"
 require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
+require_relative "../helpers/terminal_helper"
 require_relative "../helpers/version_helper"
 require_relative "workflow"
 
@@ -22,31 +23,44 @@ module StillActive
 
       result = Workflow.call
 
-      case StillActive.config.output_format
+      case resolve_format
       when :json
         puts result.to_json
+      when :terminal
+        puts TerminalHelper.render(result)
       when :markdown
-        puts MarkdownHelper.markdown_table_header_line
-        result.keys.sort.each do |name|
-          gem_data = result[name]
-          gem_data[:last_activity_warning_emoj] = EmojiHelper.inactive_gem_emoji(gem_data)
-          gem_data[:up_to_date_emoji] = EmojiHelper.using_latest_emoji(
-            using_last_release: VersionHelper.up_to_date(
-              version_used: gem_data[:version_used], latest_version: gem_data[:latest_version],
-            ),
-            using_last_pre_release: VersionHelper.up_to_date(
-              version_used: gem_data[:version_used], latest_version: gem_data[:latest_pre_release_version],
-            ),
-          )
-
-          puts MarkdownHelper.markdown_table_body_line(gem_name: name, data: gem_data)
-        end
+        render_markdown(result)
       end
 
       check_exit_status(result)
     end
 
     private
+
+    def resolve_format
+      format = StillActive.config.output_format
+      return format unless format == :auto
+
+      $stdout.tty? ? :terminal : :json
+    end
+
+    def render_markdown(result)
+      puts MarkdownHelper.markdown_table_header_line
+      result.keys.sort.each do |name|
+        gem_data = result[name]
+        gem_data[:last_activity_warning_emoj] = EmojiHelper.inactive_gem_emoji(gem_data)
+        gem_data[:up_to_date_emoji] = EmojiHelper.using_latest_emoji(
+          using_last_release: VersionHelper.up_to_date(
+            version_used: gem_data[:version_used], latest_version: gem_data[:latest_version],
+          ),
+          using_last_pre_release: VersionHelper.up_to_date(
+            version_used: gem_data[:version_used], latest_version: gem_data[:latest_pre_release_version],
+          ),
+        )
+
+        puts MarkdownHelper.markdown_table_body_line(gem_name: name, data: gem_data)
+      end
+    end
 
     def check_exit_status(result)
       config = StillActive.config

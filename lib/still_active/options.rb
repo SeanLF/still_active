@@ -49,8 +49,9 @@ module StillActive
     end
 
     def add_output_options(opts)
-      opts.on("--markdown", "Prints output in markdown format") { StillActive.config { |config| config.output_format = :markdown } }
-      opts.on("--json", "Prints output in JSON format") { StillActive.config { |config| config.output_format = :json } }
+      opts.on("--terminal", "Coloured terminal output (default)") { StillActive.config { |config| config.output_format = :terminal } }
+      opts.on("--markdown", "Markdown table output") { StillActive.config { |config| config.output_format = :markdown } }
+      opts.on("--json", "JSON output (default when piped)") { StillActive.config { |config| config.output_format = :json } }
     end
 
     def add_token_options(opts)
