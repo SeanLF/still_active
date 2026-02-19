@@ -26,19 +26,18 @@ module StillActive
       when :markdown
         puts MarkdownHelper.markdown_table_header_line
         result.keys.sort.each do |name|
-          result[name].merge!({
-            last_activity_warning_emoj: EmojiHelper.inactive_gem_emoji(result[name]),
-            up_to_date_emoji: EmojiHelper.using_latest_emoji(
-              using_last_release: VersionHelper.up_to_date?(
-                version_used: result[name].dig(:version_used), latest_version: result[name].dig(:latest_version),
-              ),
-              using_last_pre_release: VersionHelper.up_to_date?(
-                version_used: result[name].dig(:version_used), latest_version: result[name].dig(:latest_pre_release_version),
-              ),
+          gem_data = result[name]
+          gem_data[:last_activity_warning_emoj] = EmojiHelper.inactive_gem_emoji(gem_data)
+          gem_data[:up_to_date_emoji] = EmojiHelper.using_latest_emoji(
+            using_last_release: VersionHelper.up_to_date(
+              version_used: gem_data[:version_used], latest_version: gem_data[:latest_version],
             ),
-          })
+            using_last_pre_release: VersionHelper.up_to_date(
+              version_used: gem_data[:version_used], latest_version: gem_data[:latest_pre_release_version],
+            ),
+          )
 
-          puts MarkdownHelper.markdown_table_body_line(gem_name: name, data: result[name])
+          puts MarkdownHelper.markdown_table_body_line(gem_name: name, data: gem_data)
         end
       end
     end

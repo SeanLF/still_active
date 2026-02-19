@@ -49,7 +49,7 @@ RSpec.describe(StillActive::VersionHelper) do
     end
   end
 
-  describe("#up_to_date?") do
+  describe("#up_to_date") do
     let(:test_cases) do
       [
         { version_used: nil, latest_version: nil, latest_pre_release_version: nil },
@@ -68,7 +68,7 @@ RSpec.describe(StillActive::VersionHelper) do
 
     it("returns the right result") do
       test_cases.each_with_index do |test_case, index|
-        subject = described_class.up_to_date?(**test_case)
+        subject = described_class.up_to_date(**test_case)
         expected_result = expected_results[index]
 
         expect(subject).to(eq(expected_result))

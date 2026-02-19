@@ -14,27 +14,11 @@ module StillActive
       end
     end
 
-    def up_to_date?(version_used:, latest_version: nil, latest_pre_release_version: nil)
-      return nil if latest_version.nil? && latest_pre_release_version.nil? # rubocop:disable Style/ReturnNil,Style/ReturnNilInPredicateMethodDefinition
+    def up_to_date(version_used:, latest_version: nil, latest_pre_release_version: nil)
+      return if latest_version.nil? && latest_pre_release_version.nil?
 
-      version_used = if version_used.is_a?(String)
-        version_used
-      else
-        gem_version(version_hash: version_used)
-      end
-
-      latest_version = if latest_version.is_a?(String)
-        latest_version
-      else
-        gem_version(version_hash: latest_version)
-      end
-      latest_pre_release_version = if latest_pre_release_version.is_a?(String)
-        latest_pre_release_version
-      else
-        gem_version(version_hash: latest_pre_release_version)
-      end
-
-      [latest_version, latest_pre_release_version].include?(version_used)
+      [normalize_version(latest_version), normalize_version(latest_pre_release_version)]
+        .include?(normalize_version(version_used))
     end
 
     def gem_version(version_hash:)
@@ -45,6 +29,12 @@ module StillActive
       release_date = version_hash&.dig("created_at")
 
       Time.parse(release_date) unless release_date.nil?
+    end
+
+    private
+
+    def normalize_version(version)
+      version.is_a?(String) ? version : gem_version(version_hash: version)
     end
   end
 end

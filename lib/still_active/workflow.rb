@@ -19,7 +19,7 @@ module StillActive
         result_object = {}
         StillActive.config.gems.each_with_object(result_object) do |gem, hash|
           semaphore.async do
-            gem_info(gem_name: gem[:name], result_object: hash, gem_version: gem.dig(:version))
+            gem_info(gem_name: gem[:name], result_object: hash, gem_version: gem[:version])
           end
         end
         barrier.wait
@@ -61,8 +61,7 @@ module StillActive
       if gem_version
         version_used = VersionHelper.find_version(versions: vs, version_string: gem_version)
         result_object[gem_name].merge!({
-          up_to_date:
-          VersionHelper.up_to_date?(
+          up_to_date: VersionHelper.up_to_date(
             version_used: version_used,
             latest_version: last_release,
             latest_pre_release_version: last_pre_release,
@@ -95,8 +94,8 @@ module StillActive
       return [] if info.nil?
 
       [
-        info&.metadata&.dig("source_code_uri"),
-        info&.homepage,
+        info.metadata&.dig("source_code_uri"),
+        info.homepage,
       ].compact.uniq
     end
 
@@ -118,17 +117,10 @@ module StillActive
       []
     end
 
-    def last_commit(source:, repository_owner:, repository_name:)
-      case source.to_sym
-      when :github
-        StillActive.config.github_client.commits("#{repository_owner}/#{repository_name}", per_page: 1)&.first
-      end
-    end
-
     def last_commit_date(source:, repository_owner:, repository_name:)
-      commit = last_commit(source: source, repository_owner: repository_owner, repository_name: repository_name)
       case source.to_sym
       when :github
+        commit = StillActive.config.github_client.commits("#{repository_owner}/#{repository_name}", per_page: 1)&.first
         date = commit&.commit&.author&.date
         case date
         when Time then date

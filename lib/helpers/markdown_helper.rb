@@ -13,32 +13,32 @@ module StillActive
       repository_url = data[:repository_url]
       ruby_gems_url = data[:ruby_gems_url]
 
-      version_used = data.dig(:version_used)
+      version_used = data[:version_used]
       version_used_url =
         if version_used && ruby_gems_url
           "#{ruby_gems_url}/versions/#{version_used}"
         end
-      version_used_release_date = data.dig(:version_used_release_date)
+      version_used_release_date = data[:version_used_release_date]
 
       latest_version = data[:latest_version]
       latest_version_url =
         if latest_version && ruby_gems_url
           "#{ruby_gems_url}/versions/#{latest_version}"
         end
-      latest_version_release_date = data.dig(:latest_version_release_date)
+      latest_version_release_date = data[:latest_version_release_date]
 
-      latest_version_prerelease = data.dig(:latest_pre_release_version)
+      latest_version_prerelease = data[:latest_pre_release_version]
       latest_version_prerelease_url =
         if latest_version_prerelease && ruby_gems_url
           "#{ruby_gems_url}/versions/#{latest_version_prerelease}"
         end
-      latest_version_prerelease_date = data.dig(:latest_pre_release_version_release_date)
+      latest_version_prerelease_date = data[:latest_pre_release_version_release_date]
 
-      last_commit_date = data.dig(:last_commit_date)
+      last_commit_date = data[:last_commit_date]
       last_commit_url = repository_url
 
-      inactive_repository_emoji = data.dig(:last_activity_warning_emoj)
-      using_latest_version_emoji = data.dig(:up_to_date_emoji)
+      inactive_repository_emoji = data[:last_activity_warning_emoj]
+      using_latest_version_emoji = data[:up_to_date_emoji]
 
       formatted_name = markdown_url(text: gem_name, url: repository_url)
 
