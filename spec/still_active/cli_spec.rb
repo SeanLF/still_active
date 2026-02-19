@@ -23,6 +23,8 @@ RSpec.describe(StillActive::CLI) do
       version_used: "1.0.0",
       latest_version: "1.0.0",
       latest_pre_release_version: nil,
+      scorecard_score: nil,
+      vulnerability_count: nil,
     }
   end
 

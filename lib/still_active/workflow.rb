@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "deps_dev_client"
 require_relative "repository"
 require_relative "../helpers/version_helper"
 require "async"
@@ -43,6 +44,10 @@ module StillActive
       )
       last_release = VersionHelper.find_version(versions: vs, pre_release: false)
       last_pre_release = VersionHelper.find_version(versions: vs, pre_release: true)
+      deps_dev = fetch_deps_dev_info(
+        gem_name: gem_name,
+        version: VersionHelper.gem_version(version_hash: last_release),
+      )
       result_object[gem_name].merge!({
         latest_version: VersionHelper.gem_version(version_hash: last_release),
         latest_version_release_date: VersionHelper.release_date(version_hash: last_release),
@@ -52,6 +57,7 @@ module StillActive
 
         repository_url: repo_info[:url],
         last_commit_date: last_commit_date,
+        **deps_dev,
       })
 
       unless vs.empty?
@@ -72,6 +78,15 @@ module StillActive
       end
     rescue StandardError => e
       puts "error occured for #{gem_name}: #{e.class}\n\t#{e.message}"
+    end
+
+    def fetch_deps_dev_info(gem_name:, version:)
+      info = DepsDevClient.version_info(gem_name: gem_name, version: version)
+      scorecard = DepsDevClient.project_scorecard(project_id: info&.dig(:project_id))
+      {
+        scorecard_score: scorecard&.dig(:score),
+        vulnerability_count: info&.dig(:advisory_keys)&.length,
+      }
     end
 
     # makes network request

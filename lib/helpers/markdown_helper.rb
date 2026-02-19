@@ -5,8 +5,8 @@ module StillActive
     extend self
 
     def markdown_table_header_line
-      "| gem activity old? | up to date? | name | version used | release date | latest version | release date | latest pre-release version  | release date | last commit date |\n" \
-        "| ----------------- | ----------- | ---- | ------------ | ------------ | -------------- | ------------ | --------------------------- | ------------ | ---------------- |"
+      "| gem activity old? | up to date? | scorecard | vulns | name | version used | release date | latest version | release date | latest pre-release version  | release date | last commit date |\n" \
+        "| ----------------- | ----------- | --------- | ----- | ---- | ------------ | ------------ | -------------- | ------------ | --------------------------- | ------------ | ---------------- |"
     end
 
     def markdown_table_body_line(gem_name:, data:)
@@ -56,10 +56,15 @@ module StillActive
 
       formatted_last_commit_date = markdown_url(text: year_month(last_commit_date), url: last_commit_url)
 
+      formatted_scorecard = format_scorecard(data[:scorecard_score])
+      formatted_vulns = format_vulns(data[:vulnerability_count])
+
       formatted_markdown_table_line =
         [
           inactive_repository_emoji || StillActive.config.unsure_emoji,
           using_latest_version_emoji || StillActive.config.unsure_emoji,
+          formatted_scorecard,
+          formatted_vulns,
           formatted_name,
           formatted_version_used,
           formatted_version_used_date || StillActive.config.unsure_emoji,
@@ -75,6 +80,19 @@ module StillActive
     end
 
     private
+
+    def format_scorecard(score)
+      return StillActive.config.unsure_emoji if score.nil?
+
+      "#{score}/10"
+    end
+
+    def format_vulns(count)
+      return StillActive.config.unsure_emoji if count.nil?
+      return StillActive.config.success_emoji if count.zero?
+
+      count.to_s
+    end
 
     def markdown_url(text:, url:)
       return text if url.nil?
