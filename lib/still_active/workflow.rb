@@ -3,6 +3,7 @@
 require_relative "deps_dev_client"
 require_relative "gitlab_client"
 require_relative "repository"
+require_relative "../helpers/libyear_helper"
 require_relative "../helpers/version_helper"
 require "async"
 require "async/barrier"
@@ -81,6 +82,10 @@ module StillActive
 
           version_used_release_date: VersionHelper.release_date(version_hash: version_used),
           version_yanked: !vs.empty? && version_used.nil?,
+          libyear: LibyearHelper.gem_libyear(
+            version_used_release_date: VersionHelper.release_date(version_hash: version_used),
+            latest_version_release_date: VersionHelper.release_date(version_hash: last_release),
+          ),
         })
       end
     rescue StandardError => e

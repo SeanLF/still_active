@@ -30,6 +30,7 @@ RSpec.describe(StillActive::TerminalHelper) do
         vulnerability_count: 3,
         repository_url: "https://github.com/example/stale",
         ruby_gems_url: "https://rubygems.org/gems/stale_gem",
+        libyear: 2.5,
       },
     }
   end
@@ -77,6 +78,7 @@ RSpec.describe(StillActive::TerminalHelper) do
       expect(output).to(include("1 active"))
       expect(output).to(include("1 stale"))
       expect(output).to(include("3 vulnerabilities"))
+      expect(output).to(include("2.5 libyears behind"))
     end
 
     it("aligns columns consistently") do

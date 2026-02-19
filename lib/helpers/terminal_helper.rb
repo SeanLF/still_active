@@ -2,6 +2,7 @@
 
 require_relative "activity_helper"
 require_relative "ansi_helper"
+require_relative "libyear_helper"
 require_relative "version_helper"
 
 module StillActive
@@ -117,6 +118,8 @@ module StillActive
       parts.last << ", #{yanked} yanked" if yanked > 0
       parts << "#{active} active, #{stale} stale"
       parts << "#{vulns} vulnerabilities"
+      total_libyear = LibyearHelper.total_libyear(result)
+      parts << "#{total_libyear.round(1)} libyears behind" if total_libyear > 0
       parts.join(" · ")
     end
   end
