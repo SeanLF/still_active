@@ -12,6 +12,7 @@ module StillActive
         .locked_gems
         .specs
         .select { |spec| gemfile_gems.include?(spec.name) }
+        .uniq(&:name)
         .map do |spec|
           {
             name: spec.name,

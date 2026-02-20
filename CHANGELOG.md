@@ -5,6 +5,7 @@
 ### Fixed
 
 - Ruby version freshness reported the running Ruby (e.g. 4.0.1) instead of the target project's Ruby from `Gemfile.lock`; now reads `RUBY VERSION` section from lockfile, falls back to running version only when absent
+- Platform-specific gems (e.g. `nokogiri` on multiple architectures) were processed once per platform, wasting API calls and inflating the progress counter total
 
 ## [1.2.0] - 2026-02-20
 

@@ -16,6 +16,7 @@ module StillActive
 
       cycles = fetch_cycles
       return if cycles.nil?
+
       current_cycle = find_cycle(cycles, current)
       latest_cycle = cycles.first
 
