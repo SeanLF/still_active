@@ -2,7 +2,7 @@
 
 module StillActive
   module CoreExt
-    SECONDS_PER_YEAR = 31_556_952 # Gregorian average (365.2425 days)
+    SECONDS_PER_YEAR = 31_556_952.0 # Gregorian average (365.2425 days)
 
     refine Numeric do
       def days = self * 86_400
