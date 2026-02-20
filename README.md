@@ -10,16 +10,17 @@
 ![Rubocop analysis](https://github.com/SeanLF/still_active/actions/workflows/rubocop-analysis.yml/badge.svg)
 
 ```
-Name                   Version          Activity  OpenSSF  Vulns
-────────────────────────────────────────────────────────────────────
-code-scanning-rubocop  0.6.1 (latest)   stale     3.1/10   0
-debug                  1.11.1 (latest)  ok        5.2/10   0
-faker                  3.6.0 (latest)   ok        7.4/10   0
-rake                   13.3.1 (latest)  ok        5.3/10   0
-rspec                  3.13.2 (latest)  ok        6.9/10   0
-rubocop                1.84.2 (latest)  ok        5.9/10   0
+Name                    Version          Activity  OpenSSF  Vulns
+───────────────────────────────────────────────────────────────────
+async                   2.36.0 (latest)  ok        7.1/10   0
+backbone-rails          1.2.3 (latest)   archived  3.6/10   0
+bootstrap-slider-rails  9.8.0 (latest)   critical  -        0
+gitlab-markup           2.0.0 (latest)   ok        -        0
+local_gem               0.1.0 (path)     -         -        0
+nested_form             0.3.2 (git)      archived  3.3/10   0
+remotipart              1.4.4 (git)      critical  3.1/10   0
 
-12 gems: 11 up to date, 0 outdated · 11 active, 1 stale · 0 vulnerabilities
+7 gems: 4 up to date, 0 outdated · 2 active, 2 stale, 2 archived · 0 vulnerabilities
 Ruby 4.0.1 (latest)
 ```
 
@@ -115,28 +116,36 @@ Usage: still_active [options]
 **JSON** (default when piped) -- structured data for automation:
 
 ```bash
-still_active --json --gems=rails,nokogiri
+still_active --json --gemfile=spec/still_active/edge_case_gemfile/Gemfile
 ```
 
 ```json
 {
   "gems": {
-    "rails": {
+    "async": {
       "source_type": "rubygems",
-      "latest_version": "8.1.2",
-      "repository_url": "https://github.com/rails/rails",
-      "last_commit_date": "2026-02-19 09:39:03 UTC",
+      "version_used": "2.36.0",
+      "latest_version": "2.36.0",
+      "repository_url": "https://github.com/socketry/async",
+      "last_commit_date": "2026-01-22 04:09:48 UTC",
       "archived": false,
-      "scorecard_score": 5.7,
+      "scorecard_score": 7.1,
+      "vulnerability_count": 0,
+      "libyear": 0.0
+    },
+    "nested_form": {
+      "source_type": "git",
+      "version_used": "0.3.2",
+      "repository_url": "https://github.com/ryanb/nested_form",
+      "last_commit_date": "2021-12-11 21:47:02 UTC",
+      "archived": true,
+      "scorecard_score": 3.3,
       "vulnerability_count": 0
     },
-    "nokogiri": {
-      "source_type": "rubygems",
-      "latest_version": "1.19.1",
-      "repository_url": "https://github.com/sparklemotion/nokogiri",
-      "last_commit_date": "2026-02-17 19:13:22 UTC",
-      "archived": false,
-      "scorecard_score": 6.5,
+    "local_gem": {
+      "source_type": "path",
+      "version_used": "0.1.0",
+      "scorecard_score": null,
       "vulnerability_count": 0
     }
   },
@@ -155,11 +164,12 @@ still_active --json --gems=rails,nokogiri
 still_active --markdown
 ```
 
-| activity | up to date? | OpenSSF | vulns | name     | version used | latest version   | latest pre-release   | last commit | libyear |
-| -------- | ----------- | ------- | ----- | -------- | ------------ | ---------------- | -------------------- | ----------- | ------- |
-|          | ❓          | 5.2/10  | ✅    | debug    | ❓           | 1.11.1 (2025/12) | 1.0.0.rc2 (2021/09)  | 2025/12     | -       |
-|          | ❓          | 6.5/10  | ✅    | nokogiri | ❓           | 1.19.1 (2026/02) | 1.18.0.rc1 (2024/12) | 2026/02     | -       |
-|          | ❓          | 5.7/10  | ✅    | rails    | ❓           | 8.1.2 (2026/01)  | 8.1.0.rc1 (2025/10)  | 2026/02     | -       |
+| activity | up to date? | OpenSSF | vulns | name                                                         | version used                                                               | latest version                                                             | latest pre-release | last commit                                           | libyear |
+| -------- | ----------- | ------- | ----- | ------------------------------------------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------- | ------- |
+|          | ✅          | 7.1/10  | ✅    | [async](https://github.com/socketry/async)                   | [2.36.0](https://rubygems.org/gems/async/versions/2.36.0) (2026/01)        | [2.36.0](https://rubygems.org/gems/async/versions/2.36.0) (2026/01)        | ❓                 | [2026/01](https://github.com/socketry/async)          | 0.0y    |
+| 🚩       | ✅          | 3.6/10  | ✅    | [backbone-rails](https://github.com/aflatter/backbone-rails) | [1.2.3](https://rubygems.org/gems/backbone-rails/versions/1.2.3) (2016/02) | [1.2.3](https://rubygems.org/gems/backbone-rails/versions/1.2.3) (2016/02) | ❓                 | [2016/02](https://github.com/aflatter/backbone-rails) | 0.0y    |
+| ❓       | ❓          | ❓      | ✅    | local_gem                                                    | 0.1.0 (path)                                                               | ❓                                                                         | ❓                 | ❓                                                    | -       |
+| 🚩       | ❓          | 3.3/10  | ✅    | [nested_form](https://github.com/ryanb/nested_form)          | 0.3.2 (git)                                                                | ❓                                                                         | ❓                 | [2021/12](https://github.com/ryanb/nested_form)       | -       |
 
 **Ruby 4.0.1** (latest) ✅
 
