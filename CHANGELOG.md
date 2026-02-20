@@ -26,6 +26,8 @@
 - Terminal summary includes libyear total and health average
 - JSON output wrapped in `{ "gems": ..., "ruby": ... }` structure
 - Version string validation guards against malformed versions from git-sourced gems
+- Progress counter on stderr during gem checking so large Gemfiles don't appear frozen
+- Actionable rate limit message when GitHub API quota is exhausted
 
 ### Fixed
 
