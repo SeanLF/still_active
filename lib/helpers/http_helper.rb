@@ -48,7 +48,7 @@ module StillActive
 
       $stderr.puts("warning: #{uri.host}#{uri.path} too many redirects")
       nil
-    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
+    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED, Errno::ECONNRESET => e
       $stderr.puts("warning: #{uri.host}#{uri.path} failed: #{e.class} (#{e.message})")
       nil
     rescue JSON::ParserError => e

@@ -161,6 +161,9 @@ module StillActive
       end
     rescue Gems::NotFound
       []
+    rescue Errno::ECONNRESET, Errno::ECONNREFUSED, Net::OpenTimeout, Net::ReadTimeout, SocketError => e
+      $stderr.puts("warning: rubygems.org versions lookup failed for #{gem_name}: #{e.class} (#{e.message})")
+      []
     end
 
     def github_packages_uri?(uri)
