@@ -133,29 +133,26 @@ module StillActive
 
     def gem_info_git(gem_name:, result_object:)
       repo_info = repository_info_from_installed_gem(gem_name: gem_name)
-      commit_date = last_commit_date(
-        source: repo_info[:source],
-        repository_owner: repo_info[:owner],
-        repository_name: repo_info[:name],
-      )
-      archived = repo_archived?(
-        source: repo_info[:source],
-        repository_owner: repo_info[:owner],
-        repository_name: repo_info[:name],
-      )
-      scorecard = DepsDevClient.project_scorecard(project_id: repo_info[:project_id])
+      source, owner, name = repo_info.values_at(:source, :owner, :name)
 
       result_object[gem_name].merge!({
         repository_url: repo_info[:url],
-        last_commit_date: commit_date,
-        archived: archived,
-        scorecard_score: scorecard&.dig(:score),
+        last_commit_date: last_commit_date(source:, repository_owner: owner, repository_name: name),
+        archived: repo_archived?(source:, repository_owner: owner, repository_name: name),
+        scorecard_score: DepsDevClient.project_scorecard(project_id: repo_info[:project_id])&.dig(:score),
       })
     end
 
     def gem_info_path(gem_name:, result_object:)
       repo_info = repository_info_from_installed_gem(gem_name: gem_name)
-      result_object[gem_name][:repository_url] = repo_info[:url]
+      source, owner, name = repo_info.values_at(:source, :owner, :name)
+
+      result_object[gem_name].merge!({
+        repository_url: repo_info[:url],
+        last_commit_date: last_commit_date(source:, repository_owner: owner, repository_name: name),
+        archived: repo_archived?(source:, repository_owner: owner, repository_name: name),
+        scorecard_score: DepsDevClient.project_scorecard(project_id: repo_info[:project_id])&.dig(:score),
+      })
     end
 
     def fetch_deps_dev_info(gem_name:, version:)

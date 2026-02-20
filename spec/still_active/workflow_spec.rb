@@ -105,6 +105,7 @@ RSpec.describe(StillActive::Workflow) do
       before do
         StillActive.config.gems = [{ name: "path_gem", version: "0.1.0", source_type: :path }]
         allow(Gems).to(receive(:versions))
+        allow(StillActive::DepsDevClient).to(receive(:project_scorecard).and_return(nil))
       end
 
       it("does not query Gems.versions") do
@@ -118,10 +119,10 @@ RSpec.describe(StillActive::Workflow) do
         ))
       end
 
-      it("does not set version_yanked or scorecard") do
+      it("does not set version_yanked or libyear") do
         data = result["path_gem"]
         expect(data).not_to(have_key(:version_yanked))
-        expect(data).not_to(have_key(:scorecard_score))
+        expect(data).not_to(have_key(:libyear))
       end
     end
 
