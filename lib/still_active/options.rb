@@ -101,6 +101,8 @@ module StillActive
         StillActive.config { |config| config.fail_if_warning = true }
       end
       opts.on("--fail-below-score=SCORE", Integer, "Exit 1 if any gem's health score is below SCORE (0-100)") do |value|
+        raise ArgumentError, "--fail-below-score must be between 0 and 100 (got #{value})" unless (0..100).cover?(value)
+
         StillActive.config { |config| config.fail_below_score = value }
       end
     end

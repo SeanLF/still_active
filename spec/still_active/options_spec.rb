@@ -76,6 +76,11 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.ignored_gems).to(eq(["nokogiri", "puma"]))
     end
 
+    it("raises when fail-below-score is out of range") do
+      expect { described_class.new.parse!(["--fail-below-score=200", "--gems=rails"]) }
+        .to(raise_error(ArgumentError, /must be between 0 and 100/))
+    end
+
     it("raises when both gemfile and gems are provided") do
       expect { described_class.new.parse!(["--gemfile=Gemfile", "--gems=rails"]) }
         .to(raise_error(ArgumentError, /provide gemfile or gems, not both/))
