@@ -122,50 +122,103 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
-  describe("--fail-below-score") do
-    context("when a gem's health score is below threshold") do
+  describe("--fail-if-vulnerable") do
+    context("when a gem has vulnerabilities") do
       let(:workflow_result) do
-        { "weak_gem" => gem_data(last_commit_date: recent_date).merge(health_score: 40) }
+        {
+          "vuln_gem" => gem_data(last_commit_date: recent_date).merge(
+            vulnerability_count: 2,
+            vulnerabilities: [{ id: "CVE-1", cvss3_score: 9.1 }, { id: "CVE-2", cvss3_score: 5.0 }],
+          ),
+        }
       end
 
       it("exits 1") do
-        expect { cli.run(["--gems=weak_gem", "--json", "--fail-below-score=50"]) }
+        expect { cli.run(["--gems=vuln_gem", "--json", "--fail-if-vulnerable"]) }
           .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
       end
     end
 
-    context("when all gems meet the threshold") do
+    context("when no gems have vulnerabilities") do
       let(:workflow_result) do
-        { "strong_gem" => gem_data(last_commit_date: recent_date).merge(health_score: 90) }
+        { "safe_gem" => gem_data(last_commit_date: recent_date).merge(vulnerability_count: 0, vulnerabilities: []) }
       end
 
       it("exits 0") do
-        expect { cli.run(["--gems=strong_gem", "--json", "--fail-below-score=50"]) }
+        expect { cli.run(["--gems=safe_gem", "--json", "--fail-if-vulnerable"]) }
           .not_to(raise_error)
       end
     end
 
-    context("when ignored gem is below threshold") do
+    context("when ignored gem has vulnerabilities") do
       let(:workflow_result) do
         {
-          "weak_gem" => gem_data(last_commit_date: recent_date).merge(health_score: 20),
-          "strong_gem" => gem_data(last_commit_date: recent_date).merge(health_score: 90),
+          "vuln_gem" => gem_data(last_commit_date: recent_date).merge(
+            vulnerability_count: 1,
+            vulnerabilities: [{ id: "CVE-1", cvss3_score: 9.0 }],
+          ),
+          "safe_gem" => gem_data(last_commit_date: recent_date).merge(vulnerability_count: 0, vulnerabilities: []),
         }
       end
 
       it("does not exit 1") do
-        expect { cli.run(["--gems=weak_gem,strong_gem", "--json", "--fail-below-score=50", "--ignore=weak_gem"]) }
+        expect { cli.run(["--gems=vuln_gem,safe_gem", "--json", "--fail-if-vulnerable", "--ignore=vuln_gem"]) }
           .not_to(raise_error)
       end
     end
 
-    context("when a gem has nil health score") do
+    context("with severity threshold") do
       let(:workflow_result) do
-        { "unknown_gem" => gem_data(last_commit_date: recent_date).merge(health_score: nil) }
+        {
+          "low_vuln_gem" => gem_data(last_commit_date: recent_date).merge(
+            vulnerability_count: 1,
+            vulnerabilities: [{ id: "CVE-1", cvss3_score: 3.0 }],
+          ),
+        }
       end
 
-      it("skips nil scores gracefully") do
-        expect { cli.run(["--gems=unknown_gem", "--json", "--fail-below-score=50"]) }
+      it("exits 0 when vulns are below threshold") do
+        expect { cli.run(["--gems=low_vuln_gem", "--json", "--fail-if-vulnerable=high"]) }
+          .not_to(raise_error)
+      end
+
+      it("exits 1 when vulns meet threshold") do
+        expect { cli.run(["--gems=low_vuln_gem", "--json", "--fail-if-vulnerable=low"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+    end
+  end
+
+  describe("--fail-if-outdated") do
+    context("when a gem exceeds libyear threshold") do
+      let(:workflow_result) do
+        { "old_gem" => gem_data(last_commit_date: recent_date).merge(libyear: 4.0) }
+      end
+
+      it("exits 1") do
+        expect { cli.run(["--gems=old_gem", "--json", "--fail-if-outdated=3"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+    end
+
+    context("when all gems are within threshold") do
+      let(:workflow_result) do
+        { "fresh_gem" => gem_data(last_commit_date: recent_date).merge(libyear: 1.5) }
+      end
+
+      it("exits 0") do
+        expect { cli.run(["--gems=fresh_gem", "--json", "--fail-if-outdated=3"]) }
+          .not_to(raise_error)
+      end
+    end
+
+    context("when libyear is nil") do
+      let(:workflow_result) do
+        { "unknown_gem" => gem_data(last_commit_date: recent_date) }
+      end
+
+      it("skips nil libyears gracefully") do
+        expect { cli.run(["--gems=unknown_gem", "--json", "--fail-if-outdated=3"]) }
           .not_to(raise_error)
       end
     end

@@ -7,6 +7,7 @@ require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
 require_relative "../helpers/terminal_helper"
 require_relative "../helpers/version_helper"
+require_relative "../helpers/vulnerability_helper"
 require_relative "workflow"
 
 module StillActive
@@ -73,7 +74,7 @@ module StillActive
 
     def check_exit_status(result)
       config = StillActive.config
-      return unless config.fail_if_critical || config.fail_if_warning || config.fail_below_score
+      return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated
 
       ignored = config.ignored_gems
       checked = result.reject { |name, _| ignored.include?(name) }
@@ -84,8 +85,20 @@ module StillActive
         exit(1) if config.fail_if_critical && levels.intersect?([:critical, :archived])
       end
 
-      if (threshold = config.fail_below_score)
-        exit(1) if checked.each_value.any? { |d| d[:health_score] && d[:health_score] < threshold }
+      if (vuln_setting = config.fail_if_vulnerable)
+        checked.each_value do |d|
+          next unless d[:vulnerability_count]&.positive?
+
+          if vuln_setting == true
+            exit(1)
+          else
+            exit(1) if VulnerabilityHelper.severity_at_or_above?(d[:vulnerabilities], vuln_setting)
+          end
+        end
+      end
+
+      if (threshold = config.fail_if_outdated)
+        exit(1) if checked.each_value.any? { |d| d[:libyear] && d[:libyear] > threshold }
       end
     end
   end

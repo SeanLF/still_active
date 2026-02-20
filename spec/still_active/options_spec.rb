@@ -66,9 +66,19 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.warning_range_end).to(eq(5))
     end
 
-    it("sets fail-below-score threshold") do
-      described_class.new.parse!(["--fail-below-score=70", "--gems=rails"])
-      expect(StillActive.config.fail_below_score).to(eq(70))
+    it("sets fail-if-vulnerable to true when no severity given") do
+      described_class.new.parse!(["--fail-if-vulnerable", "--gems=rails"])
+      expect(StillActive.config.fail_if_vulnerable).to(be(true))
+    end
+
+    it("sets fail-if-vulnerable to severity string when given") do
+      described_class.new.parse!(["--fail-if-vulnerable=high", "--gems=rails"])
+      expect(StillActive.config.fail_if_vulnerable).to(eq("high"))
+    end
+
+    it("sets fail-if-outdated to float threshold") do
+      described_class.new.parse!(["--fail-if-outdated=3", "--gems=rails"])
+      expect(StillActive.config.fail_if_outdated).to(eq(3.0))
     end
 
     it("sets ignored gems from comma-separated list") do
@@ -76,9 +86,9 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.ignored_gems).to(eq(["nokogiri", "puma"]))
     end
 
-    it("raises when fail-below-score is out of range") do
-      expect { described_class.new.parse!(["--fail-below-score=200", "--gems=rails"]) }
-        .to(raise_error(ArgumentError, /must be between 0 and 100/))
+    it("raises when fail-if-vulnerable severity is invalid") do
+      expect { described_class.new.parse!(["--fail-if-vulnerable=banana", "--gems=rails"]) }
+        .to(raise_error(ArgumentError, /severity must be one of/))
     end
 
     it("raises when both gemfile and gems are provided") do
