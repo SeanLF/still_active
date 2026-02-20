@@ -5,7 +5,7 @@ require "json"
 
 module StillActive
   module HttpHelper
-    TRUSTED_HOSTS = %w[github.com gitlab.com api.deps.dev endoflife.date rubygems.pkg.github.com].freeze
+    TRUSTED_HOSTS = ["github.com", "gitlab.com", "api.deps.dev", "endoflife.date", "rubygems.pkg.github.com"].freeze
     MAX_REDIRECTS = 3
 
     extend self

@@ -9,7 +9,7 @@ module StillActive
 
     BASE_URI = URI("https://gitlab.com/")
 
-    def archived?(owner:, name:)
+    def archived(owner:, name:)
       return if owner.nil? || name.nil?
 
       path = "/api/v4/projects/#{encode_project(owner, name)}"

@@ -7,26 +7,26 @@ RSpec.describe(StillActive::GitlabClient) do
   let(:name) { "inkscape" }
   let(:api_url) { "https://gitlab.com/api/v4/projects/#{owner}%2F#{name}/repository/commits?per_page=1" }
 
-  describe(".archived?") do
+  describe(".archived") do
     let(:project_url) { "https://gitlab.com/api/v4/projects/#{owner}%2F#{name}" }
 
     it("returns true for an archived project") do
       stub_request(:get, project_url).to_return(status: 200, body: { "archived" => true }.to_json, headers: { "Content-Type" => "application/json" })
-      expect(described_class.archived?(owner: owner, name: name)).to(be(true))
+      expect(described_class.archived(owner: owner, name: name)).to(be(true))
     end
 
     it("returns false for an active project") do
       stub_request(:get, project_url).to_return(status: 200, body: { "archived" => false }.to_json, headers: { "Content-Type" => "application/json" })
-      expect(described_class.archived?(owner: owner, name: name)).to(be(false))
+      expect(described_class.archived(owner: owner, name: name)).to(be(false))
     end
 
     it("returns nil when owner is nil") do
-      expect(described_class.archived?(owner: nil, name: name)).to(be_nil)
+      expect(described_class.archived(owner: nil, name: name)).to(be_nil)
     end
 
     it("returns nil on timeout") do
       stub_request(:get, project_url).to_timeout
-      expect(described_class.archived?(owner: owner, name: name)).to(be_nil)
+      expect(described_class.archived(owner: owner, name: name)).to(be_nil)
     end
   end
 

@@ -13,6 +13,9 @@
 # worktrees
 .worktrees/
 
+# test fixture lockfiles (avoid Dependabot noise from ancient transitive deps)
+spec/**/Gemfile.lock
+
 # claude
 .claude/tasks/
 /docs/plans

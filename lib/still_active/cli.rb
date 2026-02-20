@@ -89,11 +89,8 @@ module StillActive
         checked.each_value do |d|
           next unless d[:vulnerability_count]&.positive?
 
-          if vuln_setting == true
-            exit(1)
-          else
-            exit(1) if VulnerabilityHelper.severity_at_or_above?(d[:vulnerabilities], vuln_setting)
-          end
+          exit(1) if vuln_setting == true
+          exit(1) if VulnerabilityHelper.severity_at_or_above?(d[:vulnerabilities], vuln_setting)
         end
       end
 

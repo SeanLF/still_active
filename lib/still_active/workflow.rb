@@ -79,7 +79,7 @@ module StillActive
         repository_owner: repo_info[:owner],
         repository_name: repo_info[:name],
       )
-      archived = repo_archived?(
+      archived = repo_archived(
         source: repo_info[:source],
         repository_owner: repo_info[:owner],
         repository_name: repo_info[:name],
@@ -137,7 +137,7 @@ module StillActive
       result_object[gem_name].merge!({
         repository_url: repo_info[:url],
         last_commit_date: last_commit_date(source:, repository_owner: owner, repository_name: name),
-        archived: repo_archived?(source:, repository_owner: owner, repository_name: name),
+        archived: repo_archived(source:, repository_owner: owner, repository_name: name),
         **deps_dev,
       })
     end
@@ -238,13 +238,13 @@ module StillActive
       []
     end
 
-    def repo_archived?(source:, repository_owner:, repository_name:)
+    def repo_archived(source:, repository_owner:, repository_name:)
       case source
       when :github
         repo = StillActive.config.github_client.repository("#{repository_owner}/#{repository_name}")
         repo&.archived
       when :gitlab
-        GitlabClient.archived?(owner: repository_owner, name: repository_name)
+        GitlabClient.archived(owner: repository_owner, name: repository_name)
       end
     rescue Octokit::Error, Faraday::Error => e
       $stderr.puts("warning: archived check failed for #{repository_owner}/#{repository_name}: #{e.class}")

@@ -93,12 +93,20 @@ RSpec.describe(StillActive::MarkdownHelper) do
     context("with a yanked version") do
       let(:data) do
         {
-          last_activity_warning_emoji: "", up_to_date_emoji: "⚠️",
-          version_used: "0.9.0", version_used_release_date: nil,
-          latest_version: "1.0.0", latest_version_release_date: Time.now,
-          latest_pre_release_version: nil, latest_pre_release_version_release_date: nil,
-          repository_url: nil, ruby_gems_url: nil, last_commit_date: nil,
-          scorecard_score: nil, vulnerability_count: nil, version_yanked: true,
+          last_activity_warning_emoji: "",
+          up_to_date_emoji: "⚠️",
+          version_used: "0.9.0",
+          version_used_release_date: nil,
+          latest_version: "1.0.0",
+          latest_version_release_date: Time.now,
+          latest_pre_release_version: nil,
+          latest_pre_release_version_release_date: nil,
+          repository_url: nil,
+          ruby_gems_url: nil,
+          last_commit_date: nil,
+          scorecard_score: nil,
+          vulnerability_count: nil,
+          version_yanked: true,
         }
       end
 
@@ -111,12 +119,19 @@ RSpec.describe(StillActive::MarkdownHelper) do
     context("with a git-sourced gem") do
       let(:data) do
         {
-          last_activity_warning_emoji: "", up_to_date_emoji: nil,
-          version_used: "0.5.0", source_type: :git,
-          latest_version: nil, latest_version_release_date: nil,
-          latest_pre_release_version: nil, latest_pre_release_version_release_date: nil,
-          repository_url: nil, ruby_gems_url: nil, last_commit_date: nil,
-          scorecard_score: nil, vulnerability_count: nil,
+          last_activity_warning_emoji: "",
+          up_to_date_emoji: nil,
+          version_used: "0.5.0",
+          source_type: :git,
+          latest_version: nil,
+          latest_version_release_date: nil,
+          latest_pre_release_version: nil,
+          latest_pre_release_version_release_date: nil,
+          repository_url: nil,
+          ruby_gems_url: nil,
+          last_commit_date: nil,
+          scorecard_score: nil,
+          vulnerability_count: nil,
         }
       end
 
@@ -128,12 +143,19 @@ RSpec.describe(StillActive::MarkdownHelper) do
     context("with a path-sourced gem") do
       let(:data) do
         {
-          last_activity_warning_emoji: "", up_to_date_emoji: nil,
-          version_used: nil, source_type: :path,
-          latest_version: nil, latest_version_release_date: nil,
-          latest_pre_release_version: nil, latest_pre_release_version_release_date: nil,
-          repository_url: nil, ruby_gems_url: nil, last_commit_date: nil,
-          scorecard_score: nil, vulnerability_count: nil,
+          last_activity_warning_emoji: "",
+          up_to_date_emoji: nil,
+          version_used: nil,
+          source_type: :path,
+          latest_version: nil,
+          latest_version_release_date: nil,
+          latest_pre_release_version: nil,
+          latest_pre_release_version_release_date: nil,
+          repository_url: nil,
+          ruby_gems_url: nil,
+          last_commit_date: nil,
+          scorecard_score: nil,
+          vulnerability_count: nil,
         }
       end
 
@@ -145,12 +167,19 @@ RSpec.describe(StillActive::MarkdownHelper) do
     context("with libyear") do
       let(:data) do
         {
-          last_activity_warning_emoji: "", up_to_date_emoji: "✅",
-          version_used: "1.0.0", version_used_release_date: Time.now,
-          latest_version: "1.0.0", latest_version_release_date: Time.now,
-          latest_pre_release_version: nil, latest_pre_release_version_release_date: nil,
-          repository_url: nil, ruby_gems_url: nil, last_commit_date: nil,
-          scorecard_score: nil, vulnerability_count: 0,
+          last_activity_warning_emoji: "",
+          up_to_date_emoji: "✅",
+          version_used: "1.0.0",
+          version_used_release_date: Time.now,
+          latest_version: "1.0.0",
+          latest_version_release_date: Time.now,
+          latest_pre_release_version: nil,
+          latest_pre_release_version_release_date: nil,
+          repository_url: nil,
+          ruby_gems_url: nil,
+          last_commit_date: nil,
+          scorecard_score: nil,
+          vulnerability_count: 0,
           libyear: 2.5,
         }
       end
