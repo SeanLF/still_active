@@ -148,7 +148,7 @@ module StillActive
       vulnerabilities = advisory_keys.filter_map { |id| DepsDevClient.advisory_detail(advisory_id: id) }
       {
         scorecard_score: scorecard&.dig(:score),
-        vulnerability_count: advisory_keys.length,
+        vulnerability_count: vulnerabilities.length,
         vulnerabilities: vulnerabilities,
       }
     end
@@ -243,7 +243,13 @@ module StillActive
         date = commit&.commit&.author&.date
         case date
         when Time then date
-        when String then Time.parse(date)
+        when String
+          begin
+            Time.parse(date)
+          rescue ArgumentError
+            $stderr.puts("warning: could not parse commit date for #{repository_owner}/#{repository_name}: #{date.inspect}")
+            nil
+          end
         end
       when :gitlab
         GitlabClient.last_commit_date(owner: repository_owner, name: repository_name)
