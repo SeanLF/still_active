@@ -93,7 +93,7 @@ module StillActive
       last_pre_release = VersionHelper.find_version(versions: vs, pre_release: true)
       deps_dev = fetch_deps_dev_info(
         gem_name: gem_name,
-        version: VersionHelper.gem_version(version_hash: last_release),
+        version: gem_version || VersionHelper.gem_version(version_hash: last_release),
       )
       result_object[gem_name].merge!({
         latest_version: VersionHelper.gem_version(version_hash: last_release),

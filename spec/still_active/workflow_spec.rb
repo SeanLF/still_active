@@ -193,7 +193,7 @@ RSpec.describe(StillActive::Workflow) do
       before { StillActive.config.gems = gems.zip(versions).map { |info| hash_keys.zip(info).to_h } }
 
       it("returns a hash containing information about gems") do
-        VCR.use_cassette("gems") do
+        VCR.use_cassette("gems_with_versions") do
           expect(result).to(include(**{
             "rails" => hash_including(
               version_used: "6.1.3.2",
