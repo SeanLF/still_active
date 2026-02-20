@@ -23,7 +23,7 @@ RSpec.describe(StillActive::Options) do
 
     it("sets gems from comma-separated list") do
       described_class.new.parse!(["--gems=rails,nokogiri"])
-      expect(StillActive.config.gems).to(eq(["rails", "nokogiri"]))
+      expect(StillActive.config.gems).to(eq([{ name: "rails" }, { name: "nokogiri" }]))
     end
 
     it("sets gemfile path") do

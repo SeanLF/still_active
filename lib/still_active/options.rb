@@ -45,7 +45,7 @@ module StillActive
     def add_gems_option(opts)
       opts.on("--gems=GEM,GEM2,...", Array, "Gem(s)") do |value|
         options[:provided_gems] = true
-        StillActive.config { |config| config.gems = value }
+        StillActive.config { |config| config.gems = value.map { |g| { name: g } } }
       end
     end
 

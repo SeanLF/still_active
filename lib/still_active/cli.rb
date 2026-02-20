@@ -13,9 +13,7 @@ module StillActive
   class CLI
     def run(args)
       options = Options.new.parse!(args)
-      if options[:provided_gems]
-        StillActive.config.gems.map! { |gem| { name: gem } }
-      else
+      unless options[:provided_gems]
         StillActive.config.gems = BundlerHelper.gemfile_dependencies
       end
 
