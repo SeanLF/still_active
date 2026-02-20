@@ -231,7 +231,8 @@ module StillActive
       when :gitlab
         GitlabClient.archived?(owner: repository_owner, name: repository_name)
       end
-    rescue StandardError
+    rescue Octokit::Error, Faraday::Error => e
+      $stderr.puts("warning: archived check failed for #{repository_owner}/#{repository_name}: #{e.class}")
       nil
     end
 
@@ -247,6 +248,9 @@ module StillActive
       when :gitlab
         GitlabClient.last_commit_date(owner: repository_owner, name: repository_name)
       end
+    rescue Octokit::Error, Faraday::Error => e
+      $stderr.puts("warning: last commit check failed for #{repository_owner}/#{repository_name}: #{e.class}")
+      nil
     end
   end
 end
