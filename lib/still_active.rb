@@ -4,6 +4,10 @@ require_relative "still_active/version"
 require_relative "still_active/config"
 require_relative "still_active/cli"
 
+# Octokit depends on Faraday and emits a deprecation warning at load time
+# unless faraday-retry is available. Requiring it here silences that warning.
+require "faraday/retry"
+
 module StillActive
   class Error < StandardError; end
 
