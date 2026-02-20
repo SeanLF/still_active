@@ -12,10 +12,10 @@ Gem::Specification.new do |spec|
   spec.description   = "Analyses your Gemfile for dependency health: checks if gems are actively maintained " \
     "(last commit dates via GitHub and GitLab, release dates), outdated versions, archived repos, " \
     "OpenSSF Scorecard security scores, known vulnerabilities via deps.dev, and libyear drift. " \
-    "Composite health score (0-100) per gem. Ruby version freshness with EOL detection. " \
+    "Ruby version freshness with EOL detection. " \
     "Handles rubygems, git, path, and GitHub Packages sources. " \
     "Outputs coloured terminal tables, markdown, or JSON. " \
-    "CI quality gates with --fail-if-critical, --fail-if-warning, --fail-below-score, and --ignore. " \
+    "CI quality gates with --fail-if-critical, --fail-if-warning, --fail-if-vulnerable, --fail-if-outdated, and --ignore. " \
     "A comprehensive alternative to running bundle outdated, bundler-audit, and libyear-bundler separately."
   spec.homepage      = "https://github.com/SeanLF/still_active"
   spec.license       = "MIT"

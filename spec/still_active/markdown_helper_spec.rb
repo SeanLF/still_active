@@ -142,7 +142,7 @@ RSpec.describe(StillActive::MarkdownHelper) do
       end
     end
 
-    context("with libyear and health score") do
+    context("with libyear") do
       let(:data) do
         {
           last_activity_warning_emoji: "", up_to_date_emoji: "✅",
@@ -151,13 +151,12 @@ RSpec.describe(StillActive::MarkdownHelper) do
           latest_pre_release_version: nil, latest_pre_release_version_release_date: nil,
           repository_url: nil, ruby_gems_url: nil, last_commit_date: nil,
           scorecard_score: nil, vulnerability_count: 0,
-          libyear: 2.5, health_score: 80,
+          libyear: 2.5,
         }
       end
 
-      it("renders libyear and health values") do
+      it("renders libyear value") do
         expect(line).to(include("2.5y"))
-        expect(line).to(include("80/100"))
       end
     end
 

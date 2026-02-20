@@ -3,7 +3,6 @@
 require_relative "deps_dev_client"
 require_relative "gitlab_client"
 require_relative "repository"
-require_relative "../helpers/health_score_helper"
 require_relative "../helpers/libyear_helper"
 require_relative "../helpers/ruby_helper"
 require_relative "../helpers/version_helper"
@@ -70,8 +69,6 @@ module StillActive
           source_uri: source_uri,
         )
       end
-
-      result_object[gem_name][:health_score] = HealthScoreHelper.gem_score(result_object[gem_name])
     end
 
     def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:)
