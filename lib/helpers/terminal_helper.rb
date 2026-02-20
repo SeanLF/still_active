@@ -73,7 +73,16 @@ module StillActive
     end
 
     def format_scorecard(score)
-      score.nil? ? AnsiHelper.dim("-") : "#{score}/10"
+      return AnsiHelper.dim("-") if score.nil?
+
+      text = "#{score}/10"
+      if score >= 7.0
+        AnsiHelper.green(text)
+      elsif score < 4.0
+        AnsiHelper.yellow(text)
+      else
+        text
+      end
     end
 
     def format_vulns(data)
