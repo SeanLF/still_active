@@ -90,6 +90,77 @@ RSpec.describe(StillActive::MarkdownHelper) do
       end
     end
 
+    context("with a yanked version") do
+      let(:data) do
+        {
+          last_activity_warning_emoji: "", up_to_date_emoji: "⚠️",
+          version_used: "0.9.0", version_used_release_date: nil,
+          latest_version: "1.0.0", latest_version_release_date: Time.now,
+          latest_pre_release_version: nil, latest_pre_release_version_release_date: nil,
+          repository_url: nil, ruby_gems_url: nil, last_commit_date: nil,
+          scorecard_score: nil, vulnerability_count: nil, version_yanked: true,
+        }
+      end
+
+      it("shows YANKED with critical emoji") do
+        expect(line).to(include("YANKED"))
+        expect(line).to(include(StillActive.config.critical_warning_emoji))
+      end
+    end
+
+    context("with a git-sourced gem") do
+      let(:data) do
+        {
+          last_activity_warning_emoji: "", up_to_date_emoji: nil,
+          version_used: "0.5.0", source_type: :git,
+          latest_version: nil, latest_version_release_date: nil,
+          latest_pre_release_version: nil, latest_pre_release_version_release_date: nil,
+          repository_url: nil, ruby_gems_url: nil, last_commit_date: nil,
+          scorecard_score: nil, vulnerability_count: nil,
+        }
+      end
+
+      it("shows version with source indicator") do
+        expect(line).to(include("0.5.0 (git)"))
+      end
+    end
+
+    context("with a path-sourced gem") do
+      let(:data) do
+        {
+          last_activity_warning_emoji: "", up_to_date_emoji: nil,
+          version_used: nil, source_type: :path,
+          latest_version: nil, latest_version_release_date: nil,
+          latest_pre_release_version: nil, latest_pre_release_version_release_date: nil,
+          repository_url: nil, ruby_gems_url: nil, last_commit_date: nil,
+          scorecard_score: nil, vulnerability_count: nil,
+        }
+      end
+
+      it("shows source indicator without version") do
+        expect(line).to(include("(path)"))
+      end
+    end
+
+    context("with libyear and health score") do
+      let(:data) do
+        {
+          last_activity_warning_emoji: "", up_to_date_emoji: "✅",
+          version_used: "1.0.0", version_used_release_date: Time.now,
+          latest_version: "1.0.0", latest_version_release_date: Time.now,
+          latest_pre_release_version: nil, latest_pre_release_version_release_date: nil,
+          repository_url: nil, ruby_gems_url: nil, last_commit_date: nil,
+          scorecard_score: nil, vulnerability_count: 0,
+          libyear: 2.5, health_score: 80,
+        }
+      end
+
+      it("renders libyear and health values") do
+        expect(line).to(include("2.5y"))
+        expect(line).to(include("80/100"))
+      end
+    end
+
     context("when vulnerability count is nonzero with details") do
       let(:data) do
         {
@@ -117,6 +188,34 @@ RSpec.describe(StillActive::MarkdownHelper) do
         expect(line).to(include("2 (critical)"))
         expect(line).to(include("GHSA-abc"))
       end
+    end
+  end
+
+  describe(".ruby_line") do
+    it("shows latest Ruby with success emoji") do
+      info = { version: "3.4.0", latest_version: "3.4.0", libyear: nil, eol: false, eol_date: nil }
+      line = described_class.ruby_line(info)
+      expect(line).to(include("Ruby 3.4.0"))
+      expect(line).to(include("latest"))
+    end
+
+    it("shows behind Ruby with warning emoji") do
+      info = { version: "3.2.0", latest_version: "3.4.0", libyear: 1.5, eol: false, eol_date: nil }
+      line = described_class.ruby_line(info)
+      expect(line).to(include("1.5 libyears behind 3.4.0"))
+      expect(line).to(include(StillActive.config.warning_emoji))
+    end
+
+    it("shows EOL Ruby with critical emoji and date") do
+      info = { version: "3.1.0", latest_version: "3.4.0", libyear: 2.0, eol: true, eol_date: Time.new(2025, 3, 31) }
+      line = described_class.ruby_line(info)
+      expect(line).to(include("EOL 2025-03-31"))
+      expect(line).to(include(StillActive.config.critical_warning_emoji))
+    end
+
+    it("shows EOL without date when eol_date is nil") do
+      info = { version: "3.1.0", latest_version: "3.4.0", libyear: 2.0, eol: true, eol_date: nil }
+      expect(described_class.ruby_line(info)).to(include("EOL,"))
     end
   end
 end

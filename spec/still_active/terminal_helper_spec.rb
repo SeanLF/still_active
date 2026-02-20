@@ -188,6 +188,62 @@ RSpec.describe(StillActive::TerminalHelper) do
       end
     end
 
+    context("with health scores") do
+      let(:result) do
+        {
+          "healthy" => {
+            version_used: "1.0.0", latest_version: "1.0.0",
+            last_commit_date: Time.now, latest_version_release_date: Time.now,
+            scorecard_score: 8.0, vulnerability_count: 0, health_score: 90,
+          },
+          "mid" => {
+            version_used: "1.0.0", latest_version: "2.0.0",
+            last_commit_date: Time.now, latest_version_release_date: Time.now,
+            scorecard_score: 4.0, vulnerability_count: 0, health_score: 60,
+          },
+          "poor" => {
+            version_used: "1.0.0", latest_version: "3.0.0",
+            last_commit_date: Time.new(2020, 1, 1), latest_version_release_date: Time.new(2020, 1, 1),
+            scorecard_score: nil, vulnerability_count: 2,
+            vulnerabilities: [{ id: "CVE-1", cvss3_score: 9.0 }], health_score: 25,
+          },
+        }
+      end
+
+      it("renders health scores with colour thresholds") do
+        expect(output).to(include("90/100"))
+        expect(output).to(include("60/100"))
+        expect(output).to(include("25/100"))
+      end
+
+      it("includes health average in summary") do
+        expect(output).to(match(/health \d+\/100/))
+      end
+    end
+
+    context("with ruby info") do
+      it("shows latest Ruby") do
+        ruby_info = { version: "3.4.0", latest_version: "3.4.0", libyear: nil, eol: false, eol_date: nil }
+        output = described_class.render(result, ruby_info: ruby_info)
+        expect(output).to(include("Ruby 3.4.0"))
+        expect(output).to(include("latest"))
+      end
+
+      it("shows behind Ruby") do
+        ruby_info = { version: "3.2.0", latest_version: "3.4.0", libyear: 1.5, eol: false, eol_date: nil }
+        output = described_class.render(result, ruby_info: ruby_info)
+        expect(output).to(include("Ruby 3.2.0"))
+        expect(output).to(include("1.5 libyears behind 3.4.0"))
+      end
+
+      it("shows EOL Ruby") do
+        ruby_info = { version: "3.1.0", latest_version: "3.4.0", libyear: 2.0, eol: true, eol_date: Time.new(2025, 3, 31) }
+        output = described_class.render(result, ruby_info: ruby_info)
+        expect(output).to(include("Ruby 3.1.0"))
+        expect(output).to(include("EOL 2025-03-31"))
+      end
+    end
+
     context("with empty results") do
       it("does not raise") do
         expect { described_class.render({}) }.not_to(raise_error)
