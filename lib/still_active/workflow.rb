@@ -61,7 +61,7 @@ module StillActive
 
       case source_type
       when :path, :git
-        gem_info_non_rubygems(gem_name: gem_name, result_object: result_object)
+        gem_info_non_rubygems(gem_name: gem_name, gem_version: gem_version, result_object: result_object, source_uri: source_uri)
       else
         gem_info_rubygems(
           gem_name: gem_name,
@@ -129,15 +129,19 @@ module StillActive
       end
     end
 
-    def gem_info_non_rubygems(gem_name:, result_object:)
-      repo_info = repository_info_from_installed_gem(gem_name: gem_name)
+    def gem_info_non_rubygems(gem_name:, gem_version:, result_object:, source_uri: nil)
+      repo_info = repository_info_for_non_rubygems(gem_name: gem_name, source_uri: source_uri)
       source, owner, name = repo_info.values_at(:source, :owner, :name)
+      deps_dev = gem_version ? fetch_deps_dev_info(gem_name: gem_name, version: gem_version) : {}
+
+      # Fall back to repo-derived project_id for scorecard when deps.dev doesn't have the version
+      deps_dev[:scorecard_score] ||= DepsDevClient.project_scorecard(project_id: repo_info[:project_id])&.dig(:score)
 
       result_object[gem_name].merge!({
         repository_url: repo_info[:url],
         last_commit_date: last_commit_date(source:, repository_owner: owner, repository_name: name),
         archived: repo_archived?(source:, repository_owner: owner, repository_name: name),
-        scorecard_score: DepsDevClient.project_scorecard(project_id: repo_info[:project_id])&.dig(:score),
+        **deps_dev,
       })
     end
 
@@ -177,6 +181,17 @@ module StillActive
       token = StillActive.config.github_oauth_token
       headers = token ? { "Authorization" => "Bearer #{token}" } : {}
       HttpHelper.get_json(base, path, headers: headers) || []
+    end
+
+    def repository_info_for_non_rubygems(gem_name:, source_uri: nil)
+      valid_repository_url =
+        [source_uri, *installed_gem_urls(gem_name: gem_name)].find { |url| Repository.valid?(url: url) }
+      repo = Repository.url_with_owner_and_name(url: valid_repository_url)
+      project_id = if repo[:url]
+        host = repo[:source] == :gitlab ? "gitlab.com" : "github.com"
+        "#{host}/#{repo[:owner]}/#{repo[:name]}"
+      end
+      repo.merge(project_id: project_id)
     end
 
     def repository_info_from_installed_gem(gem_name:)
