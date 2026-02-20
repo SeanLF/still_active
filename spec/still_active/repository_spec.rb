@@ -5,12 +5,14 @@ RSpec.describe(StillActive::Repository) do
     [
       "https://github.com/seanlf/still_active",
       "https://github.com/seanlf/still_active/blob/main/lib",
+      "https://github.com/seanlf/still_active.git",
     ]
   end
   let(:valid_gitlab_urls) do
     [
       "https://gitlab.com/gitlab-org/gitlab/-/blob/main/app/graphql/types/query_type.rb",
       "https://gitlab.com/gitlab-org/gitlab/",
+      "https://gitlab.com/gitlab-org/gitlab.git",
     ]
   end
   let(:valid_urls) do
@@ -56,6 +58,14 @@ RSpec.describe(StillActive::Repository) do
             expect(subject).to(include(expected_result))
           end
         end
+      end
+    end
+
+    context("with a .git suffix URL") do
+      subject(:result) { described_class.url_with_owner_and_name(url: "https://github.com/socketry/async.git") }
+
+      it("strips .git from name and URL") do
+        expect(result).to(eq(url: "https://github.com/socketry/async", source: :github, owner: "socketry", name: "async"))
       end
     end
 
