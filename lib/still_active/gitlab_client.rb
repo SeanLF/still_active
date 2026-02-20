@@ -27,9 +27,14 @@ module StillActive
       return if body.nil? || body.empty?
 
       date = body.first["committed_date"]
-      Time.parse(date) if date
-    rescue ArgumentError
-      nil
+      return unless date
+
+      begin
+        Time.parse(date)
+      rescue ArgumentError
+        $stderr.puts("warning: could not parse commit date for #{owner}/#{name}: #{date.inspect}")
+        nil
+      end
     end
 
     private
