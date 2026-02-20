@@ -5,6 +5,7 @@ require_relative "ansi_helper"
 require_relative "health_score_helper"
 require_relative "libyear_helper"
 require_relative "version_helper"
+require_relative "vulnerability_helper"
 
 module StillActive
   module TerminalHelper
@@ -72,7 +73,7 @@ module StillActive
       return AnsiHelper.dim("-") if count.nil?
       return AnsiHelper.green("0") if count.zero?
 
-      severity = highest_severity(data[:vulnerabilities])
+      severity = VulnerabilityHelper.highest_severity(data[:vulnerabilities])
       label = severity ? "#{count} (#{severity})" : count.to_s
       AnsiHelper.red(label)
     end
@@ -85,20 +86,6 @@ module StillActive
       when 80..100 then AnsiHelper.green(text)
       when 50..79 then AnsiHelper.yellow(text)
       else AnsiHelper.red(text)
-      end
-    end
-
-    def highest_severity(vulnerabilities)
-      return if vulnerabilities.nil? || vulnerabilities.empty?
-
-      max_score = vulnerabilities.filter_map { |v| v[:cvss3_score] }.max
-      return if max_score.nil?
-
-      case max_score
-      when 9.0..Float::INFINITY then "critical"
-      when 7.0...9.0 then "high"
-      when 4.0...7.0 then "medium"
-      else "low"
       end
     end
 
@@ -139,14 +126,16 @@ module StillActive
       yanked = result.each_value.count { |d| d[:version_yanked] }
       active = level_counts.fetch(:ok, 0)
       archived = level_counts.fetch(:archived, 0)
-      stale = level_counts.fetch(:stale, 0) + level_counts.fetch(:critical, 0) + archived
+      stale = level_counts.fetch(:stale, 0) + level_counts.fetch(:critical, 0)
       vulns = result.each_value.sum { |d| d[:vulnerability_count] || 0 }
 
       parts = [
         "#{total} gems: #{up_to_date} up to date, #{outdated} outdated",
       ]
       parts.last << ", #{yanked} yanked" if yanked > 0
-      parts << "#{active} active, #{stale} stale"
+      activity = "#{active} active, #{stale} stale"
+      activity << ", #{archived} archived" if archived > 0
+      parts << activity
       parts << "#{vulns} vulnerabilities"
       total_libyear = LibyearHelper.total_libyear(result)
       parts << "#{total_libyear.round(1)} libyears behind" if total_libyear > 0

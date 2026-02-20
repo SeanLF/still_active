@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "vulnerability_helper"
+
 module StillActive
   module MarkdownHelper
     extend self
@@ -103,26 +105,12 @@ module StillActive
       return StillActive.config.success_emoji if count.zero?
 
       vulnerabilities = data[:vulnerabilities] || []
-      severity = highest_severity(vulnerabilities)
+      severity = VulnerabilityHelper.highest_severity(vulnerabilities)
       ids = vulnerabilities.flat_map { |v| [v[:id], *v[:aliases]] }.compact.uniq.first(3)
 
       parts = [severity ? "#{count} (#{severity})" : count.to_s]
       parts << ids.join(", ") unless ids.empty?
       parts.join(" ")
-    end
-
-    def highest_severity(vulnerabilities)
-      return if vulnerabilities.empty?
-
-      max_score = vulnerabilities.filter_map { |v| v[:cvss3_score] }.max
-      return if max_score.nil?
-
-      case max_score
-      when 9.0..Float::INFINITY then "critical"
-      when 7.0...9.0 then "high"
-      when 4.0...7.0 then "medium"
-      else "low"
-      end
     end
 
     def markdown_url(text:, url:)

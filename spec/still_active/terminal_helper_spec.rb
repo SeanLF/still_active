@@ -115,6 +115,11 @@ RSpec.describe(StillActive::TerminalHelper) do
       it("shows archived in activity column") do
         expect(output).to(include("archived"))
       end
+
+      it("shows archived separately from stale in summary") do
+        expect(output).to(include("1 archived"))
+        expect(output).to(include("0 stale"))
+      end
     end
 
     context("with a yanked gem") do

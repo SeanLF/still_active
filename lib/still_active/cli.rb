@@ -73,10 +73,8 @@ module StillActive
         exit(1) if config.fail_if_critical && levels.intersect?([:critical, :archived])
       end
 
-      if config.fail_below_score
-        threshold = config.fail_below_score
-        failing = checked.each_value.any? { |d| d[:health_score] && d[:health_score] < threshold }
-        exit(1) if failing
+      if (threshold = config.fail_below_score)
+        exit(1) if checked.each_value.any? { |d| d[:health_score] && d[:health_score] < threshold }
       end
     end
   end

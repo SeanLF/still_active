@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "activity_helper"
+
 module StillActive
   module HealthScoreHelper
     extend self
@@ -46,9 +48,7 @@ module StillActive
     end
 
     def activity_score(gem_data)
-      case gem_data[:archived]
-      when true then return 0
-      end
+      return 0 if gem_data[:archived]
 
       level = ActivityHelper.activity_level(gem_data)
       case level
