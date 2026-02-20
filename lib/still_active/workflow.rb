@@ -168,7 +168,9 @@ module StillActive
     end
 
     def github_packages_uri?(uri)
-      uri.is_a?(String) && uri.include?("rubygems.pkg.github.com")
+      uri.is_a?(String) && URI(uri).host == "rubygems.pkg.github.com"
+    rescue URI::InvalidURIError
+      false
     end
 
     def fetch_github_packages_versions(gem_name:, source_uri:)

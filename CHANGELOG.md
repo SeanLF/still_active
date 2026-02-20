@@ -18,6 +18,9 @@
 - Repository URLs with `.git` suffix (e.g. `socketry/async.git`) caused 404s against GitHub/GitLab APIs
 - GitLab 301 redirects for renamed projects silently failed; now follows up to 3 redirects with trusted host check
 - Network errors (`ECONNRESET`, timeouts, etc.) during RubyGems version lookup or HTTP API calls dropped the entire gem from results instead of warning
+- GitHub Packages URI check used substring match, allowing crafted URLs to bypass host validation; now parses URI and compares host exactly
+- Tri-state `archived?` predicate renamed to `archived` to honestly reflect `true`/`false`/`nil` return contract
+- Rubocop offences from code scanning (WordArray, IfInsideElse, MultilineHash, frozen_string_literal)
 
 ## [1.1.0] - 2026-02-20
 
