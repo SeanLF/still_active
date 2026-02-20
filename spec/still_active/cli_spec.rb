@@ -10,7 +10,7 @@ RSpec.describe(StillActive::CLI) do
   let(:workflow_result) { {} }
 
   before do
-    allow(StillActive::Workflow).to(receive(:call).and_return(workflow_result))
+    allow(StillActive::Workflow).to(receive_messages(call: workflow_result, ruby_freshness: nil))
     allow($stdout).to(receive(:puts))
     StillActive.reset
   end

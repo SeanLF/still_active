@@ -46,7 +46,7 @@ module StillActive
 
     def to_gem_version(version)
       str = normalize_version(version)
-      Gem::Version.new(str) if str
+      Gem::Version.new(str) if str && Gem::Version.correct?(str)
     end
   end
 end

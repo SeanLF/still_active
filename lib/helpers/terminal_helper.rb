@@ -13,7 +13,7 @@ module StillActive
 
     HEADERS = ["Name", "Version", "Activity", "OpenSSF", "Vulns", "Health"].freeze
 
-    def render(result)
+    def render(result, ruby_info: nil)
       rows = result.keys.sort.map { |name| build_row(name, result[name]) }
       widths = column_widths(rows)
 
@@ -23,6 +23,7 @@ module StillActive
       rows.each { |row| lines << row_line(row, widths) }
       lines << ""
       lines << summary_line(result)
+      lines << ruby_summary_line(ruby_info) if ruby_info
       lines.join("\n")
     end
 
@@ -42,6 +43,13 @@ module StillActive
     def format_version(data)
       used = data[:version_used]
       latest = data[:latest_version]
+      source_type = data[:source_type]
+
+      if [:git, :path].include?(source_type)
+        label = AnsiHelper.dim("(#{source_type})")
+        return used ? "#{used} #{label}" : label
+      end
+
       return AnsiHelper.dim("-") if used.nil? && latest.nil?
       return AnsiHelper.red("#{used} (YANKED)") if data[:version_yanked]
 
@@ -112,6 +120,25 @@ module StillActive
       row.zip(widths)
         .map { |cell, w| AnsiHelper.pad(cell, w) }
         .join
+    end
+
+    def ruby_summary_line(ruby_info)
+      version = ruby_info[:version]
+      latest = ruby_info[:latest_version]
+      libyear = ruby_info[:libyear]
+      eol = ruby_info[:eol]
+      eol_date = ruby_info[:eol_date]
+
+      return AnsiHelper.green("Ruby #{version} (latest)") if version == latest
+
+      libyear_part = libyear ? "#{libyear} libyears behind #{latest}" : "behind #{latest}"
+
+      if eol
+        eol_part = eol_date ? "EOL #{eol_date.strftime("%Y-%m-%d")}" : "EOL"
+        AnsiHelper.red("Ruby #{version} (#{eol_part}, #{libyear_part})")
+      else
+        AnsiHelper.yellow("Ruby #{version} (#{libyear_part})")
+      end
     end
 
     def summary_line(result)

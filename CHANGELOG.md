@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.1.0] - 2026-02-19
+## [1.1.0] - 2026-02-20
 
 ### Added
 
@@ -12,6 +12,11 @@
 - Advisory enrichment: CVSS scores, titles, and IDs from deps.dev per vulnerability
 - Composite health score (0-100) combining version freshness, activity, OpenSSF Scorecard, and vulnerabilities
 - Health column in terminal and markdown output, system average in terminal summary
+- Ruby version freshness: reports current Ruby version, EOL status, and libyear behind latest via endoflife.date API
+- Source detection: identifies gem source type (rubygems, git, path) from Bundler lockfile
+- Non-rubygems gem handling: git/path-sourced gems show gracefully with source indicator instead of failing silently
+- GitHub Packages registry support: fetches versions from `rubygems.pkg.github.com` using existing `--github-oauth-token` (requires `read:packages` scope)
+- CVSS v2 fallback: older advisories without v3 scores now show severity using v2 scores from deps.dev
 
 ### Changed
 
@@ -19,6 +24,8 @@
 - Markdown vulnerability column shows advisory IDs
 - Markdown table adds libyear and health columns
 - Terminal summary includes libyear total and health average
+- JSON output wrapped in `{ "gems": ..., "ruby": ... }` structure
+- Version string validation guards against malformed versions from git-sourced gems
 
 ## [1.0.2] - 2026-02-19
 

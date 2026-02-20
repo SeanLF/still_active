@@ -51,6 +51,7 @@ module StillActive
         aliases: body["aliases"]&.map { |a| a["id"] } || [],
         cvss3_score: body["cvss3Score"],
         cvss3_vector: body["cvss3Vector"],
+        cvss2_score: body["cvss2Score"],
       }
     end
 

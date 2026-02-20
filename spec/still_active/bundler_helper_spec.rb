@@ -23,5 +23,36 @@ RSpec.describe(StillActive::BundlerHelper) do
         expect(dep[:version]).to(match(/\A\d+\.\d+/))
       end
     end
+
+    it("includes source_type for each dependency") do
+      gemfile_dependencies.each do |dep|
+        expect(dep[:source_type]).to(eq(:rubygems))
+      end
+    end
+
+    it("includes source_uri for each dependency") do
+      gemfile_dependencies.each do |dep|
+        expect(dep[:source_uri]).to(be_a(String))
+      end
+    end
+  end
+
+  describe(".detect_source_type") do
+    it("returns :rubygems for Rubygems source") do
+      spec = instance_double(Bundler::LazySpecification, source: Bundler::Source::Rubygems.new)
+      expect(described_class.send(:detect_source_type, spec)).to(eq(:rubygems))
+    end
+
+    it("returns :git for Git source") do
+      source = Bundler::Source::Git.new("uri" => "https://github.com/example/gem.git")
+      spec = instance_double(Bundler::LazySpecification, source: source)
+      expect(described_class.send(:detect_source_type, spec)).to(eq(:git))
+    end
+
+    it("returns :path for Path source") do
+      source = Bundler::Source::Path.new("path" => "/tmp/my_gem")
+      spec = instance_double(Bundler::LazySpecification, source: source)
+      expect(described_class.send(:detect_source_type, spec)).to(eq(:path))
+    end
   end
 end

@@ -6,6 +6,25 @@ module StillActive
   module MarkdownHelper
     extend self
 
+    def ruby_line(ruby_info)
+      version = ruby_info[:version]
+      latest = ruby_info[:latest_version]
+      libyear = ruby_info[:libyear]
+      eol = ruby_info[:eol]
+      eol_date = ruby_info[:eol_date]
+
+      return "**Ruby #{version}** (latest) #{StillActive.config.success_emoji}" if version == latest
+
+      libyear_part = libyear ? "#{libyear} libyears behind #{latest}" : "behind #{latest}"
+
+      if eol
+        eol_part = eol_date ? "EOL #{eol_date.strftime("%Y-%m-%d")}" : "EOL"
+        "**Ruby #{version}** (#{eol_part}, #{libyear_part}) #{StillActive.config.critical_warning_emoji}"
+      else
+        "**Ruby #{version}** (#{libyear_part}) #{StillActive.config.warning_emoji}"
+      end
+    end
+
     def markdown_table_header_line
       "| activity | up to date? | OpenSSF | vulns | name | version used | latest version | latest pre-release | last commit | libyear | health |\n" \
         "| -------- | ----------- | ------- | ----- | ---- | ------------ | -------------- | ------------------ | ----------- | ------- | ------ |"
@@ -20,7 +39,9 @@ module StillActive
 
       formatted_name = markdown_url(text: gem_name, url: repository_url)
 
-      formatted_version_used = if data[:version_yanked]
+      formatted_version_used = if [:git, :path].include?(data[:source_type])
+        data[:version_used] ? "#{data[:version_used]} (#{data[:source_type]})" : "(#{data[:source_type]})"
+      elsif data[:version_yanked]
         "#{data[:version_used]} (YANKED #{StillActive.config.critical_warning_emoji})"
       else
         version_with_date(

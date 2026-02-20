@@ -57,6 +57,24 @@ RSpec.describe(StillActive::DepsDevClient) do
       ))
     end
 
+    it("extracts cvss2_score when present") do
+      body = {
+        "advisoryKey" => { "id" => "GHSA-old-vuln" },
+        "url" => "https://github.com/advisories/GHSA-old-vuln",
+        "title" => "Old vulnerability",
+        "aliases" => [],
+        "cvss3Score" => nil,
+        "cvss3Vector" => nil,
+        "cvss2Score" => 7.5,
+      }
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/}).to_return(
+        status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" },
+      )
+
+      result = described_class.advisory_detail(advisory_id: "GHSA-old-vuln")
+      expect(result).to(include(cvss3_score: nil, cvss2_score: 7.5))
+    end
+
     it("returns nil when advisory_id is nil") do
       expect(described_class.advisory_detail(advisory_id: nil)).to(be_nil)
     end

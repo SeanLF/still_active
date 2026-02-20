@@ -148,6 +148,46 @@ RSpec.describe(StillActive::TerminalHelper) do
       end
     end
 
+    context("with a git-sourced gem") do
+      let(:result) do
+        {
+          "git_gem" => {
+            version_used: "0.5.0",
+            source_type: :git,
+            last_commit_date: Time.now,
+            latest_version_release_date: nil,
+            latest_pre_release_version_release_date: nil,
+            scorecard_score: nil,
+            vulnerability_count: nil,
+          },
+        }
+      end
+
+      it("shows source indicator") do
+        expect(output).to(include("(git)"))
+      end
+    end
+
+    context("with a path-sourced gem") do
+      let(:result) do
+        {
+          "path_gem" => {
+            version_used: "0.1.0",
+            source_type: :path,
+            last_commit_date: nil,
+            latest_version_release_date: nil,
+            latest_pre_release_version_release_date: nil,
+            scorecard_score: nil,
+            vulnerability_count: nil,
+          },
+        }
+      end
+
+      it("shows source indicator") do
+        expect(output).to(include("(path)"))
+      end
+    end
+
     context("with empty results") do
       it("does not raise") do
         expect { described_class.render({}) }.not_to(raise_error)

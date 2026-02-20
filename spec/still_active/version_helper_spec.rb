@@ -76,6 +76,14 @@ RSpec.describe(StillActive::VersionHelper) do
     it("returns true when on pre-release with no stable release") do
       expect(described_class.up_to_date(version_used: "3.0.0rc1", latest_version: nil, latest_pre_release_version: "3.0.0rc1")).to(be(true))
     end
+
+    it("returns nil for malformed version strings without raising") do
+      expect(described_class.up_to_date(version_used: "not-a-version", latest_version: "1.0.0")).to(be_nil)
+    end
+
+    it("returns false when latest version is malformed") do
+      expect(described_class.up_to_date(version_used: "1.0.0", latest_version: "abc.def")).to(be(false))
+    end
   end
 
   describe("#gem_version") do
