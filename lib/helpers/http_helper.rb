@@ -21,7 +21,10 @@ module StillActive
       headers.each { |key, value| request[key] = value }
 
       response = http.request(request)
-      return unless response.is_a?(Net::HTTPSuccess)
+      unless response.is_a?(Net::HTTPSuccess)
+        $stderr.puts("warning: #{uri.host}#{uri.path} returned HTTP #{response.code}") unless response.is_a?(Net::HTTPNotFound)
+        return
+      end
 
       JSON.parse(response.body)
     rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
