@@ -60,10 +60,8 @@ module StillActive
       result_object[gem_name][:version_used] = gem_version if gem_version
 
       case source_type
-      when :path
-        gem_info_path(gem_name: gem_name, result_object: result_object)
-      when :git
-        gem_info_git(gem_name: gem_name, result_object: result_object)
+      when :path, :git
+        gem_info_non_rubygems(gem_name: gem_name, result_object: result_object)
       else
         gem_info_rubygems(
           gem_name: gem_name,
@@ -131,19 +129,7 @@ module StillActive
       end
     end
 
-    def gem_info_git(gem_name:, result_object:)
-      repo_info = repository_info_from_installed_gem(gem_name: gem_name)
-      source, owner, name = repo_info.values_at(:source, :owner, :name)
-
-      result_object[gem_name].merge!({
-        repository_url: repo_info[:url],
-        last_commit_date: last_commit_date(source:, repository_owner: owner, repository_name: name),
-        archived: repo_archived?(source:, repository_owner: owner, repository_name: name),
-        scorecard_score: DepsDevClient.project_scorecard(project_id: repo_info[:project_id])&.dig(:score),
-      })
-    end
-
-    def gem_info_path(gem_name:, result_object:)
+    def gem_info_non_rubygems(gem_name:, result_object:)
       repo_info = repository_info_from_installed_gem(gem_name: gem_name)
       source, owner, name = repo_info.values_at(:source, :owner, :name)
 
