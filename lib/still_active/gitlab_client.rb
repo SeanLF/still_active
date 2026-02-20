@@ -10,11 +10,11 @@ module StillActive
     BASE_URI = URI("https://gitlab.com/")
 
     def archived?(owner:, name:)
-      return false if owner.nil? || name.nil?
+      return if owner.nil? || name.nil?
 
       path = "/api/v4/projects/#{encode_project(owner, name)}"
       body = HttpHelper.get_json(BASE_URI, path, headers: auth_headers)
-      return false if body.nil?
+      return if body.nil?
 
       body["archived"] == true
     end
