@@ -11,12 +11,11 @@ module StillActive
     ENDOFLIFE_URI = URI("https://endoflife.date/")
 
     def ruby_freshness
-      return unless standard_ruby?
+      current = current_ruby_version
+      return if current.nil?
 
       cycles = fetch_cycles
       return if cycles.nil?
-
-      current = current_ruby_version
       current_cycle = find_cycle(cycles, current)
       latest_cycle = cycles.first
 
@@ -43,12 +42,20 @@ module StillActive
 
     private
 
-    def standard_ruby?
-      RUBY_ENGINE == "ruby"
+    def current_ruby_version
+      lockfile_ruby_version || (RUBY_ENGINE == "ruby" ? RUBY_VERSION : nil)
     end
 
-    def current_ruby_version
-      RUBY_VERSION
+    def lockfile_ruby_version
+      gemfile = ENV["BUNDLE_GEMFILE"]
+      return unless gemfile
+
+      lockfile_path = "#{gemfile}.lock"
+      return unless File.exist?(lockfile_path)
+
+      content = File.read(lockfile_path)
+      match = content.match(/^RUBY VERSION\n\s+ruby (\d+\.\d+\.\d+)/)
+      match&.[](1)
     end
 
     def fetch_cycles

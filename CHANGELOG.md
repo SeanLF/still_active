@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.1] - 2026-02-20
+
+### Fixed
+
+- Ruby version freshness reported the running Ruby (e.g. 4.0.1) instead of the target project's Ruby from `Gemfile.lock`; now reads `RUBY VERSION` section from lockfile, falls back to running version only when absent
+
 ## [1.2.0] - 2026-02-20
 
 ### Added

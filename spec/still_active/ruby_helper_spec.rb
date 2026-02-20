@@ -41,6 +41,10 @@ RSpec.describe(StillActive::RubyHelper) do
   end
 
   describe(".ruby_freshness") do
+    before do
+      allow(described_class).to(receive(:lockfile_ruby_version).and_return(nil))
+    end
+
     context("when on latest Ruby") do
       before do
         stub_const("RUBY_VERSION", "3.4.2")
@@ -75,7 +79,6 @@ RSpec.describe(StillActive::RubyHelper) do
       before do
         stub_const("RUBY_VERSION", "3.1.0")
         stub_const("RUBY_ENGINE", "ruby")
-        # 3.1 EOL is 2025-03-31, which is in the past
       end
 
       it("reports EOL status") do
@@ -97,7 +100,7 @@ RSpec.describe(StillActive::RubyHelper) do
       end
     end
 
-    context("when running on JRuby") do
+    context("when running on JRuby with no lockfile") do
       before do
         stub_const("RUBY_ENGINE", "jruby")
       end
@@ -119,6 +122,29 @@ RSpec.describe(StillActive::RubyHelper) do
         expect(result[:latest_version]).to(eq("3.4.2"))
         expect(result[:release_date]).to(be_nil)
         expect(result[:eol]).to(be_nil)
+      end
+    end
+
+    context("when lockfile specifies Ruby version") do
+      before do
+        allow(described_class).to(receive(:lockfile_ruby_version).and_return("3.2.8"))
+      end
+
+      it("uses the lockfile version instead of RUBY_VERSION") do
+        result = described_class.ruby_freshness
+        expect(result[:version]).to(eq("3.2.8"))
+      end
+    end
+
+    context("when lockfile specifies Ruby version on JRuby") do
+      before do
+        stub_const("RUBY_ENGINE", "jruby")
+        allow(described_class).to(receive(:lockfile_ruby_version).and_return("3.3.0"))
+      end
+
+      it("uses the lockfile version regardless of engine") do
+        result = described_class.ruby_freshness
+        expect(result[:version]).to(eq("3.3.0"))
       end
     end
   end
