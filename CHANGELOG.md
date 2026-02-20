@@ -27,6 +27,10 @@
 - JSON output wrapped in `{ "gems": ..., "ruby": ... }` structure
 - Version string validation guards against malformed versions from git-sourced gems
 
+### Fixed
+
+- Vulnerability counts now checked against installed version, not latest (was masking CVEs in older pinned versions)
+
 ## [1.0.2] - 2026-02-19
 
 ### Changed
