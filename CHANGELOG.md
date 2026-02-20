@@ -28,10 +28,18 @@
 - Version string validation guards against malformed versions from git-sourced gems
 - Progress counter on stderr during gem checking so large Gemfiles don't appear frozen
 - Actionable rate limit message when GitHub API quota is exhausted
+- `--fail-below-score` now validates range (0-100) at parse time
+- `--gems` option stores structured data from the start instead of mutating mid-run
+- API failures (timeouts, HTTP errors, malformed responses) now warn on stderr instead of degrading silently
+- Vulnerability count based on successfully fetched advisories so count and severity always agree
 
 ### Fixed
 
 - Vulnerability counts now checked against installed version, not latest (was masking CVEs in older pinned versions)
+- `GitlabClient.archived?` returned `false` on API failure instead of `nil`, incorrectly asserting repos were not archived
+- `repo_archived?` rescued all `StandardError`, masking bugs; now catches only `Octokit::Error` and `Faraday::Error`
+- `last_commit_date` had no error handling; any failure dropped the entire gem from results
+- Malformed date strings from GitHub/GitLab APIs no longer raise unhandled `ArgumentError`
 
 ## [1.0.2] - 2026-02-19
 
