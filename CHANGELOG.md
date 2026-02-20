@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1] - 2026-02-20
+
+### Fixed
+
+- Repository URLs with `.git` suffix (e.g. `socketry/async.git`) caused 404s against GitHub/GitLab APIs
+- GitLab 301 redirects for renamed projects silently failed; now follows up to 3 redirects with trusted host check
+- Network errors (`ECONNRESET`, timeouts, etc.) during RubyGems version lookup or HTTP API calls dropped the entire gem from results instead of warning
+
 ## [1.1.0] - 2026-02-20
 
 ### Added

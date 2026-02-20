@@ -1,0 +1,33 @@
+# frozen_string_literal: true
+
+# Synthetic Gemfile for testing edge cases. Each gem exercises a specific code path.
+#
+# Source types:
+#   rubygems   - async, gitlab-markup, backbone-rails, bootstrap-slider-rails
+#   git        - nested_form (git: URL with .git suffix)
+#   git+branch - nested_form also tests branch: "master"
+#   github     - remotipart (github: shorthand)
+#   path       - local_gem (path: source)
+#
+# Repository states:
+#   .git suffix     - async (source_code_uri ends in .git)
+#   GitLab-hosted   - gitlab-markup (gitlab.com/gitlab-org/gitlab-markup)
+#   archived        - backbone-rails (aflatter/backbone-rails)
+#   deleted/404     - bootstrap-slider-rails (YourCursus/bootstrap-slider-rails)
+
+source "https://rubygems.org"
+
+# Standard rubygems source
+gem "async", "~> 2.0"                       # .git suffix in source_code_uri
+gem "gitlab-markup", "~> 2.0"               # GitLab-hosted repo
+gem "backbone-rails", "~> 1.2"              # archived GitHub repo
+gem "bootstrap-slider-rails", "~> 9.8"      # deleted GitHub repo (404)
+
+# Git source with .git suffix URL and branch
+gem "nested_form", git: "https://github.com/ryanb/nested_form.git", branch: "master"
+
+# GitHub shorthand (Bundler sugar for git source)
+gem "remotipart", github: "mshibuya/remotipart"
+
+# Path source
+gem "local_gem", path: "local_gem"
