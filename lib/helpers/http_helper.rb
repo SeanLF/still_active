@@ -24,7 +24,11 @@ module StillActive
       return unless response.is_a?(Net::HTTPSuccess)
 
       JSON.parse(response.body)
-    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED, JSON::ParserError
+    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
+      $stderr.puts("warning: #{uri.host}#{uri.path} failed: #{e.class} (#{e.message})")
+      nil
+    rescue JSON::ParserError => e
+      $stderr.puts("warning: #{uri.host}#{uri.path} returned invalid JSON: #{e.message}")
       nil
     end
   end
