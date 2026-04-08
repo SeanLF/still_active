@@ -26,25 +26,23 @@ Ruby 4.0.1 (latest)
 
 ## Why `still_active`?
 
-Most dependency tools answer one question. `still_active` answers all of them at once:
+`still_active` is **complementary to** -- not a replacement for -- the established Ruby tooling. `bundle outdated`, `bundler-audit`, and `libyear-bundler` are purpose-built and battle-tested at what they do. `still_active` answers a different question: **is anyone still maintaining this gem?** -- and folds in the version/CVE/libyear signals so you get one report instead of three.
 
-|                              | `bundle outdated` | `bundler-audit` | `libyear-bundler` | **`still_active`**           |
-| ---------------------------- | ----------------- | --------------- | ----------------- | ---------------------------- |
-| Outdated versions            | Yes               | -               | Yes               | **Yes**                      |
-| Known vulnerabilities (CVEs) | -                 | Yes             | -                 | **Yes** (with severity)      |
-| OpenSSF Scorecard            | -                 | -               | -                 | **Yes**                      |
-| Last commit activity         | -                 | -               | -                 | **Yes**                      |
-| Libyear drift                | -                 | -               | Yes               | **Yes**                      |
-| Archived repo detection      | -                 | -               | -                 | **Yes**                      |
-| Yanked version detection     | -                 | -               | -                 | **Yes**                      |
-| Ruby version freshness       | -                 | -               | -                 | **Yes** (EOL + libyear)      |
-| Git/path/GH Packages sources | -                 | -               | -                 | **Yes**                      |
-| GitLab support               | -                 | -               | -                 | **Yes**                      |
-| CI quality gates             | -                 | Exit code       | -                 | **Yes** (5 modes)            |
-| Multiple output formats      | -                 | -               | -                 | **Terminal, JSON, Markdown** |
-| Single command               | Yes               | Yes             | Yes               | **Yes**                      |
+|                              | `bundle outdated` | `bundler-audit`        | `libyear-bundler` | **`still_active`**       |
+| ---------------------------- | ----------------- | ---------------------- | ----------------- | ------------------------ |
+| Outdated versions            | Yes               | -                      | Yes               | Yes                      |
+| Known vulnerabilities (CVEs) | -                 | Yes (ruby-advisory-db) | -                 | Yes (deps.dev)           |
+| Libyear drift                | -                 | -                      | Yes               | Yes                      |
+| **Last commit activity**     | -                 | -                      | -                 | **Yes**                  |
+| **Archived repo detection**  | -                 | -                      | -                 | **Yes**                  |
+| **OpenSSF Scorecard**        | -                 | -                      | -                 | **Yes**                  |
+| **Yanked version detection** | -                 | -                      | -                 | **Yes**                  |
+| **Ruby version freshness**   | -                 | -                      | -                 | **Yes** (EOL + libyear)  |
+| GitLab support               | -                 | -                      | -                 | Yes                      |
+| CI quality gates             | -                 | Exit code              | -                 | Yes (4 flags)            |
+| Output formats               | Text              | Text                   | Text              | Terminal, JSON, Markdown |
 
-`still_active` tells you whether a dependency is outdated, insecure, _and_ abandoned -- not just one of the three.
+The bolded rows are the gap `still_active` fills: nobody else answers "is the maintainer still around?" The CVE column is worth a closer look: `bundler-audit` and `still_active` use **different data sources** (`ruby-advisory-db` vs `deps.dev`), so coverage isn't identical. If you care about CVEs in CI, keep running `bundler-audit` alongside `still_active`.
 
 ## Installation
 
