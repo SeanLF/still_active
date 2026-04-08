@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-04-08
+
+### Changed
+
+- **BREAKING:** Bump minimum Ruby version to 3.3 (3.2 is EOL); transitive dependencies (e.g. `io-event`) now require Ruby >= 3.3
+
 ## [1.2.1] - 2026-02-20
 
 ### Fixed
