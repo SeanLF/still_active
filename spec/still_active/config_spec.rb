@@ -143,4 +143,36 @@ RSpec.describe(StillActive::Config) do
       expect(Open3).not_to(have_received(:capture3))
     end
   end
+
+  describe("gemfile_path discovery") do
+    it("returns Bundler.default_gemfile when a Gemfile is reachable") do
+      allow(Bundler).to(receive(:default_gemfile).and_return(Pathname.new("/proj/Gemfile")))
+      expect(described_class.new.gemfile_path).to(eq("/proj/Gemfile"))
+    end
+
+    it("falls back to ./Gemfile when no Gemfile is reachable (GemfileNotFound)") do
+      allow(Bundler).to(receive(:default_gemfile).and_raise(Bundler::GemfileNotFound))
+      expect(described_class.new.gemfile_path).to(eq(File.join(Dir.pwd, "Gemfile")))
+    end
+
+    it("does not invoke Bundler.default_gemfile at Config.new") do
+      allow(Bundler).to(receive(:default_gemfile))
+      described_class.new
+      expect(Bundler).not_to(have_received(:default_gemfile))
+    end
+
+    it("honours an explicit path set via the writer") do
+      config = described_class.new
+      config.gemfile_path = "/elsewhere/Gemfile"
+      expect(config.gemfile_path).to(eq("/elsewhere/Gemfile"))
+    end
+
+    it("does not call Bundler.default_gemfile when an explicit path is set first") do
+      allow(Bundler).to(receive(:default_gemfile))
+      config = described_class.new
+      config.gemfile_path = "/elsewhere/Gemfile"
+      config.gemfile_path
+      expect(Bundler).not_to(have_received(:default_gemfile))
+    end
+  end
 end

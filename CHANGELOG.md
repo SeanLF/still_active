@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1] - 2026-05-22
+
+### Fixed
+
+- `still_active --gems=X` (or any invocation that doesn't need a Gemfile) crashed with `Bundler::GemfileNotFound` when run from a directory without a Gemfile in the tree. `Config#initialize` eagerly called `Bundler.default_gemfile`. Now `gemfile_path` resolves lazily on first read and falls back to `./Gemfile` when none is reachable.
+
 ## [1.4.0] - 2026-05-22
 
 ### Added
