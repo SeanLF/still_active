@@ -12,9 +12,11 @@ on:
 jobs:
   test:
     strategy:
-       matrix:
-         ruby: ['3.3', '3.4', '4.0', head]
+      fail-fast: false
+      matrix:
+        ruby: ['3.3', '3.4', '4.0', head]
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.ruby == 'head' }}
     steps:
     - uses: actions/checkout@v4
     - name: Set up Ruby
