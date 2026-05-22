@@ -16,6 +16,9 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # GitHub Actions major bumps are usually just Node runtime updates
+      # (v4 -> v6 = Node 20 -> Node 24); group them so they land together
+      # rather than as one-PR-per-action.
       actions:
         patterns: ["*"]
-        update-types: [minor, patch]
+        update-types: [major, minor, patch]
