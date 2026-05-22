@@ -5,6 +5,7 @@
 `bundle outdated` tells you version drift. `bundler-audit` catches known CVEs. Neither tells you whether anyone is still working on the thing. `still_active` checks maintenance activity, version freshness, security scores, vulnerabilities, libyear drift, and archived repos for every gem in your Gemfile.
 
 [![Gem Version](https://badge.fury.io/rb/still_active.svg)](https://badge.fury.io/rb/still_active)
+[![GitHub Action](https://img.shields.io/badge/Marketplace-still__active--action-2ea44f?logo=github)](https://github.com/marketplace/actions/still_active)
 ![Code Quality analysis](https://github.com/SeanLF/still_active/actions/workflows/codeql-analysis.yml/badge.svg)
 ![RSpec](https://github.com/SeanLF/still_active/actions/workflows/rspec.yml/badge.svg)
 ![Rubocop analysis](https://github.com/SeanLF/still_active/actions/workflows/rubocop-analysis.yml/badge.svg)
