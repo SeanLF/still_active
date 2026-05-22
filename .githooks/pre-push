@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
-# Runs bin/check before pushing. Skip with `git push --no-verify`.
+# Runs the default rake task (rspec + rubocop) before pushing.
+# Skip with `git push --no-verify`.
 set -euo pipefail
-exec "$(git rev-parse --show-toplevel)/bin/check"
+cd "$(git rev-parse --show-toplevel)"
+exec bundle exec rake
