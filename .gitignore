@@ -19,3 +19,4 @@ spec/**/Gemfile.lock
 # claude
 .claude/tasks/
 /docs/plans
+scratch/
