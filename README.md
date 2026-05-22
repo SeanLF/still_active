@@ -5,6 +5,7 @@
 `bundle outdated` tells you version drift. `bundler-audit` catches known CVEs. Neither tells you whether anyone is still working on the thing. `still_active` checks maintenance activity, version freshness, security scores, vulnerabilities, libyear drift, and archived repos for every gem in your Gemfile.
 
 [![Gem Version](https://badge.fury.io/rb/still_active.svg)](https://badge.fury.io/rb/still_active)
+[![GitHub Action](https://img.shields.io/badge/Marketplace-still__active--action-2ea44f?logo=github)](https://github.com/marketplace/actions/still_active)
 ![Code Quality analysis](https://github.com/SeanLF/still_active/actions/workflows/codeql-analysis.yml/badge.svg)
 ![RSpec](https://github.com/SeanLF/still_active/actions/workflows/rspec.yml/badge.svg)
 ![Rubocop analysis](https://github.com/SeanLF/still_active/actions/workflows/rubocop-analysis.yml/badge.svg)
@@ -186,13 +187,15 @@ still_active --markdown
 
 Emit findings as SARIF 2.1.0 — they show up in the GitHub Security tab and as inline annotations on `Gemfile.lock` in pull requests.
 
+> **See it live:** this repo audits itself on every push. Browse the live findings in the [Code Scanning Security tab](https://github.com/SeanLF/still_active/security/code-scanning?query=tool%3Astill_active+is%3Aopen) — currently 2× `SA005` (low OpenSSF Scorecard).
+
 ```bash
 still_active --sarif                       # writes still_active.sarif.json
 still_active --sarif=path/to/out.sarif.json
 still_active --sarif=-                     # stdout
 ```
 
-Wire it up in a workflow with `github/codeql-action/upload-sarif`:
+**Easy mode** — use the [`still_active-action`](https://github.com/SeanLF/still_active-action) wrapper:
 
 ```yaml
 permissions:
@@ -205,14 +208,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
+        with: { ruby-version: '3.4' }
+      - uses: SeanLF/still_active-action@v0
         with:
-          ruby-version: "3.4"
-          bundler-cache: true
-      - run: bundle exec still_active --sarif
+          github-token: ${{ github.token }}
+          sarif: still_active.sarif.json
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
-        with:
-          sarif_file: still_active.sarif.json
+        with: { sarif_file: still_active.sarif.json }
+```
+
+**Plain bundle exec** if you'd rather pin still_active in your Gemfile:
+
+```yaml
+      - run: bundle exec still_active --sarif
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with: { sarif_file: still_active.sarif.json }
 ```
 
 Rule reference (SA001–SA007) and how to suppress: see [`docs/rules.md`](docs/rules.md).
