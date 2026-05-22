@@ -281,7 +281,9 @@ Activity is determined by the most recent signal across last commit date, latest
 
 ## Development
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+After checking out the repo, run `bin/setup` to install dependencies and wire git hooks. Then run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+
+`bin/check` runs the full lint + test suite (`rubocop` + `rspec`); a pre-push hook runs it automatically before each `git push`. Skip with `git push --no-verify` if you really need to.
 
 To install this gem onto your local machine, run `bundle exec rake install`. New versions are published automatically to [rubygems.org](https://rubygems.org) when a GitHub Release is created (via trusted publishing).
 

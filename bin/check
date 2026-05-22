@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Run the full lint + test suite. Use as a pre-push gate so cross-file
+# issues (Gemspec/OrderedDependencies, etc.) don't escape to CI.
+set -euo pipefail
+
+echo "==> rubocop"
+bundle exec rubocop
+
+echo "==> rspec"
+bundle exec rspec
