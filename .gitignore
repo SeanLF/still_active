@@ -15,6 +15,9 @@
 
 # test fixture lockfiles (avoid Dependabot noise from ancient transitive deps)
 spec/**/Gemfile.lock
+# but track lockfile fixtures used by SARIF/diff specs — synthetic content,
+# no real gem deps, so Dependabot ignores them
+!spec/fixtures/sarif/Gemfile.lock
 
 # claude
 .claude/tasks/

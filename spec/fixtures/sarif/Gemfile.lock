@@ -1,0 +1,22 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    archived_gem (1.0.0)
+    abandoned_gem (2.0.0)
+    vuln_gem (3.0.0)
+    behind_gem (1.5.0)
+    weak_gem (0.5.0)
+    yanked_gem (4.0.0)
+    healthy_gem (5.0.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  archived_gem
+
+RUBY VERSION
+   ruby 3.3.0p0
+
+BUNDLED WITH
+   2.5.0
