@@ -28,6 +28,74 @@ RSpec.describe(StillActive::CLI) do
     }
   end
 
+  describe("--sarif") do
+    let(:workflow_result) { { "rails" => gem_data(last_commit_date: ancient_date).merge(archived: true) } }
+    let(:fake_lockfile) { "GEM\n  remote: https://rubygems.org/\n  specs:\n    rails (1.0)\n" }
+
+    before { allow($stdout).to(receive(:tty?).and_return(false)) }
+
+    it("writes SARIF to the default file when --sarif is bare") do
+      Dir.mktmpdir do |dir|
+        Dir.chdir(dir) do
+          File.write("Gemfile", "")
+          File.write("Gemfile.lock", fake_lockfile)
+          StillActive.config.gemfile_path = "#{dir}/Gemfile"
+          cli.run(["--gems=rails", "--sarif"])
+          expect(File.exist?("still_active.sarif.json")).to(be(true))
+          payload = JSON.parse(File.read("still_active.sarif.json"))
+          expect(payload["version"]).to(eq("2.1.0"))
+        end
+      end
+    end
+
+    it("writes SARIF to stdout when --sarif=-") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      Dir.mktmpdir do |dir|
+        File.write("#{dir}/Gemfile", "")
+        File.write("#{dir}/Gemfile.lock", fake_lockfile)
+        StillActive.config.gemfile_path = "#{dir}/Gemfile"
+        cli.run(["--gems=rails", "--sarif=-"])
+      end
+      expect(captured).to(include('"version": "2.1.0"'))
+    end
+
+    it("exits 2 when Gemfile.lock is missing") do
+      Dir.mktmpdir do |dir|
+        StillActive.config.gemfile_path = "#{dir}/Gemfile"
+        allow($stderr).to(receive(:puts))
+        expect { cli.run(["--gems=rails", "--sarif=-"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
+      end
+    end
+
+    it("resolves gems.rb to gems.locked (Bundler alternate convention)") do
+      Dir.mktmpdir do |dir|
+        File.write("#{dir}/gems.rb", "")
+        File.write("#{dir}/gems.locked", fake_lockfile)
+        StillActive.config.gemfile_path = "#{dir}/gems.rb"
+        captured = nil
+        allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+        cli.run(["--gems=rails", "--sarif=-"])
+        expect(captured).to(include('"version": "2.1.0"'))
+      end
+    end
+
+    it("overrides --json when both are passed") do
+      Dir.mktmpdir do |dir|
+        File.write("#{dir}/Gemfile", "")
+        File.write("#{dir}/Gemfile.lock", fake_lockfile)
+        StillActive.config.gemfile_path = "#{dir}/Gemfile"
+        captured = nil
+        allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+        cli.run(["--gems=rails", "--json", "--sarif=-"])
+        # Output should be SARIF, not the JSON envelope
+        expect(captured).to(include('"version": "2.1.0"'))
+        expect(captured).not_to(include('"schema_version"'))
+      end
+    end
+  end
+
   describe("JSON envelope") do
     let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
     let(:ruby_info) { { version: "3.4.0", eol: false } }

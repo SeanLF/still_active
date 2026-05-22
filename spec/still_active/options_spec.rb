@@ -11,6 +11,21 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.output_format).to(eq(:json))
     end
 
+    it("sets sarif_path to the default file when --sarif is bare") do
+      described_class.new.parse!(["--sarif", "--gems=rails"])
+      expect(StillActive.config.sarif_path).to(eq("still_active.sarif.json"))
+    end
+
+    it("sets sarif_path to the given file") do
+      described_class.new.parse!(["--sarif=/tmp/out.sarif.json", "--gems=rails"])
+      expect(StillActive.config.sarif_path).to(eq("/tmp/out.sarif.json"))
+    end
+
+    it("sets sarif_path to '-' for stdout") do
+      described_class.new.parse!(["--sarif=-", "--gems=rails"])
+      expect(StillActive.config.sarif_path).to(eq("-"))
+    end
+
     it("sets output format to terminal") do
       described_class.new.parse!(["--terminal", "--gems=rails"])
       expect(StillActive.config.output_format).to(eq(:terminal))

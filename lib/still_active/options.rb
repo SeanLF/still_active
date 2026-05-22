@@ -60,6 +60,9 @@ module StillActive
       opts.on("--terminal", "Coloured terminal output (default in TTY)") { StillActive.config { |config| config.output_format = :terminal } }
       opts.on("--markdown", "Markdown table output") { StillActive.config { |config| config.output_format = :markdown } }
       opts.on("--json", "JSON output (default when piped)") { StillActive.config { |config| config.output_format = :json } }
+      opts.on("--sarif[=PATH]", "SARIF 2.1.0 output for GitHub Code Scanning (default path: still_active.sarif.json; '-' for stdout). Overrides --terminal/--markdown/--json.") do |value|
+        StillActive.config { |config| config.sarif_path = value || "still_active.sarif.json" }
+      end
     end
 
     def add_token_options(opts)

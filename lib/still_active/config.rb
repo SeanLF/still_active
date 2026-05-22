@@ -19,6 +19,7 @@ module StillActive
       :output_format,
       :parallelism,
       :no_warning_range_end,
+      :sarif_path,
       :success_emoji,
       :unsure_emoji,
       :warning_emoji,
@@ -38,6 +39,7 @@ module StillActive
       @parallelism = 10
 
       @output_format = :auto
+      @sarif_path = nil
 
       @critical_warning_emoji = "🚩"
       @futurist_emoji = "🔮"
