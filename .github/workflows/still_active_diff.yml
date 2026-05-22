@@ -1,0 +1,71 @@
+name: Dependency PR diff
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base (main) as baseline
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          path: baseline
+
+      - name: Checkout PR HEAD
+        uses: actions/checkout@v6
+        with:
+          path: current
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+
+      - name: Bundle install baseline
+        working-directory: baseline
+        run: bundle install --jobs 4 --retry 3
+
+      - name: Bundle install current
+        working-directory: current
+        run: bundle install --jobs 4 --retry 3
+
+      - name: Capture baseline JSON from main
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        working-directory: baseline
+        run: bundle exec still_active --json > "$RUNNER_TEMP/baseline.json"
+
+      - name: Run diff against baseline
+        id: diff
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        working-directory: current
+        run: |
+          set +e
+          bundle exec still_active --baseline="$RUNNER_TEMP/baseline.json" > "$RUNNER_TEMP/diff.md"
+          code=$?
+          echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Append to job summary
+        run: cat "$RUNNER_TEMP/diff.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on PR
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        working-directory: current
+        run: gh pr comment "$PR_NUMBER" --body-file "$RUNNER_TEMP/diff.md" --edit-last --create-if-none
+
+      - name: Fail if regressions detected
+        if: steps.diff.outputs.exit-code != '0'
+        run: |
+          echo "::error::still_active --baseline reported regressions; see job summary"
+          exit 1
