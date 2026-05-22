@@ -18,7 +18,12 @@ module StillActive
     def run(args)
       options = Options.new.parse!(args)
       unless options[:provided_gems]
-        StillActive.config.gems = BundlerHelper.gemfile_dependencies
+        begin
+          StillActive.config.gems = BundlerHelper.gemfile_dependencies
+        rescue MissingLockfileError => e
+          $stderr.puts("error: #{e.message}")
+          exit(2)
+        end
       end
 
       result = if $stderr.tty?
