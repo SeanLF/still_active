@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
 require_relative "options"
+require_relative "diff"
 require_relative "../helpers/activity_helper"
 require_relative "../helpers/bundler_helper"
+require_relative "../helpers/diff_markdown_helper"
 require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
+require_relative "../helpers/sarif_helper"
 require_relative "../helpers/terminal_helper"
 require_relative "../helpers/version_helper"
 require_relative "../helpers/vulnerability_helper"
@@ -27,21 +30,88 @@ module StillActive
 
       ruby_info = Workflow.ruby_freshness
 
-      case resolve_format
-      when :json
-        output = { gems: result }
-        output[:ruby] = ruby_info if ruby_info
-        puts output.to_json
-      when :terminal
-        puts TerminalHelper.render(result, ruby_info: ruby_info)
-      when :markdown
-        render_markdown(result, ruby_info: ruby_info)
+      if (baseline_path = StillActive.config.baseline_path)
+        emit_diff(result, ruby_info, baseline_path)
+      elsif (sarif_path = StillActive.config.sarif_path)
+        emit_sarif(result, ruby_info, sarif_path)
+      else
+        case resolve_format
+        when :json
+          output = {
+            schema_version: 1,
+            tool: { name: "still_active", version: StillActive::VERSION },
+            generated_at: Time.now.utc.iso8601,
+            gems: result,
+          }
+          output[:ruby] = ruby_info if ruby_info
+          puts output.to_json
+        when :terminal
+          puts TerminalHelper.render(result, ruby_info: ruby_info)
+        when :markdown
+          render_markdown(result, ruby_info: ruby_info)
+        end
       end
 
       check_exit_status(result)
     end
 
     private
+
+    def emit_sarif(result, ruby_info, sarif_path)
+      lockfile = resolve_lockfile_path(StillActive.config.gemfile_path)
+      unless File.exist?(lockfile)
+        $stderr.puts("error: --sarif requires a lockfile at #{lockfile}")
+        exit(2)
+      end
+
+      sarif_json = SarifHelper.render(
+        result: result,
+        ruby_info: ruby_info,
+        lockfile_path: lockfile,
+        tool_version: StillActive::VERSION,
+      )
+
+      if sarif_path == "-"
+        puts sarif_json
+      else
+        File.write(sarif_path, sarif_json)
+      end
+    end
+
+    # Mirrors Bundler's convention: gems.rb -> gems.locked, otherwise <gemfile>.lock.
+    def resolve_lockfile_path(gemfile)
+      return gemfile.sub(/gems\.rb\z/, "gems.locked") if gemfile.end_with?("gems.rb")
+
+      "#{gemfile}.lock"
+    end
+
+    def emit_diff(result, ruby_info, baseline_path)
+      current = current_snapshot(result, ruby_info)
+      baseline = JSON.parse(File.read(baseline_path))
+      diff = Diff.call(baseline: baseline, current: current)
+      puts DiffMarkdownHelper.render(diff)
+      exit(1) if diff.regressions.any?
+    rescue JSON::ParserError => e
+      $stderr.puts("error: --baseline file is not valid JSON: #{e.message}")
+      exit(2)
+    rescue Diff::UnsupportedSchemaError => e
+      $stderr.puts("error: #{e.message}")
+      exit(2)
+    rescue Errno::ENOENT, Errno::EACCES, Errno::EISDIR => e
+      $stderr.puts("error: cannot read baseline file: #{e.message}")
+      exit(2)
+    end
+
+    def current_snapshot(result, ruby_info)
+      snapshot = {
+        "schema_version" => 1,
+        "tool" => { "name" => "still_active", "version" => StillActive::VERSION },
+        "generated_at" => Time.now.utc.iso8601,
+        "gems" => JSON.parse(result.to_json),
+      }
+      snapshot["ruby"] = JSON.parse(ruby_info.to_json) if ruby_info
+      snapshot
+    end
 
     def resolve_format
       format = StillActive.config.output_format

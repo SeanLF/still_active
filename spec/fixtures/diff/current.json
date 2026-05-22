@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "tool": { "name": "still_active", "version": "1.4.0" },
+  "generated_at": "2026-05-22T00:00:00Z",
+  "gems": {
+    "rails": {
+      "source_type": "rubygems",
+      "version_used": "7.1.0",
+      "latest_version": "8.0.0",
+      "scorecard_score": 7.5,
+      "vulnerability_count": 0,
+      "vulnerabilities": [],
+      "archived": false,
+      "libyear": 0.7,
+      "version_yanked": false
+    },
+    "newly_added": {
+      "source_type": "rubygems",
+      "version_used": "0.1.0",
+      "latest_version": "0.1.0",
+      "archived": true,
+      "vulnerability_count": 0,
+      "vulnerabilities": [],
+      "libyear": 0.0
+    },
+    "untouched": {
+      "source_type": "rubygems",
+      "version_used": "2.0.0",
+      "archived": false,
+      "vulnerability_count": 0,
+      "scorecard_score": 8.0,
+      "libyear": 0.5
+    },
+    "scorecard_dropping": {
+      "source_type": "rubygems",
+      "version_used": "3.0.0",
+      "archived": false,
+      "vulnerability_count": 0,
+      "scorecard_score": 6.0,
+      "libyear": 0.2
+    }
+  },
+  "ruby": { "version": "3.3.0", "eol": false, "latest_version": "3.4.0", "libyear": 0.5 }
+}

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tempfile"
+
 RSpec.describe(StillActive::CLI) do
   subject(:cli) { described_class.new }
 
@@ -26,6 +28,177 @@ RSpec.describe(StillActive::CLI) do
       scorecard_score: nil,
       vulnerability_count: nil,
     }
+  end
+
+  describe("--baseline") do
+    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+
+    before { allow($stdout).to(receive(:tty?).and_return(false)) }
+
+    def write_baseline(path, gems)
+      File.write(path, {
+        schema_version: 1,
+        tool: { name: "still_active", version: "1.4.0" },
+        generated_at: "2026-05-01T00:00:00Z",
+        gems: gems,
+      }.to_json)
+    end
+
+    it("emits a markdown diff and exits 0 when there are no regressions") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      Tempfile.create(["baseline", ".json"]) do |f|
+        write_baseline(f.path, { "rails" => { version_used: "1.0.0", archived: false, vulnerability_count: 0 } })
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }.not_to(raise_error)
+      end
+      expect(captured).to(include("## still_active diff"))
+    end
+
+    it("exits 1 when a regression is detected") do
+      allow($stdout).to(receive(:puts))
+      Tempfile.create(["baseline", ".json"]) do |f|
+        # Baseline has no rails; current has rails archived → newly added archived gem = regression
+        write_baseline(f.path, {})
+        # Override workflow_result for this test
+        allow(StillActive::Workflow).to(receive(:call).and_return({
+          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true),
+        }))
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+    end
+
+    it("exits 2 with a friendly error on invalid JSON baseline") do
+      allow($stderr).to(receive(:puts))
+      Tempfile.create(["baseline", ".json"]) do |f|
+        File.write(f.path, "not valid json {")
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
+      end
+    end
+
+    it("exits 2 with a friendly error on unsupported schema_version") do
+      allow($stderr).to(receive(:puts))
+      Tempfile.create(["baseline", ".json"]) do |f|
+        File.write(f.path, '{"schema_version":999,"gems":{}}')
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
+      end
+    end
+
+    it("supersedes --sarif and --json when all are given") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      Tempfile.create(["baseline", ".json"]) do |f|
+        write_baseline(f.path, { "rails" => { version_used: "1.0.0", archived: false } })
+        cli.run(["--gems=rails", "--json", "--sarif=-", "--baseline=#{f.path}"])
+      end
+      # Output should be markdown diff, not SARIF or wrapped JSON
+      expect(captured).to(include("## still_active diff"))
+      expect(captured).not_to(include('"version": "2.1.0"'))
+      expect(captured).not_to(include('"schema_version"'))
+    end
+  end
+
+  describe("--sarif") do
+    let(:workflow_result) { { "rails" => gem_data(last_commit_date: ancient_date).merge(archived: true) } }
+    let(:fake_lockfile) { "GEM\n  remote: https://rubygems.org/\n  specs:\n    rails (1.0)\n" }
+
+    before { allow($stdout).to(receive(:tty?).and_return(false)) }
+
+    it("writes SARIF to the default file when --sarif is bare") do
+      Dir.mktmpdir do |dir|
+        Dir.chdir(dir) do
+          File.write("Gemfile", "")
+          File.write("Gemfile.lock", fake_lockfile)
+          StillActive.config.gemfile_path = "#{dir}/Gemfile"
+          cli.run(["--gems=rails", "--sarif"])
+          expect(File.exist?("still_active.sarif.json")).to(be(true))
+          payload = JSON.parse(File.read("still_active.sarif.json"))
+          expect(payload["version"]).to(eq("2.1.0"))
+        end
+      end
+    end
+
+    it("writes SARIF to stdout when --sarif=-") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      Dir.mktmpdir do |dir|
+        File.write("#{dir}/Gemfile", "")
+        File.write("#{dir}/Gemfile.lock", fake_lockfile)
+        StillActive.config.gemfile_path = "#{dir}/Gemfile"
+        cli.run(["--gems=rails", "--sarif=-"])
+      end
+      expect(captured).to(include('"version": "2.1.0"'))
+    end
+
+    it("exits 2 when Gemfile.lock is missing") do
+      Dir.mktmpdir do |dir|
+        StillActive.config.gemfile_path = "#{dir}/Gemfile"
+        allow($stderr).to(receive(:puts))
+        expect { cli.run(["--gems=rails", "--sarif=-"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
+      end
+    end
+
+    it("resolves gems.rb to gems.locked (Bundler alternate convention)") do
+      Dir.mktmpdir do |dir|
+        File.write("#{dir}/gems.rb", "")
+        File.write("#{dir}/gems.locked", fake_lockfile)
+        StillActive.config.gemfile_path = "#{dir}/gems.rb"
+        captured = nil
+        allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+        cli.run(["--gems=rails", "--sarif=-"])
+        expect(captured).to(include('"version": "2.1.0"'))
+      end
+    end
+
+    it("overrides --json when both are passed") do
+      Dir.mktmpdir do |dir|
+        File.write("#{dir}/Gemfile", "")
+        File.write("#{dir}/Gemfile.lock", fake_lockfile)
+        StillActive.config.gemfile_path = "#{dir}/Gemfile"
+        captured = nil
+        allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+        cli.run(["--gems=rails", "--json", "--sarif=-"])
+        # Output should be SARIF, not the JSON envelope
+        expect(captured).to(include('"version": "2.1.0"'))
+        expect(captured).not_to(include('"schema_version"'))
+      end
+    end
+  end
+
+  describe("JSON envelope") do
+    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+    let(:ruby_info) { { version: "3.4.0", eol: false } }
+
+    before do
+      allow($stdout).to(receive(:tty?).and_return(false))
+      allow(StillActive::Workflow).to(receive(:ruby_freshness).and_return(ruby_info))
+    end
+
+    it("wraps gems and ruby in a versioned envelope") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rails", "--json"])
+      payload = JSON.parse(captured)
+      expect(payload).to(include("schema_version" => 1))
+      expect(payload.dig("tool", "name")).to(eq("still_active"))
+      expect(payload.dig("tool", "version")).to(eq(StillActive::VERSION))
+      expect(payload["generated_at"]).to(match(/\A\d{4}-\d{2}-\d{2}T/))
+      expect(payload.dig("gems", "rails")).to(be_a(Hash))
+      expect(payload["ruby"]).to(eq("version" => "3.4.0", "eol" => false))
+    end
+
+    it("omits ruby key when ruby info is nil") do
+      allow(StillActive::Workflow).to(receive(:ruby_freshness).and_return(nil))
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rails", "--json"])
+      payload = JSON.parse(captured)
+      expect(payload).not_to(have_key("ruby"))
+      expect(payload).to(have_key("gems"))
+    end
   end
 
   describe("output format auto-detection") do

@@ -6,6 +6,10 @@ AllCops:
   NewCops: enable
   TargetRubyVersion: 3.1
   SuggestExtensions: false
+  Exclude:
+    - scratch/**/*
+    - docs/plans/**/*
+    - .worktrees/**/*
 
 inherit_gem:
   rubocop-shopify: rubocop.yml

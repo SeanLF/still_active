@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "tempfile"
 require_relative "../../lib/still_active/options"
 
 RSpec.describe(StillActive::Options) do
@@ -9,6 +10,35 @@ RSpec.describe(StillActive::Options) do
     it("sets output format to json") do
       described_class.new.parse!(["--json", "--gems=rails"])
       expect(StillActive.config.output_format).to(eq(:json))
+    end
+
+    it("sets sarif_path to the default file when --sarif is bare") do
+      described_class.new.parse!(["--sarif", "--gems=rails"])
+      expect(StillActive.config.sarif_path).to(eq("still_active.sarif.json"))
+    end
+
+    it("sets sarif_path to the given file") do
+      described_class.new.parse!(["--sarif=/tmp/out.sarif.json", "--gems=rails"])
+      expect(StillActive.config.sarif_path).to(eq("/tmp/out.sarif.json"))
+    end
+
+    it("sets sarif_path to '-' for stdout") do
+      described_class.new.parse!(["--sarif=-", "--gems=rails"])
+      expect(StillActive.config.sarif_path).to(eq("-"))
+    end
+
+    it("sets baseline_path when --baseline is given with an existing file") do
+      Tempfile.create(["baseline", ".json"]) do |f|
+        f.write('{"schema_version":1,"gems":{}}')
+        f.flush
+        described_class.new.parse!(["--baseline=#{f.path}", "--gems=rails"])
+        expect(StillActive.config.baseline_path).to(eq(f.path))
+      end
+    end
+
+    it("raises ArgumentError when --baseline points at a missing file") do
+      expect { described_class.new.parse!(["--baseline=/no/such/file.json", "--gems=rails"]) }
+        .to(raise_error(ArgumentError, /baseline file not found/))
     end
 
     it("sets output format to terminal") do

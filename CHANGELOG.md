@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.0] - 2026-05-22
+
+### Added
+
+- `--sarif[=PATH]` emits SARIF 2.1.0 for GitHub Code Scanning. Findings appear in the Security tab and as inline annotations on `Gemfile.lock` in pull requests. Default path: `still_active.sarif.json` (pair with `github/codeql-action/upload-sarif@v3`). `--sarif=-` writes to stdout. Rule reference (SA001–SA007) in `docs/rules.md`. Stable `partialFingerprints` (rule + gem + advisory) keep alert IDs constant across `bundle update`s.
+- `--baseline=FILE` compares the current run against a baseline still_active JSON snapshot and emits a markdown delta report. Designed for PR review: surfaces regressions (new vulns, newly-archived deps, scorecard drops crossing OSSF's 7.0 threshold, libyear growth on unchanged versions, Ruby newly EOL). Exits 1 if any regression is detected, 2 on a malformed or unsupported baseline.
+- GitHub token cascade: discovers token from `--github-oauth-token`, `GITHUB_TOKEN`, `GH_TOKEN`, or `gh auth token` in that order. GitLab cascade mirrors it (`--gitlab-token`, `GITLAB_TOKEN`, `glab auth status --hostname=gitlab.com --show-token`). Eliminates the "why am I rate limited?" friction on local runs when `gh`/`glab` are already authed.
+- JSON output gains `schema_version`, `tool`, and `generated_at` keys on top of the existing `{gems, ruby}` envelope (shipped since 1.1). Purely additive — existing consumers reading `payload["gems"][name]` continue to work. See `docs/schema.md`.
+
 ## [1.3.0] - 2026-04-08
 
 ### Changed
