@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.2] - 2026-05-22
+
+### Fixed
+
+- Replaced an opaque `NoMethodError` on `nil.specs` with `StillActive::MissingLockfileError` and a clear "run `bundle lock` first" message when a Gemfile exists but no `Gemfile.lock` is reachable. Caught during the still_active-action self-test wiring.
+
 ## [1.4.1] - 2026-05-22
 
 ### Fixed

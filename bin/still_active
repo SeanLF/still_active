@@ -3,7 +3,7 @@
 
 $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), "../lib"))
 
-require "still_active/cli"
 require "still_active"
+require "still_active/cli"
 
 StillActive::CLI.new.run(ARGV)

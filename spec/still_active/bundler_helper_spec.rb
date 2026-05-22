@@ -11,6 +11,25 @@ RSpec.describe(StillActive::BundlerHelper) do
       Bundler.reset_settings_and_root! if Bundler.respond_to?(:reset_settings_and_root!)
     end
 
+    context("when Bundler.definition.locked_gems is nil (no Gemfile.lock)") do
+      let(:fake_definition) do
+        instance_double(Bundler::Definition, dependencies: [], locked_gems: nil)
+      end
+
+      before do
+        allow(Bundler).to(receive(:definition).and_return(fake_definition))
+        allow(Bundler::SharedHelpers).to(receive(:set_env))
+      end
+
+      it("raises MissingLockfileError with the absolute path and a helpful message") do
+        expect { described_class.gemfile_dependencies(gemfile_path: "Gemfile") }
+          .to(raise_error(StillActive::MissingLockfileError) do |e|
+            expect(e.message).to(match(/run `bundle lock`/))
+            expect(e.message).to(include(File.expand_path("Gemfile")))
+          end)
+      end
+    end
+
     it("returns the versioned gems specified in the gemfile") do
       gem_names = gemfile_dependencies.map { |dep| dep[:name] }
       expect(gem_names).to(include("rake", "rspec"))

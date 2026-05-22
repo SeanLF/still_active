@@ -5,11 +5,16 @@ module StillActive
     extend self
 
     def gemfile_dependencies(gemfile_path: StillActive.config.gemfile_path)
-      ::Bundler::SharedHelpers.set_env("BUNDLE_GEMFILE", File.expand_path(gemfile_path))
+      absolute_gemfile = File.expand_path(gemfile_path)
+      ::Bundler::SharedHelpers.set_env("BUNDLE_GEMFILE", absolute_gemfile)
       gemfile_gems = ::Bundler.definition.dependencies.map(&:name)
-      Bundler
-        .definition
-        .locked_gems
+      locked_gems = ::Bundler.definition.locked_gems
+      if locked_gems.nil?
+        raise MissingLockfileError,
+          "no lockfile next to #{absolute_gemfile} — run `bundle lock` (or `bundle install`) first"
+      end
+
+      locked_gems
         .specs
         .select { |spec| gemfile_gems.include?(spec.name) }
         .uniq(&:name)

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "still_active/version"
+require_relative "still_active/errors"
 require_relative "still_active/config"
 require_relative "still_active/cli"
 
@@ -9,8 +10,6 @@ require_relative "still_active/cli"
 require "faraday/retry"
 
 module StillActive
-  class Error < StandardError; end
-
   class << self
     def config
       @config ||= Config.new
