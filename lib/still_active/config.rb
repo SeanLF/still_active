@@ -6,13 +6,12 @@ require "open3"
 
 module StillActive
   class Config
-    attr_writer :github_oauth_token, :gitlab_token
+    attr_writer :github_oauth_token, :gitlab_token, :gemfile_path
     attr_accessor :baseline_path,
       :critical_warning_emoji,
       :fail_if_critical,
       :fail_if_warning,
       :futurist_emoji,
-      :gemfile_path,
       :gems,
       :fail_if_outdated,
       :fail_if_vulnerable,
@@ -31,7 +30,7 @@ module StillActive
       @fail_if_outdated = nil
       @fail_if_vulnerable = nil
       @fail_if_warning = false
-      @gemfile_path = Bundler.default_gemfile.to_s
+      @gemfile_path = nil
       @gems = []
       @ignored_gems = []
       @github_oauth_token = nil
@@ -64,6 +63,16 @@ module StillActive
 
     def gitlab_token
       @gitlab_token ||= presence(ENV["GITLAB_TOKEN"]) || glab_cli_token
+    end
+
+    # Lazy so that running with --gems=... (no Gemfile needed) doesn't crash
+    # when invoked from a directory without a Gemfile in the tree.
+    def gemfile_path
+      @gemfile_path ||= begin
+        Bundler.default_gemfile.to_s
+      rescue Bundler::GemfileNotFound
+        File.join(Dir.pwd, "Gemfile")
+      end
     end
 
     private
