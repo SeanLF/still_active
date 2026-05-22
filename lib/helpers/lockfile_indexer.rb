@@ -3,11 +3,17 @@
 module StillActive
   # Maps gem names to line numbers in a Bundler-generated Gemfile.lock.
   # Used by SARIF output so findings annotate the correct lockfile line.
+  #
+  # We hand-roll the parsing rather than delegating to
+  # Bundler::LockfileParser because the latter is not side-effect-free —
+  # it tries to resolve PLUGIN SOURCE blocks against the installed plugin
+  # registry and raises Bundler::Plugin::UnknownSourceError if a plugin
+  # isn't present in the consuming environment. We just want names + lines.
   module LockfileIndexer
     extend self
 
     # Bundler indents top-level specs with exactly 4 spaces; nested deps get
-    # 6+. `\S+` matches what Bundler's own parser accepts (any non-space).
+    # 6+. \S+ matches what Bundler's own parser accepts (any non-space).
     TOP_LEVEL_SPEC = /\A    (\S+) \(/
     # Source blocks Bundler emits — see bundler/lockfile_parser.rb SOURCE constant.
     BLOCK_HEADER = /\A(GEM|GIT|PATH|PLUGIN SOURCE)\b/
@@ -15,7 +21,8 @@ module StillActive
 
     # Returns a Hash mapping gem name -> 1-based line number in `content`.
     # When a gem appears as both a top-level spec and a nested dep, the
-    # top-level entry wins. Lines outside GEM/GIT/PATH blocks are ignored.
+    # top-level entry wins. Lines outside GEM/GIT/PATH/PLUGIN SOURCE blocks
+    # are ignored.
     def gem_line_index(content)
       index = {}
       in_block = false
