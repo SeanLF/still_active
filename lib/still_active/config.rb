@@ -7,7 +7,8 @@ require "open3"
 module StillActive
   class Config
     attr_writer :github_oauth_token, :gitlab_token
-    attr_accessor :critical_warning_emoji,
+    attr_accessor :baseline_path,
+      :critical_warning_emoji,
       :fail_if_critical,
       :fail_if_warning,
       :futurist_emoji,
@@ -40,6 +41,7 @@ module StillActive
 
       @output_format = :auto
       @sarif_path = nil
+      @baseline_path = nil
 
       @critical_warning_emoji = "🚩"
       @futurist_emoji = "🔮"

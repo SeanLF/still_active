@@ -34,6 +34,9 @@ module StillActive
 
     def validate_options
       raise ArgumentError, "provide gemfile or gems, not both" if options[:provided_gemfile] && options[:provided_gems]
+      if options[:provided_baseline] && !File.exist?(StillActive.config.baseline_path)
+        raise ArgumentError, "baseline file not found: #{StillActive.config.baseline_path}"
+      end
     end
 
     def add_gemfile_option(opts)
@@ -62,6 +65,10 @@ module StillActive
       opts.on("--json", "JSON output (default when piped)") { StillActive.config { |config| config.output_format = :json } }
       opts.on("--sarif[=PATH]", "SARIF 2.1.0 output for GitHub Code Scanning (default path: still_active.sarif.json; '-' for stdout). Overrides --terminal/--markdown/--json.") do |value|
         StillActive.config { |config| config.sarif_path = value || "still_active.sarif.json" }
+      end
+      opts.on("--baseline=PATH", String, "Compare current state to baseline still_active JSON; emit markdown deltas. Exits 1 on regressions.") do |value|
+        options[:provided_baseline] = true
+        StillActive.config { |config| config.baseline_path = value }
       end
     end
 

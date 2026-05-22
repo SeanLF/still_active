@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tempfile"
+
 RSpec.describe(StillActive::CLI) do
   subject(:cli) { described_class.new }
 
@@ -26,6 +28,76 @@ RSpec.describe(StillActive::CLI) do
       scorecard_score: nil,
       vulnerability_count: nil,
     }
+  end
+
+  describe("--baseline") do
+    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+
+    before { allow($stdout).to(receive(:tty?).and_return(false)) }
+
+    def write_baseline(path, gems)
+      File.write(path, {
+        schema_version: 1,
+        tool: { name: "still_active", version: "1.4.0" },
+        generated_at: "2026-05-01T00:00:00Z",
+        gems: gems,
+      }.to_json)
+    end
+
+    it("emits a markdown diff and exits 0 when there are no regressions") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      Tempfile.create(["baseline", ".json"]) do |f|
+        write_baseline(f.path, { "rails" => { version_used: "1.0.0", archived: false, vulnerability_count: 0 } })
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }.not_to(raise_error)
+      end
+      expect(captured).to(include("## still_active diff"))
+    end
+
+    it("exits 1 when a regression is detected") do
+      allow($stdout).to(receive(:puts))
+      Tempfile.create(["baseline", ".json"]) do |f|
+        # Baseline has no rails; current has rails archived → newly added archived gem = regression
+        write_baseline(f.path, {})
+        # Override workflow_result for this test
+        allow(StillActive::Workflow).to(receive(:call).and_return({
+          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true),
+        }))
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+    end
+
+    it("exits 2 with a friendly error on invalid JSON baseline") do
+      allow($stderr).to(receive(:puts))
+      Tempfile.create(["baseline", ".json"]) do |f|
+        File.write(f.path, "not valid json {")
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
+      end
+    end
+
+    it("exits 2 with a friendly error on unsupported schema_version") do
+      allow($stderr).to(receive(:puts))
+      Tempfile.create(["baseline", ".json"]) do |f|
+        File.write(f.path, '{"schema_version":999,"gems":{}}')
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
+      end
+    end
+
+    it("supersedes --sarif and --json when all are given") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      Tempfile.create(["baseline", ".json"]) do |f|
+        write_baseline(f.path, { "rails" => { version_used: "1.0.0", archived: false } })
+        cli.run(["--gems=rails", "--json", "--sarif=-", "--baseline=#{f.path}"])
+      end
+      # Output should be markdown diff, not SARIF or wrapped JSON
+      expect(captured).to(include("## still_active diff"))
+      expect(captured).not_to(include('"version": "2.1.0"'))
+      expect(captured).not_to(include('"schema_version"'))
+    end
   end
 
   describe("--sarif") do

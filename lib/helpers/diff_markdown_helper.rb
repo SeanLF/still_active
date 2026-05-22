@@ -63,7 +63,7 @@ module StillActive
     def removed_section(removed)
       return "" if removed.empty?
 
-      lines = removed.map { |r| "- `#{r.name}` (was #{r.data["version_used"] || "?"})" }
+      lines = removed.map { |r| "- `#{r.name}` (was #{(r.data || {})["version_used"] || "?"})" }
       section("Removed", lines)
     end
 
@@ -100,7 +100,7 @@ module StillActive
     end
 
     def format_added(added)
-      data = added.data
+      data = added.data || {}
       bits = [
         data["version_used"] && "v#{data["version_used"]}",
         data["scorecard_score"] && "OpenSSF #{data["scorecard_score"]}",

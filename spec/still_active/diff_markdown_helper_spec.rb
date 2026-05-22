@@ -34,6 +34,18 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
       expect(md).not_to(include("### Removed"))
     end
 
+    it("handles nil gem data in added/removed entries (malformed baseline)") do
+      result = StillActive::Diff::Result.new(
+        added: [StillActive::Diff::Added.new(name: "weird_added", data: nil)],
+        removed: [StillActive::Diff::Removed.new(name: "weird_removed", data: nil)],
+        bumped: [],
+        signal_changes: [],
+        regressions: [],
+        ruby: nil,
+      )
+      expect { described_class.render(result) }.not_to(raise_error)
+    end
+
     context("with regressions") do
       let(:result) do
         StillActive::Diff::Result.new(
