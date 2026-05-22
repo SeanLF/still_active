@@ -1,0 +1,33 @@
+name: Dependency audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 1 * *'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+      - name: Audit dependencies (SARIF)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bundle exec still_active --sarif
+      - name: Upload SARIF to Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: still_active.sarif.json
