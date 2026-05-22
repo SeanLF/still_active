@@ -82,7 +82,7 @@ still_active --markdown
 
 Without a token, GitHub API calls are unauthenticated and rate-limited to 60 requests/hour — you will hit the limit on anything beyond a handful of gems. With a token the limit is 5000 requests/hour.
 
-GitLab uses `--gitlab-token` or `GITLAB_TOKEN`. Optional for public repos, required for private ones.
+GitLab cascade mirrors GitHub: `--gitlab-token` → `GITLAB_TOKEN` → `glab auth status --show-token`. Optional for public repos, required for private ones.
 
 ### CLI options
 

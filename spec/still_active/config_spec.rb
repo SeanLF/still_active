@@ -81,4 +81,66 @@ RSpec.describe(StillActive::Config) do
       expect(Open3).not_to(have_received(:capture3))
     end
   end
+
+  describe("gitlab_token discovery") do
+    around do |example|
+      original = ENV.to_hash
+      ENV.delete("GITLAB_TOKEN")
+      example.run
+    ensure
+      ENV.clear
+      original.each { |k, v| ENV[k] = v }
+    end
+
+    it("uses GITLAB_TOKEN when set") do
+      ENV["GITLAB_TOKEN"] = "glpat_from_env"
+      expect(described_class.new.gitlab_token).to(eq("glpat_from_env"))
+    end
+
+    it("treats an empty GITLAB_TOKEN as unset") do
+      ENV["GITLAB_TOKEN"] = ""
+      status = instance_double(Process::Status, success?: true)
+      allow(Open3).to(receive(:capture3).with("glab", "auth", "status", "--hostname=gitlab.com", "--show-token").and_return(["", "Token: glpat_from_glab\n", status]))
+      expect(described_class.new.gitlab_token).to(eq("glpat_from_glab"))
+    end
+
+    it("falls back to `glab auth status --hostname=gitlab.com --show-token` when env var absent") do
+      status = instance_double(Process::Status, success?: true)
+      # glab prints "Token: <value>" on stderr (not stdout).
+      allow(Open3).to(receive(:capture3).with("glab", "auth", "status", "--hostname=gitlab.com", "--show-token").and_return(["", "Token: glpat_from_glab\n", status]))
+      expect(described_class.new.gitlab_token).to(eq("glpat_from_glab"))
+    end
+
+    it("returns nil silently when glab CLI is not installed") do
+      allow(Open3).to(receive(:capture3).with("glab", "auth", "status", "--hostname=gitlab.com", "--show-token").and_raise(Errno::ENOENT))
+      expect { expect(described_class.new.gitlab_token).to(be_nil) }.not_to(output.to_stderr)
+    end
+
+    it("warns and returns nil when glab CLI exits non-zero") do
+      status = instance_double(Process::Status, success?: false)
+      allow(Open3).to(receive(:capture3).with("glab", "auth", "status", "--hostname=gitlab.com", "--show-token").and_return(["", "not logged in", status]))
+      expect { expect(described_class.new.gitlab_token).to(be_nil) }
+        .to(output(/`glab auth status` failed: not logged in/).to_stderr)
+    end
+
+    it("warns and returns nil when glab output is missing the Token line") do
+      status = instance_double(Process::Status, success?: true)
+      allow(Open3).to(receive(:capture3).with("glab", "auth", "status", "--hostname=gitlab.com", "--show-token").and_return(["", "Logged in to gitlab.com\n", status]))
+      expect { expect(described_class.new.gitlab_token).to(be_nil) }
+        .to(output(/`glab auth status` did not return a Token line/).to_stderr)
+    end
+
+    it("does not shell out at Config.new — only on first read of gitlab_token") do
+      allow(Open3).to(receive(:capture3))
+      described_class.new
+      expect(Open3).not_to(have_received(:capture3))
+    end
+
+    it("does NOT shell out to glab when GITLAB_TOKEN is set") do
+      ENV["GITLAB_TOKEN"] = "glpat_env"
+      allow(Open3).to(receive(:capture3))
+      described_class.new.gitlab_token
+      expect(Open3).not_to(have_received(:capture3))
+    end
+  end
 end

@@ -6,14 +6,13 @@ require "open3"
 
 module StillActive
   class Config
-    attr_writer :github_oauth_token
+    attr_writer :github_oauth_token, :gitlab_token
     attr_accessor :critical_warning_emoji,
       :fail_if_critical,
       :fail_if_warning,
       :futurist_emoji,
       :gemfile_path,
       :gems,
-      :gitlab_token,
       :fail_if_outdated,
       :fail_if_vulnerable,
       :ignored_gems,
@@ -34,7 +33,7 @@ module StillActive
       @gems = []
       @ignored_gems = []
       @github_oauth_token = nil
-      @gitlab_token = presence(ENV["GITLAB_TOKEN"])
+      @gitlab_token = nil
 
       @parallelism = 10
 
@@ -56,14 +55,14 @@ module StillActive
     end
 
     def github_oauth_token
-      @github_oauth_token ||= discover_github_token
+      @github_oauth_token ||= presence(ENV["GITHUB_TOKEN"]) || presence(ENV["GH_TOKEN"]) || gh_cli_token
+    end
+
+    def gitlab_token
+      @gitlab_token ||= presence(ENV["GITLAB_TOKEN"]) || glab_cli_token
     end
 
     private
-
-    def discover_github_token
-      presence(ENV["GITHUB_TOKEN"]) || presence(ENV["GH_TOKEN"]) || gh_cli_token
-    end
 
     def gh_cli_token
       stdout, stderr, status = Open3.capture3("gh", "auth", "token")
@@ -75,6 +74,24 @@ module StillActive
       else
         warn("warning: `gh auth token` failed: #{stderr.strip}")
       end
+      nil
+    rescue Errno::ENOENT
+      nil
+    end
+
+    def glab_cli_token
+      # Scope to gitlab.com to match GitlabClient::BASE_URI. Users on self-hosted
+      # GitLab still_active doesn't query anyway; if they need it, set GITLAB_TOKEN.
+      _stdout, stderr, status = Open3.capture3("glab", "auth", "status", "--hostname=gitlab.com", "--show-token")
+      unless status.success?
+        warn("warning: `glab auth status` failed: #{stderr.strip}")
+        return
+      end
+
+      match = stderr.match(/Token:\s*(\S+)/)
+      return match[1] if match
+
+      warn("warning: `glab auth status` did not return a Token line")
       nil
     rescue Errno::ENOENT
       nil
