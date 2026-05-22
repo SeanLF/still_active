@@ -96,6 +96,8 @@ Usage: still_active [options]
         --terminal                   Coloured terminal output (default in TTY)
         --markdown                   Markdown table output
         --json                       JSON output (default when piped)
+        --sarif[=PATH]               SARIF 2.1.0 output for GitHub Code Scanning
+        --baseline=PATH              Compare current state to baseline JSON; emit markdown deltas
         --github-oauth-token=TOKEN   GitHub OAuth token to make API calls
         --gitlab-token=TOKEN         GitLab personal access token for API calls
         --simultaneous-requests=QTY  Number of simultaneous requests made
@@ -179,6 +181,55 @@ still_active --markdown
 | 🚩       | ❓          | 3.3/10  | ✅    | [nested_form](https://github.com/ryanb/nested_form)          | 0.3.2 (git)                                                                | ❓                                                                         | ❓                 | [2021/12](https://github.com/ryanb/nested_form)       | -       |
 
 **Ruby 4.0.1** (latest) ✅
+
+### SARIF output (GitHub Code Scanning)
+
+Emit findings as SARIF 2.1.0 — they show up in the GitHub Security tab and as inline annotations on `Gemfile.lock` in pull requests.
+
+```bash
+still_active --sarif                       # writes still_active.sarif.json
+still_active --sarif=path/to/out.sarif.json
+still_active --sarif=-                     # stdout
+```
+
+Wire it up in a workflow with `github/codeql-action/upload-sarif`:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write   # required for SARIF upload
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - run: bundle exec still_active --sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: still_active.sarif.json
+```
+
+Rule reference (SA001–SA007) and how to suppress: see [`docs/rules.md`](docs/rules.md).
+
+### Baseline diff (PR review)
+
+`--baseline=FILE` compares the current run against a previously captured JSON snapshot and emits a markdown delta report. Designed for the PR question reviewers actually ask: **what got worse?**
+
+```bash
+# Locally — capture from main, compare to your branch
+git checkout main && still_active --json > /tmp/main.json
+git checkout my-branch && still_active --baseline=/tmp/main.json
+```
+
+In CI, capture a baseline on main and compare on PR branches. Exits 1 if any regression is detected (new vulns, newly-archived deps, scorecard drops crossing 7.0, libyear growth on unchanged versions, Ruby newly EOL, etc.).
+
+The diff supersedes `--sarif`, `--terminal`, `--markdown`, and `--json` when set.
 
 ### CI quality gating
 
