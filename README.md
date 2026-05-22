@@ -73,7 +73,16 @@ still_active --markdown
 
 ### Authentication
 
-Tokens are read from `GITHUB_TOKEN` and `GITLAB_TOKEN` environment variables by default. Without a GitHub token you will most certainly get rate limited. The GitLab token is optional for public repos but required for private ones. CLI flags override the env vars.
+`still_active` discovers a GitHub token in this order:
+
+1. `--github-oauth-token=TOKEN` CLI flag
+2. `GITHUB_TOKEN` environment variable (CI convention)
+3. `GH_TOKEN` environment variable (`gh` CLI convention)
+4. `gh auth token` (if `gh` is installed and authenticated)
+
+Without a token, GitHub API calls are unauthenticated and rate-limited to 60 requests/hour — you will hit the limit on anything beyond a handful of gems. With a token the limit is 5000 requests/hour.
+
+GitLab uses `--gitlab-token` or `GITLAB_TOKEN`. Optional for public repos, required for private ones.
 
 ### CLI options
 

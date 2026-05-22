@@ -2,16 +2,17 @@
 
 require "bundler"
 require "octokit"
+require "open3"
 
 module StillActive
   class Config
+    attr_writer :github_oauth_token
     attr_accessor :critical_warning_emoji,
       :fail_if_critical,
       :fail_if_warning,
       :futurist_emoji,
       :gemfile_path,
       :gems,
-      :github_oauth_token,
       :gitlab_token,
       :fail_if_outdated,
       :fail_if_vulnerable,
@@ -32,8 +33,8 @@ module StillActive
       @gemfile_path = Bundler.default_gemfile.to_s
       @gems = []
       @ignored_gems = []
-      @github_oauth_token = ENV["GITHUB_TOKEN"]
-      @gitlab_token = ENV["GITLAB_TOKEN"]
+      @github_oauth_token = nil
+      @gitlab_token = presence(ENV["GITLAB_TOKEN"])
 
       @parallelism = 10
 
@@ -52,6 +53,35 @@ module StillActive
     def github_client
       @github_client ||=
         Octokit::Client.new(access_token: github_oauth_token)
+    end
+
+    def github_oauth_token
+      @github_oauth_token ||= discover_github_token
+    end
+
+    private
+
+    def discover_github_token
+      presence(ENV["GITHUB_TOKEN"]) || presence(ENV["GH_TOKEN"]) || gh_cli_token
+    end
+
+    def gh_cli_token
+      stdout, stderr, status = Open3.capture3("gh", "auth", "token")
+      if status.success?
+        token = presence(stdout.strip)
+        return token if token
+
+        warn("warning: `gh auth token` returned empty output")
+      else
+        warn("warning: `gh auth token` failed: #{stderr.strip}")
+      end
+      nil
+    rescue Errno::ENOENT
+      nil
+    end
+
+    def presence(value)
+      value && !value.empty? ? value : nil
     end
   end
 end
