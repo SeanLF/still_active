@@ -28,6 +28,39 @@ RSpec.describe(StillActive::CLI) do
     }
   end
 
+  describe("JSON envelope") do
+    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+    let(:ruby_info) { { version: "3.4.0", eol: false } }
+
+    before do
+      allow($stdout).to(receive(:tty?).and_return(false))
+      allow(StillActive::Workflow).to(receive(:ruby_freshness).and_return(ruby_info))
+    end
+
+    it("wraps gems and ruby in a versioned envelope") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rails", "--json"])
+      payload = JSON.parse(captured)
+      expect(payload).to(include("schema_version" => 1))
+      expect(payload.dig("tool", "name")).to(eq("still_active"))
+      expect(payload.dig("tool", "version")).to(eq(StillActive::VERSION))
+      expect(payload["generated_at"]).to(match(/\A\d{4}-\d{2}-\d{2}T/))
+      expect(payload.dig("gems", "rails")).to(be_a(Hash))
+      expect(payload["ruby"]).to(eq("version" => "3.4.0", "eol" => false))
+    end
+
+    it("omits ruby key when ruby info is nil") do
+      allow(StillActive::Workflow).to(receive(:ruby_freshness).and_return(nil))
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rails", "--json"])
+      payload = JSON.parse(captured)
+      expect(payload).not_to(have_key("ruby"))
+      expect(payload).to(have_key("gems"))
+    end
+  end
+
   describe("output format auto-detection") do
     let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
 

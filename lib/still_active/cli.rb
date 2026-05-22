@@ -29,7 +29,12 @@ module StillActive
 
       case resolve_format
       when :json
-        output = { gems: result }
+        output = {
+          schema_version: 1,
+          tool: { name: "still_active", version: StillActive::VERSION },
+          generated_at: Time.now.utc.iso8601,
+          gems: result,
+        }
         output[:ruby] = ruby_info if ruby_info
         puts output.to_json
       when :terminal
