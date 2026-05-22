@@ -4,6 +4,8 @@
 
 `bundle outdated` tells you version drift. `bundler-audit` catches known CVEs. Neither tells you whether anyone is still working on the thing. `still_active` checks maintenance activity, version freshness, security scores, vulnerabilities, libyear drift, and archived repos for every gem in your Gemfile.
 
+Findings ship as **terminal / markdown / JSON / SARIF** — the last lands in your GitHub Security tab and as inline PR annotations on `Gemfile.lock`. PR mode (`--baseline=FILE`) reports only what got worse since main, so reviewers see one line ("`vcr` newly archived") instead of an absolute snapshot of every dep.
+
 [![Gem Version](https://badge.fury.io/rb/still_active.svg)](https://badge.fury.io/rb/still_active)
 [![GitHub Action](https://img.shields.io/badge/Marketplace-still__active--action-2ea44f?logo=github)](https://github.com/marketplace/actions/still_active)
 ![Code Quality analysis](https://github.com/SeanLF/still_active/actions/workflows/codeql-analysis.yml/badge.svg)
