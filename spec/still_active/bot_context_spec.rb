@@ -62,6 +62,30 @@ RSpec.describe(StillActive::BotContext) do
       end
     end
 
+    # Dependabot's commit-message.prefix / prefix-development / include:scope configs
+    # change the subject prefix. Detection still fires via GITHUB_ACTOR; extraction
+    # must tolerate any prefix/scope around the "bump X from Y to Z" skeleton.
+    context("when Dependabot is configured with a custom commit-message prefix or scope") do
+      [
+        "chore(deps): bump rack from 2.0.0 to 2.0.6",
+        "chore: bump rack from 2.0.0 to 2.0.6",
+        "deps: bump rack from 2.0.0 to 2.0.6",
+        "build(deps-dev): bump rack from 2.0.0 to 2.0.6",
+      ].each do |subject|
+        it("still extracts the bump from #{subject.inspect}") do
+          result = described_class.detect(env: { "GITHUB_ACTOR" => "dependabot[bot]" }, head_subject: subject)
+          expect(result[:bumps]).to(eq([{ gem: "rack", from: "2.0.0", to: "2.0.6" }]))
+        end
+      end
+    end
+
+    context("when Renovate is configured with a custom commit-message prefix") do
+      it("extracts the bump from a prefixed Renovate subject") do
+        result = described_class.detect(env: { "GITHUB_ACTOR" => "renovate[bot]" }, head_subject: "chore(deps): update dependency rack to v2.0.6")
+        expect(result[:bumps]).to(eq([{ gem: "rack", from: nil, to: "2.0.6" }]))
+      end
+    end
+
     context("when the bot is detected but the subject does not parse (e.g. grouped update)") do
       it("returns the bot with no bumps") do
         result = described_class.detect(

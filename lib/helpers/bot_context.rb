@@ -23,6 +23,14 @@ module StillActive
     # positives are not. The `v` is consumed, so the captured version excludes it.
     RENOVATE_SUBJECT = /\A(?:(?:chore|fix|build)\(deps(?:-dev)?\):\s*)?update (?:dependency )?(\S+) to v(\d[\w.\-]*)/i
 
+    # Unanchored variants used only to EXTRACT the bump *after* a bot is already
+    # confirmed (via GITHUB_ACTOR / branch / the anchored subject above). Because
+    # detection has already happened, these can ignore whatever commit-message
+    # prefix or scope Dependabot/Renovate is configured with and just find the
+    # "bump X from Y to Z" / "update X to vN" skeleton anywhere in the subject.
+    DEPENDABOT_BUMP = /bump (\S+) from (\S+) to (\S+)/i
+    RENOVATE_BUMP = /update (?:dependency )?(\S+) to v(\d[\w.\-]*)/i
+
     # Returns { bot: "dependabot" | "renovate", bumps: [{ gem:, from:, to: }] }
     # or nil when no bot signal is present. `bumps` is parsed from the head
     # commit subject; a grouped or unparseable subject yields an empty list.
@@ -65,9 +73,9 @@ module StillActive
     def bumps_from(bot, subject)
       return [] if subject.nil?
 
-      if bot == "dependabot" && (match = subject.match(DEPENDABOT_SUBJECT))
+      if bot == "dependabot" && (match = subject.match(DEPENDABOT_BUMP))
         [{ gem: match[1], from: match[2], to: match[3] }]
-      elsif bot == "renovate" && (match = subject.match(RENOVATE_SUBJECT))
+      elsif bot == "renovate" && (match = subject.match(RENOVATE_BUMP))
         [{ gem: match[1], from: nil, to: match[2] }]
       else
         []
