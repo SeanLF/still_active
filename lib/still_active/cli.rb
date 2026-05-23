@@ -3,6 +3,7 @@
 require_relative "options"
 require_relative "diff"
 require_relative "../helpers/activity_helper"
+require_relative "../helpers/bot_context"
 require_relative "../helpers/bundler_helper"
 require_relative "../helpers/diff_markdown_helper"
 require_relative "../helpers/emoji_helper"
@@ -34,9 +35,10 @@ module StillActive
       $stderr.print("\r\e[K") if $stderr.tty?
 
       ruby_info = Workflow.ruby_freshness
+      pr_context = BotContext.detect
 
       if (baseline_path = StillActive.config.baseline_path)
-        emit_diff(result, ruby_info, baseline_path)
+        emit_diff(result, ruby_info, baseline_path, pr_context)
       elsif (sarif_path = StillActive.config.sarif_path)
         emit_sarif(result, ruby_info, sarif_path)
       else
@@ -49,11 +51,13 @@ module StillActive
             gems: result,
           }
           output[:ruby] = ruby_info if ruby_info
+          output[:pr_context] = pr_context if pr_context
           puts output.to_json
         when :terminal
+          puts BotContext.summary(pr_context) if pr_context
           puts TerminalHelper.render(result, ruby_info: ruby_info)
         when :markdown
-          render_markdown(result, ruby_info: ruby_info)
+          render_markdown(result, ruby_info: ruby_info, pr_context: pr_context)
         end
       end
 
@@ -90,10 +94,11 @@ module StillActive
       "#{gemfile}.lock"
     end
 
-    def emit_diff(result, ruby_info, baseline_path)
+    def emit_diff(result, ruby_info, baseline_path, pr_context = nil)
       current = current_snapshot(result, ruby_info)
       baseline = JSON.parse(File.read(baseline_path))
       diff = Diff.call(baseline: baseline, current: current)
+      puts "> **#{BotContext.summary(pr_context)}**\n\n" if pr_context
       puts DiffMarkdownHelper.render(diff)
       exit(1) if diff.regressions.any?
     rescue JSON::ParserError => e
@@ -125,7 +130,8 @@ module StillActive
       $stdout.tty? ? :terminal : :json
     end
 
-    def render_markdown(result, ruby_info: nil)
+    def render_markdown(result, ruby_info: nil, pr_context: nil)
+      puts "> **#{BotContext.summary(pr_context)}**\n" if pr_context
       puts MarkdownHelper.markdown_table_header_line
       result.keys.sort.each do |name|
         gem_data = result[name]

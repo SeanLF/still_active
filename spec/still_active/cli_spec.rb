@@ -14,6 +14,8 @@ RSpec.describe(StillActive::CLI) do
   before do
     allow(StillActive::Workflow).to(receive_messages(call: workflow_result, ruby_freshness: nil))
     allow($stdout).to(receive(:puts))
+    # No bot context by default — keeps tests off the git subprocesses BotContext shells to.
+    allow(StillActive::BotContext).to(receive(:detect).and_return(nil))
     StillActive.reset
   end
 
@@ -394,6 +396,40 @@ RSpec.describe(StillActive::CLI) do
         expect { cli.run(["--gems=unknown_gem", "--json", "--fail-if-outdated=3"]) }
           .not_to(raise_error)
       end
+    end
+  end
+
+  describe("Dependabot/Renovate context") do
+    let(:workflow_result) { { "rack" => gem_data(last_commit_date: recent_date) } }
+    let(:context) { { bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] } }
+
+    before do
+      allow($stdout).to(receive(:tty?).and_return(false))
+      allow(StillActive::BotContext).to(receive(:detect).and_return(context))
+    end
+
+    it("includes pr_context in JSON output when a bot is detected") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rack", "--json"])
+      parsed = JSON.parse(captured)
+      expect(parsed["pr_context"]).to(include("bot" => "dependabot"))
+      expect(parsed["pr_context"]["bumps"]).to(eq([{ "gem" => "rack", "from" => "2.0.0", "to" => "2.0.6" }]))
+    end
+
+    it("prepends a narrative header to markdown output") do
+      lines = []
+      allow($stdout).to(receive(:puts)) { |arg| lines << arg }
+      cli.run(["--gems=rack", "--markdown"])
+      expect(lines.first).to(include("Dependabot bump: rack 2.0.0 → 2.0.6"))
+    end
+
+    it("omits pr_context from JSON when no bot is detected") do
+      allow(StillActive::BotContext).to(receive(:detect).and_return(nil))
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rack", "--json"])
+      expect(JSON.parse(captured)).not_to(have_key("pr_context"))
     end
   end
 

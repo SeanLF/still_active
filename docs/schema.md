@@ -25,6 +25,7 @@
 | `generated_at` | string | ISO-8601 UTC timestamp (e.g. `"2026-05-22T14:33:00Z"`). |
 | `gems` | object | Map of gem name → gem data (see below). |
 | `ruby` | object \| absent | Ruby freshness info; absent when not detectable. |
+| `pr_context` | object \| absent | Present only when the run is detected as Dependabot/Renovate-authored. `{ "bot": "dependabot" \| "renovate", "bumps": [{ "gem", "from", "to" }] }`. `from` is `null` for Renovate (its commit subject carries no source version); `bumps` is `[]` for grouped/unparseable subjects. Best-effort detection — absence does not guarantee the run is not a bot's. |
 
 ## Per-gem fields
 
