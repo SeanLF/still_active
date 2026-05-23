@@ -26,8 +26,8 @@ module StillActive
     end
 
     def markdown_table_header_line
-      "| activity | up to date? | OpenSSF | vulns | name | version used | latest version | latest pre-release | last commit | libyear |\n" \
-        "| -------- | ----------- | ------- | ----- | ---- | ------------ | -------------- | ------------------ | ----------- | ------- |"
+      "| activity | up to date? | OpenSSF | vulns | name | version used | latest version | latest pre-release | last commit | libyear | license |\n" \
+        "| -------- | ----------- | ------- | ----- | ---- | ------------ | -------------- | ------------------ | ----------- | ------- | ------- |"
     end
 
     def markdown_table_body_line(gem_name:, data:)
@@ -78,6 +78,7 @@ module StillActive
         formatted_latest_pre_release || unsure,
         formatted_last_commit || unsure,
         format_libyear(data[:libyear]),
+        format_license(data[:license]),
       ]
 
       "| #{cells.join(" | ")} |"
@@ -111,6 +112,12 @@ module StillActive
       return "-" if value.nil?
 
       "#{value}y"
+    end
+
+    def format_license(license)
+      return "-" if license.nil? || license.empty?
+
+      license
     end
 
     def format_vulns(data)

@@ -18,6 +18,7 @@ RSpec.describe(StillActive::TerminalHelper) do
         vulnerability_count: 0,
         repository_url: "https://github.com/rails/rails",
         ruby_gems_url: "https://rubygems.org/gems/rails",
+        license: "MIT",
       },
       "stale_gem" => {
         version_used: "1.0.0",
@@ -36,6 +37,7 @@ RSpec.describe(StillActive::TerminalHelper) do
         repository_url: "https://github.com/example/stale",
         ruby_gems_url: "https://rubygems.org/gems/stale_gem",
         libyear: 2.5,
+        license: "GPL-3.0",
       },
     }
   end
@@ -70,6 +72,12 @@ RSpec.describe(StillActive::TerminalHelper) do
 
     it("shows scorecard") do
       expect(output).to(include("5.7/10"))
+    end
+
+    it("shows the license column") do
+      expect(output).to(include("License"))
+      expect(output).to(include("MIT"))
+      expect(output).to(include("GPL-3.0"))
     end
 
     it("shows vulnerability count with severity") do

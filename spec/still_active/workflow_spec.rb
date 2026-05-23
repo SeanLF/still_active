@@ -1,6 +1,11 @@
 # frozen_string_literal: true
 
 RSpec.describe(StillActive::Workflow) do
+  # Keep the optional ruby-advisory-db second source out of the default path so
+  # tests don't depend on a local `bundle audit update` checkout. The merge is
+  # exercised explicitly in its own context below.
+  before { allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil)) }
+
   describe("#call") do
     subject(:result) { described_class.call }
 
@@ -30,6 +35,42 @@ RSpec.describe(StillActive::Workflow) do
             ),
           }))
         end
+      end
+    end
+
+    context("when ruby-advisory-db is available as a second source") do
+      before do
+        StillActive.config.gems = [{ name: "rack", version: "2.0.0" }]
+        allow(Gems).to(receive(:versions).with("rack").and_return([
+          { "number" => "2.0.0", "prerelease" => false, "created_at" => "2016-05-06T00:00:00Z", "licenses" => ["MIT"] },
+        ]))
+        allow(Gems).to(receive(:info).with("rack").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+        allow(StillActive::DepsDevClient).to(receive_messages(
+          version_info: { advisory_keys: ["GHSA-deps"], project_id: nil },
+          project_scorecard: nil,
+          advisory_detail: { id: "GHSA-deps", aliases: [], title: "from deps.dev", cvss3_score: 7.5, source: "deps.dev" },
+        ))
+        allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(:fake_db))
+      end
+
+      it("appends advisories unique to ruby-advisory-db") do
+        allow(StillActive::RubyAdvisoryDb).to(receive(:advisories_for).and_return(
+          [{ id: "GHSA-radb", aliases: [], cvss3_score: 5.0, source: "ruby-advisory-db" }],
+        ))
+
+        data = result["rack"]
+        expect(data[:vulnerability_count]).to(eq(2))
+        expect(data[:vulnerabilities].map { |v| v[:source] }).to(contain_exactly("deps.dev", "ruby-advisory-db"))
+      end
+
+      it("deduplicates an advisory reported by both sources into one merged entry") do
+        allow(StillActive::RubyAdvisoryDb).to(receive(:advisories_for).and_return(
+          [{ id: "GHSA-deps", aliases: ["OSVDB-1"], cvss3_score: 6.0, source: "ruby-advisory-db" }],
+        ))
+
+        data = result["rack"]
+        expect(data[:vulnerability_count]).to(eq(1))
+        expect(data[:vulnerabilities].first).to(include(source: "merged", title: "from deps.dev", cvss3_score: 7.5))
       end
     end
 
@@ -204,6 +245,7 @@ RSpec.describe(StillActive::Workflow) do
               up_to_date: false,
               scorecard_score: a_value > 0,
               vulnerability_count: an_instance_of(Integer),
+              license: "MIT",
             ),
             "nokogiri" => hash_including(
               version_used: "1.12.5",

@@ -4,8 +4,10 @@ require_relative "deps_dev_client"
 require_relative "gitlab_client"
 require_relative "repository"
 require_relative "../helpers/libyear_helper"
+require_relative "../helpers/ruby_advisory_db"
 require_relative "../helpers/ruby_helper"
 require_relative "../helpers/version_helper"
+require_relative "../helpers/vulnerability_helper"
 require "async"
 require "async/barrier"
 require "async/semaphore"
@@ -17,6 +19,9 @@ module StillActive
 
     def call(&on_progress)
       task = Async do
+        # Load the optional ruby-advisory-db once, before the fan-out, so the
+        # read-only Database is shared across fibers rather than reloaded per gem.
+        advisory_db = RubyAdvisoryDb.load
         barrier = Async::Barrier.new
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result_object = {}
@@ -30,6 +35,7 @@ module StillActive
               gem_version: gem[:version],
               source_type: gem[:source_type] || :rubygems,
               source_uri: gem[:source_uri],
+              advisory_db: advisory_db,
             )
           rescue Octokit::TooManyRequests
             $stderr.print("\r\e[K") if on_progress
@@ -54,24 +60,25 @@ module StillActive
 
     private
 
-    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil)
+    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, advisory_db: nil)
       result_object[gem_name] = { source_type: source_type }
       result_object[gem_name][:version_used] = gem_version if gem_version
 
       case source_type
       when :path, :git
-        gem_info_non_rubygems(gem_name: gem_name, gem_version: gem_version, result_object: result_object, source_uri: source_uri)
+        gem_info_non_rubygems(gem_name: gem_name, gem_version: gem_version, result_object: result_object, source_uri: source_uri, advisory_db: advisory_db)
       else
         gem_info_rubygems(
           gem_name: gem_name,
           gem_version: gem_version,
           result_object: result_object,
           source_uri: source_uri,
+          advisory_db: advisory_db,
         )
       end
     end
 
-    def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:)
+    def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:, advisory_db: nil)
       vs = versions(gem_name: gem_name, source_uri: source_uri)
       repo_info = repository_info(gem_name: gem_name, versions: vs)
       commit_date = last_commit_date(
@@ -89,6 +96,7 @@ module StillActive
       deps_dev = fetch_deps_dev_info(
         gem_name: gem_name,
         version: gem_version || VersionHelper.gem_version(version_hash: last_release),
+        advisory_db: advisory_db,
       )
       result_object[gem_name].merge!({
         latest_version: VersionHelper.gem_version(version_hash: last_release),
@@ -118,6 +126,7 @@ module StillActive
 
           version_used_release_date: VersionHelper.release_date(version_hash: version_used),
           version_yanked: !vs.empty? && version_used.nil?,
+          license: VersionHelper.license(version_hash: version_used),
           libyear: LibyearHelper.gem_libyear(
             version_used_release_date: VersionHelper.release_date(version_hash: version_used),
             latest_version_release_date: VersionHelper.release_date(version_hash: last_release),
@@ -126,10 +135,10 @@ module StillActive
       end
     end
 
-    def gem_info_non_rubygems(gem_name:, gem_version:, result_object:, source_uri: nil)
+    def gem_info_non_rubygems(gem_name:, gem_version:, result_object:, source_uri: nil, advisory_db: nil)
       repo_info = repository_info_for_non_rubygems(gem_name: gem_name, source_uri: source_uri)
       source, owner, name = repo_info.values_at(:source, :owner, :name)
-      deps_dev = gem_version ? fetch_deps_dev_info(gem_name: gem_name, version: gem_version) : {}
+      deps_dev = gem_version ? fetch_deps_dev_info(gem_name: gem_name, version: gem_version, advisory_db: advisory_db) : {}
 
       # Fall back to repo-derived project_id for scorecard when deps.dev doesn't have the version
       deps_dev[:scorecard_score] ||= DepsDevClient.project_scorecard(project_id: repo_info[:project_id])&.dig(:score)
@@ -142,11 +151,13 @@ module StillActive
       })
     end
 
-    def fetch_deps_dev_info(gem_name:, version:)
+    def fetch_deps_dev_info(gem_name:, version:, advisory_db: nil)
       info = DepsDevClient.version_info(gem_name: gem_name, version: version)
       scorecard = DepsDevClient.project_scorecard(project_id: info&.dig(:project_id))
       advisory_keys = info&.dig(:advisory_keys) || []
-      vulnerabilities = advisory_keys.filter_map { |id| DepsDevClient.advisory_detail(advisory_id: id) }
+      deps_dev_vulns = advisory_keys.filter_map { |id| DepsDevClient.advisory_detail(advisory_id: id) }
+      radb_vulns = RubyAdvisoryDb.advisories_for(database: advisory_db, gem_name: gem_name, version: version)
+      vulnerabilities = VulnerabilityHelper.merge_advisories(deps_dev: deps_dev_vulns, ruby_advisory_db: radb_vulns)
       {
         scorecard_score: scorecard&.dig(:score),
         vulnerability_count: vulnerabilities.length,

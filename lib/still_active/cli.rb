@@ -3,7 +3,9 @@
 require_relative "options"
 require_relative "diff"
 require_relative "../helpers/activity_helper"
+require_relative "../helpers/bot_context"
 require_relative "../helpers/bundler_helper"
+require_relative "../helpers/cyclonedx_helper"
 require_relative "../helpers/diff_markdown_helper"
 require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
@@ -26,6 +28,8 @@ module StillActive
         end
       end
 
+      warn_output_flag_conflicts(options)
+
       result = if $stderr.tty?
         Workflow.call { |done, total| $stderr.print("\rChecking #{done}/#{total} gems...") }
       else
@@ -34,11 +38,14 @@ module StillActive
       $stderr.print("\r\e[K") if $stderr.tty?
 
       ruby_info = Workflow.ruby_freshness
+      pr_context = BotContext.detect
 
       if (baseline_path = StillActive.config.baseline_path)
-        emit_diff(result, ruby_info, baseline_path)
+        emit_diff(result, ruby_info, baseline_path, pr_context)
       elsif (sarif_path = StillActive.config.sarif_path)
         emit_sarif(result, ruby_info, sarif_path)
+      elsif (cyclonedx_path = StillActive.config.cyclonedx_path)
+        emit_cyclonedx(result, ruby_info, cyclonedx_path)
       else
         case resolve_format
         when :json
@@ -49,11 +56,13 @@ module StillActive
             gems: result,
           }
           output[:ruby] = ruby_info if ruby_info
+          output[:pr_context] = pr_context if pr_context
           puts output.to_json
         when :terminal
+          puts BotContext.summary(pr_context) if pr_context
           puts TerminalHelper.render(result, ruby_info: ruby_info)
         when :markdown
-          render_markdown(result, ruby_info: ruby_info)
+          render_markdown(result, ruby_info: ruby_info, pr_context: pr_context)
         end
       end
 
@@ -61,6 +70,29 @@ module StillActive
     end
 
     private
+
+    # The output destinations are mutually exclusive and resolved by precedence
+    # (baseline > sarif > cyclonedx > terminal/markdown/json). Warn rather than
+    # silently dropping the loser when more than one is set.
+    def warn_output_flag_conflicts(options)
+      modes = active_output_modes
+      if modes.size > 1
+        $stderr.puts("warning: multiple output modes set (#{modes.join(", ")}); using #{modes.first}, ignoring #{modes.drop(1).join(", ")}")
+      end
+      if options[:provided_cyclonedx_version] && StillActive.config.cyclonedx_path.nil?
+        $stderr.puts("warning: --cyclonedx-version has no effect without --cyclonedx")
+      end
+    end
+
+    # In precedence order, so the first entry is the one that actually runs.
+    def active_output_modes
+      config = StillActive.config
+      [
+        ("--baseline" if config.baseline_path),
+        ("--sarif" if config.sarif_path),
+        ("--cyclonedx" if config.cyclonedx_path),
+      ].compact
+    end
 
     def emit_sarif(result, ruby_info, sarif_path)
       lockfile = resolve_lockfile_path(StillActive.config.gemfile_path)
@@ -83,6 +115,21 @@ module StillActive
       end
     end
 
+    def emit_cyclonedx(result, ruby_info, cyclonedx_path)
+      sbom = CyclonedxHelper.render(
+        result: result,
+        ruby_info: ruby_info,
+        tool_version: StillActive::VERSION,
+        spec_version: StillActive.config.cyclonedx_version,
+      )
+
+      if cyclonedx_path == "-"
+        puts sbom
+      else
+        File.write(cyclonedx_path, sbom)
+      end
+    end
+
     # Mirrors Bundler's convention: gems.rb -> gems.locked, otherwise <gemfile>.lock.
     def resolve_lockfile_path(gemfile)
       return gemfile.sub(/gems\.rb\z/, "gems.locked") if gemfile.end_with?("gems.rb")
@@ -90,10 +137,11 @@ module StillActive
       "#{gemfile}.lock"
     end
 
-    def emit_diff(result, ruby_info, baseline_path)
+    def emit_diff(result, ruby_info, baseline_path, pr_context = nil)
       current = current_snapshot(result, ruby_info)
       baseline = JSON.parse(File.read(baseline_path))
       diff = Diff.call(baseline: baseline, current: current)
+      puts "> **#{BotContext.summary(pr_context)}**\n\n" if pr_context
       puts DiffMarkdownHelper.render(diff)
       exit(1) if diff.regressions.any?
     rescue JSON::ParserError => e
@@ -125,7 +173,8 @@ module StillActive
       $stdout.tty? ? :terminal : :json
     end
 
-    def render_markdown(result, ruby_info: nil)
+    def render_markdown(result, ruby_info: nil, pr_context: nil)
+      puts "> **#{BotContext.summary(pr_context)}**\n" if pr_context
       puts MarkdownHelper.markdown_table_header_line
       result.keys.sort.each do |name|
         gem_data = result[name]

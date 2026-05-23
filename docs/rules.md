@@ -41,9 +41,9 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 ## SA003 — Vulnerable Gem {#sa003}
 
-**Triggers when:** deps.dev / OSV reports one or more security advisories affecting the resolved version of the gem.
+**Triggers when:** deps.dev / OSV reports one or more security advisories affecting the resolved version of the gem — and, when `bundler-audit` is installed with a current advisory checkout, also any advisories `rubysec/ruby-advisory-db` reports for that version. Results from the two sources are merged and deduplicated on shared identifiers (each advisory's `source` is recorded in the JSON output as `deps.dev`, `ruby-advisory-db`, or `merged`).
 
-**Why it matters:** known CVEs against your pinned version are the most actionable signal in the catalog. One SARIF result is emitted per advisory so each can be tracked, dismissed, or remediated independently.
+**Why it matters:** known CVEs against your pinned version are the most actionable signal in the catalog. One SARIF result is emitted per advisory so each can be tracked, dismissed, or remediated independently. The optional ruby-advisory-db source catches Ruby-specific advisories that the rubysec maintainers curate before they propagate to OSV/deps.dev.
 
 **SARIF level:** mapped from CVSS — `error` for ≥ 7.0, `warning` for 4.0–6.9, `note` below 4.0. **security-severity:** per-result, formatted CVSS3 (or CVSS2 fallback). **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html) (use of unmaintained third-party components, as a default — advisory-specific CWEs may also apply).
 

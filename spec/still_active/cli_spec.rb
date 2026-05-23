@@ -14,6 +14,8 @@ RSpec.describe(StillActive::CLI) do
   before do
     allow(StillActive::Workflow).to(receive_messages(call: workflow_result, ruby_freshness: nil))
     allow($stdout).to(receive(:puts))
+    # No bot context by default — keeps tests off the git subprocesses BotContext shells to.
+    allow(StillActive::BotContext).to(receive(:detect).and_return(nil))
     StillActive.reset
   end
 
@@ -394,6 +396,102 @@ RSpec.describe(StillActive::CLI) do
         expect { cli.run(["--gems=unknown_gem", "--json", "--fail-if-outdated=3"]) }
           .not_to(raise_error)
       end
+    end
+  end
+
+  describe("--cyclonedx") do
+    let(:workflow_result) { { "rack" => gem_data(last_commit_date: recent_date).merge(license: "MIT") } }
+
+    before { allow($stdout).to(receive(:tty?).and_return(false)) }
+
+    it("emits a CycloneDX 1.6 document to stdout when --cyclonedx=-") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rack", "--cyclonedx=-"])
+      doc = JSON.parse(captured)
+      expect(doc["bomFormat"]).to(eq("CycloneDX"))
+      expect(doc["specVersion"]).to(eq("1.6"))
+      expect(doc["components"].map { |c| c["name"] }).to(include("rack"))
+    end
+
+    it("honours --cyclonedx-version=1.7") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rack", "--cyclonedx=-", "--cyclonedx-version=1.7"])
+      expect(JSON.parse(captured)["specVersion"]).to(eq("1.7"))
+    end
+
+    it("writes to a file when given a path") do
+      Dir.mktmpdir do |dir|
+        path = "#{dir}/sbom.json"
+        cli.run(["--gems=rack", "--cyclonedx=#{path}"])
+        expect(File.exist?(path)).to(be(true))
+        expect(JSON.parse(File.read(path))["bomFormat"]).to(eq("CycloneDX"))
+      end
+    end
+
+    it("rejects an unsupported spec version") do
+      expect { cli.run(["--gems=rack", "--cyclonedx", "--cyclonedx-version=2.0"]) }
+        .to(raise_error(ArgumentError, /1\.6.*1\.7/))
+    end
+  end
+
+  describe("conflicting output flags") do
+    before { allow($stdout).to(receive(:tty?).and_return(false)) }
+
+    it("warns which mode wins when --sarif and --cyclonedx are combined") do
+      expect do
+        Dir.mktmpdir do |dir|
+          File.write("#{dir}/Gemfile", "")
+          File.write("#{dir}/Gemfile.lock", "GEM\n  remote: https://rubygems.org/\n  specs:\n    rack (1.0)\n")
+          StillActive.config.gemfile_path = "#{dir}/Gemfile"
+          cli.run(["--gems=rack", "--sarif=-", "--cyclonedx=-"])
+        end
+      end.to(output(/multiple output modes set.*using --sarif.*ignoring --cyclonedx/m).to_stderr)
+    end
+
+    it("warns that --cyclonedx-version has no effect without --cyclonedx") do
+      expect { cli.run(["--gems=rack", "--cyclonedx-version=1.7"]) }
+        .to(output(/--cyclonedx-version has no effect without --cyclonedx/).to_stderr)
+    end
+
+    it("does not warn for a single output mode") do
+      expect { cli.run(["--gems=rack", "--cyclonedx=-"]) }
+        .not_to(output(/multiple output modes/).to_stderr)
+    end
+  end
+
+  describe("Dependabot/Renovate context") do
+    let(:workflow_result) { { "rack" => gem_data(last_commit_date: recent_date) } }
+    let(:context) { { bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] } }
+
+    before do
+      allow($stdout).to(receive(:tty?).and_return(false))
+      allow(StillActive::BotContext).to(receive(:detect).and_return(context))
+    end
+
+    it("includes pr_context in JSON output when a bot is detected") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rack", "--json"])
+      parsed = JSON.parse(captured)
+      expect(parsed["pr_context"]).to(include("bot" => "dependabot"))
+      expect(parsed["pr_context"]["bumps"]).to(eq([{ "gem" => "rack", "from" => "2.0.0", "to" => "2.0.6" }]))
+    end
+
+    it("prepends a narrative header to markdown output") do
+      lines = []
+      allow($stdout).to(receive(:puts)) { |arg| lines << arg }
+      cli.run(["--gems=rack", "--markdown"])
+      expect(lines.first).to(include("Dependabot bump: rack 2.0.0 → 2.0.6"))
+    end
+
+    it("omits pr_context from JSON when no bot is detected") do
+      allow(StillActive::BotContext).to(receive(:detect).and_return(nil))
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rack", "--json"])
+      expect(JSON.parse(captured)).not_to(have_key("pr_context"))
     end
   end
 

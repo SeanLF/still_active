@@ -9,6 +9,8 @@ module StillActive
     attr_writer :github_oauth_token, :gitlab_token, :gemfile_path
     attr_accessor :baseline_path,
       :critical_warning_emoji,
+      :cyclonedx_path,
+      :cyclonedx_version,
       :fail_if_critical,
       :fail_if_warning,
       :futurist_emoji,
@@ -41,6 +43,8 @@ module StillActive
       @output_format = :auto
       @sarif_path = nil
       @baseline_path = nil
+      @cyclonedx_path = nil
+      @cyclonedx_version = "1.6"
 
       @critical_warning_emoji = "🚩"
       @futurist_emoji = "🔮"

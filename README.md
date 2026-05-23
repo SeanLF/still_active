@@ -4,7 +4,7 @@
 
 `bundle outdated` tells you version drift. `bundler-audit` catches known CVEs. Neither tells you whether anyone is still working on the thing. `still_active` checks maintenance activity, version freshness, security scores, vulnerabilities, libyear drift, and archived repos for every gem in your Gemfile.
 
-Findings ship as **terminal / markdown / JSON / SARIF** — the last lands in your GitHub Security tab and as inline PR annotations on `Gemfile.lock`. PR mode (`--baseline=FILE`) reports only what got worse since main, so reviewers see one line ("`vcr` newly archived") instead of an absolute snapshot of every dep.
+Findings ship as **terminal / markdown / JSON / SARIF / CycloneDX** — SARIF lands in your GitHub Security tab and as inline PR annotations on `Gemfile.lock`; CycloneDX feeds Trivy / Dependency-Track / Snyk. PR mode (`--baseline=FILE`) reports only what got worse since main, so reviewers see one line ("`vcr` newly archived") instead of an absolute snapshot of every dep.
 
 [![Gem Version](https://badge.fury.io/rb/still_active.svg)](https://badge.fury.io/rb/still_active)
 [![GitHub Action](https://img.shields.io/badge/Marketplace-still__active--action-2ea44f?logo=github)](https://github.com/marketplace/actions/still_active)
@@ -13,15 +13,15 @@ Findings ship as **terminal / markdown / JSON / SARIF** — the last lands in yo
 ![Rubocop analysis](https://github.com/SeanLF/still_active/actions/workflows/rubocop-analysis.yml/badge.svg)
 
 ```
-Name                    Version          Activity  OpenSSF  Vulns
-───────────────────────────────────────────────────────────────────
-async                   2.36.0 (latest)  ok        7.1/10   0
-backbone-rails          1.2.3 (latest)   archived  3.6/10   0
-bootstrap-slider-rails  9.8.0 (latest)   critical  -        0
-gitlab-markup           2.0.0 (latest)   ok        -        0
-local_gem               0.1.0 (path)     -         -        0
-nested_form             0.3.2 (git)      archived  3.3/10   0
-remotipart              1.4.4 (git)      critical  3.1/10   0
+Name                    Version          Activity  OpenSSF  Vulns  License
+──────────────────────────────────────────────────────────────────────────────
+async                   2.36.0 (latest)  ok        7.1/10   0      MIT
+backbone-rails          1.2.3 (latest)   archived  3.6/10   0      MIT
+bootstrap-slider-rails  9.8.0 (latest)   critical  -        0      MIT
+gitlab-markup           2.0.0 (latest)   ok        -        0      MIT
+local_gem               0.1.0 (path)     -         -        0      -
+nested_form             0.3.2 (git)      archived  3.3/10   0      MIT
+remotipart              1.4.4 (git)      critical  3.1/10   0      MIT
 
 7 gems: 4 up to date, 0 outdated · 2 active, 2 stale, 2 archived · 0 vulnerabilities
 Ruby 4.0.1 (latest)
@@ -34,7 +34,7 @@ Ruby 4.0.1 (latest)
 |                              | `bundle outdated` | `bundler-audit`        | `libyear-bundler` | **`still_active`**       |
 | ---------------------------- | ----------------- | ---------------------- | ----------------- | ------------------------ |
 | Outdated versions            | Yes               | -                      | Yes               | Yes                      |
-| Known vulnerabilities (CVEs) | -                 | Yes (ruby-advisory-db) | -                 | Yes (deps.dev)           |
+| Known vulnerabilities (CVEs) | -                 | Yes (ruby-advisory-db) | -                 | Yes (deps.dev + ruby-advisory-db) |
 | Libyear drift                | -                 | -                      | Yes               | Yes                      |
 | **Last commit activity**     | -                 | -                      | -                 | **Yes**                  |
 | **Archived repo detection**  | -                 | -                      | -                 | **Yes**                  |
@@ -43,9 +43,9 @@ Ruby 4.0.1 (latest)
 | **Ruby version freshness**   | -                 | -                      | -                 | **Yes** (EOL + libyear)  |
 | GitLab support               | -                 | -                      | -                 | Yes                      |
 | CI quality gates             | -                 | Exit code              | -                 | Yes (4 flags)            |
-| Output formats               | Text              | Text                   | Text              | Terminal, JSON, Markdown |
+| Output formats               | Text              | Text                   | Text              | Terminal, JSON, Markdown, SARIF, CycloneDX |
 
-The bolded rows are the gap `still_active` fills: nobody else answers "is the maintainer still around?" The CVE column is worth a closer look: `bundler-audit` and `still_active` use **different data sources** (`ruby-advisory-db` vs `deps.dev`), so coverage isn't identical. If you care about CVEs in CI, keep running `bundler-audit` alongside `still_active`.
+The bolded rows are the gap `still_active` fills: nobody else answers "is the maintainer still around?" The CVE column is worth a closer look: `bundler-audit` reads `ruby-advisory-db` and `still_active` reads `deps.dev`, which sometimes diverge. **If `bundler-audit` is installed alongside `still_active`, we read its `ruby-advisory-db` checkout too and merge the results** (deduplicated, each advisory tagged with its `source`) — so running both no longer means reconciling two different vuln counts by hand.
 
 ## Installation
 
@@ -100,6 +100,8 @@ Usage: still_active [options]
         --markdown                   Markdown table output
         --json                       JSON output (default when piped)
         --sarif[=PATH]               SARIF 2.1.0 output for GitHub Code Scanning
+        --cyclonedx[=PATH]           CycloneDX SBOM output (stdout, or a file path)
+        --cyclonedx-version=VERSION  CycloneDX spec version: 1.6 (default) or 1.7
         --baseline=PATH              Compare current state to baseline JSON; emit markdown deltas
         --github-oauth-token=TOKEN   GitHub OAuth token to make API calls
         --gitlab-token=TOKEN         GitLab personal access token for API calls
@@ -143,6 +145,7 @@ still_active --json --gemfile=spec/still_active/edge_case_gemfile/Gemfile
       "archived": false,
       "scorecard_score": 7.1,
       "vulnerability_count": 0,
+      "license": "MIT",
       "libyear": 0.0
     },
     "nested_form": {
@@ -176,14 +179,24 @@ still_active --json --gemfile=spec/still_active/edge_case_gemfile/Gemfile
 still_active --markdown
 ```
 
-| activity | up to date? | OpenSSF | vulns | name                                                         | version used                                                               | latest version                                                             | latest pre-release | last commit                                           | libyear |
-| -------- | ----------- | ------- | ----- | ------------------------------------------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------- | ------- |
-|          | ✅          | 7.1/10  | ✅    | [async](https://github.com/socketry/async)                   | [2.36.0](https://rubygems.org/gems/async/versions/2.36.0) (2026/01)        | [2.36.0](https://rubygems.org/gems/async/versions/2.36.0) (2026/01)        | ❓                 | [2026/01](https://github.com/socketry/async)          | 0.0y    |
-| 🚩       | ✅          | 3.6/10  | ✅    | [backbone-rails](https://github.com/aflatter/backbone-rails) | [1.2.3](https://rubygems.org/gems/backbone-rails/versions/1.2.3) (2016/02) | [1.2.3](https://rubygems.org/gems/backbone-rails/versions/1.2.3) (2016/02) | ❓                 | [2016/02](https://github.com/aflatter/backbone-rails) | 0.0y    |
-| ❓       | ❓          | ❓      | ✅    | local_gem                                                    | 0.1.0 (path)                                                               | ❓                                                                         | ❓                 | ❓                                                    | -       |
-| 🚩       | ❓          | 3.3/10  | ✅    | [nested_form](https://github.com/ryanb/nested_form)          | 0.3.2 (git)                                                                | ❓                                                                         | ❓                 | [2021/12](https://github.com/ryanb/nested_form)       | -       |
+| activity | up to date? | OpenSSF | vulns | name                                                         | version used                                                               | latest version                                                             | latest pre-release | last commit                                           | libyear | license |
+| -------- | ----------- | ------- | ----- | ------------------------------------------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------- | ------- | ------- |
+|          | ✅          | 7.1/10  | ✅    | [async](https://github.com/socketry/async)                   | [2.36.0](https://rubygems.org/gems/async/versions/2.36.0) (2026/01)        | [2.36.0](https://rubygems.org/gems/async/versions/2.36.0) (2026/01)        | ❓                 | [2026/01](https://github.com/socketry/async)          | 0.0y    | MIT     |
+| 🚩       | ✅          | 3.6/10  | ✅    | [backbone-rails](https://github.com/aflatter/backbone-rails) | [1.2.3](https://rubygems.org/gems/backbone-rails/versions/1.2.3) (2016/02) | [1.2.3](https://rubygems.org/gems/backbone-rails/versions/1.2.3) (2016/02) | ❓                 | [2016/02](https://github.com/aflatter/backbone-rails) | 0.0y    | MIT     |
+| ❓       | ❓          | ❓      | ✅    | local_gem                                                    | 0.1.0 (path)                                                               | ❓                                                                         | ❓                 | ❓                                                    | -       | -       |
+| 🚩       | ❓          | 3.3/10  | ✅    | [nested_form](https://github.com/ryanb/nested_form)          | 0.3.2 (git)                                                                | ❓                                                                         | ❓                 | [2021/12](https://github.com/ryanb/nested_form)       | -       | MIT     |
 
 **Ruby 4.0.1** (latest) ✅
+
+**CycloneDX** -- a standards-track SBOM so your dependency graph and still_active's signals flow into Trivy, Dependency-Track, or Snyk:
+
+```bash
+still_active --cyclonedx                 # CycloneDX 1.6 to stdout
+still_active --cyclonedx=sbom.json       # write to a file
+still_active --cyclonedx --cyclonedx-version=1.7
+```
+
+Emits **1.6 by default** — the version mainstream consumers ingest today (`cyclonedx-core-java`/Dependency-Track and `cyclonedx-go`/Trivy both cap at 1.6 as of 2026); `--cyclonedx-version=1.7` opts into the latest. Gem name/version/`purl`/licenses and vulnerabilities map to native CycloneDX fields; maintenance signals with no native home (archived, OpenSSF score, libyear, last commit, yanked) ride in `still_active:`-namespaced `properties`. The `serialNumber` is content-derived, so two SBOMs of the same lockfile differ only by their generation timestamp.
 
 ### SARIF output (GitHub Code Scanning)
 
@@ -247,6 +260,53 @@ In CI, capture a baseline on main and compare on PR branches. Exits 1 if any reg
 
 The diff supersedes `--sarif`, `--terminal`, `--markdown`, and `--json` when set.
 
+When a run is detected as Dependabot- or Renovate-authored (via `GITHUB_ACTOR`, a `dependabot/`/`renovate/` branch, or the commit subject), the report leads with a one-line narrative — "Dependabot bump: `rack` 2.0.0 → 2.0.6" — and `--json` gains a top-level `pr_context`. Detection is best-effort and conservative: it never produces a false positive on an ordinary commit, and a miss costs only the narrative line.
+
+### Alongside `dependency-review-action`
+
+GitHub's first-party [`dependency-review-action`](https://github.com/actions/dependency-review-action) runs server-side on PRs and surfaces **vulnerabilities, licenses, and OpenSSF Scorecard** scores from GitHub's dependency-graph diff. It does not surface maintenance signals — last-commit activity, archived repos, libyear, Ruby EOL, or yanked versions — and is GitHub.com / GHES only. `still_active` is the complement, not a replacement:
+
+|                              | `dependency-review-action`         | `still_active`                              |
+| ---------------------------- | ---------------------------------- | ------------------------------------------- |
+| Platform                     | GitHub.com / GHES only             | Any CI                                      |
+| Languages                    | Multi (GitHub dep graph)           | Ruby                                        |
+| Vulnerabilities              | GHSA                               | deps.dev + ruby-advisory-db (merged)        |
+| Licenses                     | Yes (allow/deny gating)            | Surfaced (no gating)                        |
+| OpenSSF Scorecard            | Yes (display)                      | Yes (display + threshold)                   |
+| **Last-commit activity**     | -                                  | **Yes**                                     |
+| **Archived repo detection**  | -                                  | **Yes**                                     |
+| **Libyear drift**            | -                                  | **Yes**                                     |
+| **Ruby EOL detection**       | -                                  | **Yes**                                     |
+| **Yanked version detection** | -                                  | **Yes**                                     |
+| Diff vs base                 | Native (GitHub API)                | `--baseline=FILE`                           |
+| Output                       | Inline PR annotations              | Terminal / Markdown / JSON / SARIF / CycloneDX |
+
+Run both: let `dependency-review-action` gate CVEs and licenses, and `still_active` add the maintenance lens on the same PR.
+
+```yaml
+on: pull_request
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          show-openssf-scorecard: true
+
+  maintenance-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with: { ruby-version: ".ruby-version", bundler-cache: true }
+      - uses: SeanLF/still_active-action@v0
+        with:
+          fail-if-critical: true
+```
+
 ### CI quality gating
 
 Use exit-code flags to fail CI pipelines based on dependency status:
@@ -281,9 +341,10 @@ Activity is determined by the most recent signal across last commit date, latest
 
 ### Data sources
 
-- **Versions and release dates** from [RubyGems.org](https://rubygems.org) or [GitHub Packages](https://docs.github.com/en/packages)
+- **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org) or [GitHub Packages](https://docs.github.com/en/packages)
 - **Last commit date and archived status** from the [GitHub](https://docs.github.com/en/rest) or [GitLab](https://docs.gitlab.com/ee/api/) API
 - **OpenSSF Scorecard**, **vulnerability counts**, and **CVSS severity** from Google's [deps.dev](https://deps.dev) API
+- **Additional advisories** from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db), merged in when `bundler-audit` is installed alongside (run `bundle audit update` to keep its checkout current)
 - **Ruby version freshness** from [endoflife.date](https://endoflife.date)
 
 ### Configuration defaults

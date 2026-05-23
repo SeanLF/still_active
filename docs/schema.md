@@ -25,6 +25,7 @@
 | `generated_at` | string | ISO-8601 UTC timestamp (e.g. `"2026-05-22T14:33:00Z"`). |
 | `gems` | object | Map of gem name → gem data (see below). |
 | `ruby` | object \| absent | Ruby freshness info; absent when not detectable. |
+| `pr_context` | object \| absent | Present only when the run is detected as Dependabot/Renovate-authored. `{ "bot": "dependabot" \| "renovate", "bumps": [{ "gem", "from", "to" }] }`. `from` is `null` for Renovate (its commit subject carries no source version); `bumps` is `[]` for grouped/unparseable subjects. Best-effort detection — absence does not guarantee the run is not a bot's. |
 
 ## Per-gem fields
 
@@ -46,6 +47,7 @@
 | `up_to_date` | bool \| absent | Present when `version_used` is known. |
 | `version_used_release_date` | string \| nil | ISO-8601 timestamp. |
 | `version_yanked` | bool \| absent | `true` if `version_used` has been yanked. |
+| `license` | string \| nil | SPDX license identifier(s) for `version_used`, comma-joined when more than one. `nil` when unknown (e.g. git/path sources). |
 | `libyear` | float \| nil | Years between `version_used` and `latest_version`. |
 
 ### Vulnerability fields
@@ -57,8 +59,9 @@
 | `title` | string \| nil | Short title from deps.dev. |
 | `aliases` | array | Cross-referenced IDs. |
 | `cvss3_score` | float \| nil | CVSS v3 base score (0.0–10.0). |
-| `cvss3_vector` | string \| nil | CVSS v3 vector string. |
+| `cvss3_vector` | string \| nil | CVSS v3 vector string. (Always `nil` for `ruby-advisory-db`-only advisories — bundler-audit exposes no vector.) |
 | `cvss2_score` | float \| nil | CVSS v2 fallback for older advisories. |
+| `source` | string | Which source reported the advisory: `"deps.dev"`, `"ruby-advisory-db"`, or `"merged"` (both). `ruby-advisory-db` entries appear only when `bundler-audit` is installed with a current advisory checkout. |
 
 ## Ruby fields
 

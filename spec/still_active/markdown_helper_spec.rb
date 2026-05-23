@@ -9,7 +9,7 @@ RSpec.describe(StillActive::MarkdownHelper) do
     subject(:header) { described_class.markdown_table_header_line }
 
     it("includes all column names") do
-      ["activity", "OpenSSF", "vulns", "name"].each do |col|
+      ["activity", "OpenSSF", "vulns", "name", "license"].each do |col|
         expect(header).to(include(col))
       end
     end
@@ -37,6 +37,7 @@ RSpec.describe(StillActive::MarkdownHelper) do
         last_commit_date: Time.new(2024, 7, 1),
         scorecard_score: 5.7,
         vulnerability_count: 0,
+        license: "MIT",
       }
     end
 
@@ -55,6 +56,10 @@ RSpec.describe(StillActive::MarkdownHelper) do
 
     it("includes scorecard") do
       expect(line).to(include("5.7/10"))
+    end
+
+    it("includes the license") do
+      expect(line).to(include("MIT"))
     end
 
     it("includes success emoji for zero vulnerabilities") do

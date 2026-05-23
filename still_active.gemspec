@@ -36,6 +36,7 @@ Gem::Specification.new do |spec|
   spec.executables   = spec.files.grep(%r{\Abin/still_active}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
+  spec.add_development_dependency("bundler-audit")
   spec.add_development_dependency("debug")
   spec.add_development_dependency("faker")
   spec.add_development_dependency("json_schemer")

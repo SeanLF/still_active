@@ -10,7 +10,7 @@ module StillActive
   module TerminalHelper
     extend self
 
-    HEADERS = ["Name", "Version", "Activity", "OpenSSF", "Vulns"].freeze
+    HEADERS = ["Name", "Version", "Activity", "OpenSSF", "Vulns", "License"].freeze
 
     def render(result, ruby_info: nil)
       rows = result.keys.sort.map { |name| build_row(name, result[name]) }
@@ -35,7 +35,14 @@ module StillActive
         format_activity(data),
         format_scorecard(data[:scorecard_score]),
         format_vulns(data),
+        format_license(data[:license]),
       ]
+    end
+
+    def format_license(license)
+      return AnsiHelper.dim("-") if license.nil? || license.empty?
+
+      license
     end
 
     def format_version(data)

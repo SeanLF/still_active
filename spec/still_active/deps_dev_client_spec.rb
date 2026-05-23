@@ -54,6 +54,7 @@ RSpec.describe(StillActive::DepsDevClient) do
         title: "Test vulnerability",
         cvss3_score: 9.8,
         aliases: ["CVE-2024-1234"],
+        source: "deps.dev",
       ))
     end
 
