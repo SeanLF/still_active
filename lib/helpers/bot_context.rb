@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "json"
 require "open3"
 
 module StillActive
@@ -56,6 +57,13 @@ module StillActive
     private
 
     def detect_bot(env:, head_subject:)
+      # The PR author from the event payload is the authoritative signal — it's
+      # what `dependabot/fetch-metadata` keys on, and unlike GITHUB_ACTOR it
+      # doesn't flip to a human who re-runs the workflow or pushes to the branch.
+      login = pr_author_login(env)
+      return "dependabot" if login == "dependabot[bot]"
+      return "renovate" if login == "renovate[bot]"
+
       actor = env["GITHUB_ACTOR"]
       return "dependabot" if actor == "dependabot[bot]"
       return "renovate" if actor == "renovate[bot]"
@@ -67,6 +75,22 @@ module StillActive
       return "dependabot" if head_subject&.match?(DEPENDABOT_SUBJECT)
       return "renovate" if head_subject&.match?(RENOVATE_SUBJECT)
 
+      nil
+    end
+
+    # Reads pull_request.user.login from the GitHub Actions event payload
+    # (GITHUB_EVENT_PATH). Returns nil off Actions, on non-PR events, or if the
+    # file is missing/unreadable/malformed — all of which just fall through to
+    # the weaker signals. TypeError covers a payload that parses but has the
+    # wrong shape (e.g. a top-level array, or pull_request/user not a Hash);
+    # this method must never raise, since detect runs unguarded and a cosmetic
+    # narrative must not be able to abort the audit.
+    def pr_author_login(env)
+      path = env["GITHUB_EVENT_PATH"]
+      return if path.nil? || !File.file?(path)
+
+      JSON.parse(File.read(path)).dig("pull_request", "user", "login")
+    rescue JSON::ParserError, SystemCallError, TypeError
       nil
     end
 

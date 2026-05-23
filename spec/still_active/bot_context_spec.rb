@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "tempfile"
+require "json"
+
 RSpec.describe(StillActive::BotContext) do
   describe(".detect") do
     it("returns nil when there is no bot signal") do
@@ -10,6 +13,63 @@ RSpec.describe(StillActive::BotContext) do
     ["Update CI to use Node 24", "Update README to mention SARIF", "Update Ruby to 3.4", "Bump version to 1.5.0"].each do |subject|
       it("does not false-positive on the human commit #{subject.inspect}") do
         expect(described_class.detect(env: {}, head_subject: subject)).to(be_nil)
+      end
+    end
+
+    context("when the GitHub event payload names the PR author") do
+      def event_file(login)
+        f = Tempfile.new(["event", ".json"])
+        f.write({ "pull_request" => { "user" => { "login" => login, "type" => "Bot" } } }.to_json)
+        f.flush
+        f
+      end
+
+      it("detects Dependabot from pull_request.user.login") do
+        f = event_file("dependabot[bot]")
+        result = described_class.detect(env: { "GITHUB_EVENT_PATH" => f.path }, head_subject: nil)
+        expect(result[:bot]).to(eq("dependabot"))
+      ensure
+        f.close!
+      end
+
+      it("detects Renovate from pull_request.user.login") do
+        f = event_file("renovate[bot]")
+        result = described_class.detect(env: { "GITHUB_EVENT_PATH" => f.path }, head_subject: nil)
+        expect(result[:bot]).to(eq("renovate"))
+      ensure
+        f.close!
+      end
+
+      # The event author is the authoritative signal: it must win even when
+      # GITHUB_ACTOR is a human who re-ran or pushed to the bot's PR.
+      it("trusts the PR author over a human GITHUB_ACTOR") do
+        f = event_file("dependabot[bot]")
+        result = described_class.detect(
+          env: { "GITHUB_EVENT_PATH" => f.path, "GITHUB_ACTOR" => "octocat" },
+          head_subject: "Bump rack from 2.0.0 to 2.0.6",
+        )
+        expect(result[:bot]).to(eq("dependabot"))
+      ensure
+        f.close!
+      end
+
+      it("falls through when the event file is missing or unreadable") do
+        result = described_class.detect(env: { "GITHUB_EVENT_PATH" => "/no/such/event.json", "GITHUB_ACTOR" => "renovate[bot]" }, head_subject: nil)
+        expect(result[:bot]).to(eq("renovate"))
+      end
+
+      # A payload that parses but is the wrong shape must not crash the run.
+      ["[]", '{"pull_request":[]}', '{"pull_request":{"user":"oops"}}'].each do |malformed|
+        it("falls through (no crash) on a wrong-shape payload #{malformed.inspect}") do
+          f = Tempfile.new(["event", ".json"])
+          f.write(malformed)
+          f.flush
+          result = nil
+          expect { result = described_class.detect(env: { "GITHUB_EVENT_PATH" => f.path }, head_subject: nil) }.not_to(raise_error)
+          expect(result).to(be_nil)
+        ensure
+          f.close!
+        end
       end
     end
 
