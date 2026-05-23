@@ -399,6 +399,43 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
+  describe("--cyclonedx") do
+    let(:workflow_result) { { "rack" => gem_data(last_commit_date: recent_date).merge(license: "MIT") } }
+
+    before { allow($stdout).to(receive(:tty?).and_return(false)) }
+
+    it("emits a CycloneDX 1.6 document to stdout when --cyclonedx=-") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rack", "--cyclonedx=-"])
+      doc = JSON.parse(captured)
+      expect(doc["bomFormat"]).to(eq("CycloneDX"))
+      expect(doc["specVersion"]).to(eq("1.6"))
+      expect(doc["components"].map { |c| c["name"] }).to(include("rack"))
+    end
+
+    it("honours --cyclonedx-version=1.7") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rack", "--cyclonedx=-", "--cyclonedx-version=1.7"])
+      expect(JSON.parse(captured)["specVersion"]).to(eq("1.7"))
+    end
+
+    it("writes to a file when given a path") do
+      Dir.mktmpdir do |dir|
+        path = "#{dir}/sbom.json"
+        cli.run(["--gems=rack", "--cyclonedx=#{path}"])
+        expect(File.exist?(path)).to(be(true))
+        expect(JSON.parse(File.read(path))["bomFormat"]).to(eq("CycloneDX"))
+      end
+    end
+
+    it("rejects an unsupported spec version") do
+      expect { cli.run(["--gems=rack", "--cyclonedx", "--cyclonedx-version=2.0"]) }
+        .to(raise_error(ArgumentError, /1\.6.*1\.7/))
+    end
+  end
+
   describe("Dependabot/Renovate context") do
     let(:workflow_result) { { "rack" => gem_data(last_commit_date: recent_date) } }
     let(:context) { { bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] } }

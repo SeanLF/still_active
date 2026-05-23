@@ -5,6 +5,7 @@ require_relative "diff"
 require_relative "../helpers/activity_helper"
 require_relative "../helpers/bot_context"
 require_relative "../helpers/bundler_helper"
+require_relative "../helpers/cyclonedx_helper"
 require_relative "../helpers/diff_markdown_helper"
 require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
@@ -41,6 +42,8 @@ module StillActive
         emit_diff(result, ruby_info, baseline_path, pr_context)
       elsif (sarif_path = StillActive.config.sarif_path)
         emit_sarif(result, ruby_info, sarif_path)
+      elsif (cyclonedx_path = StillActive.config.cyclonedx_path)
+        emit_cyclonedx(result, ruby_info, cyclonedx_path)
       else
         case resolve_format
         when :json
@@ -84,6 +87,21 @@ module StillActive
         puts sarif_json
       else
         File.write(sarif_path, sarif_json)
+      end
+    end
+
+    def emit_cyclonedx(result, ruby_info, cyclonedx_path)
+      sbom = CyclonedxHelper.render(
+        result: result,
+        ruby_info: ruby_info,
+        tool_version: StillActive::VERSION,
+        spec_version: StillActive.config.cyclonedx_version,
+      )
+
+      if cyclonedx_path == "-"
+        puts sbom
+      else
+        File.write(cyclonedx_path, sbom)
       end
     end
 

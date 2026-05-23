@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "optparse"
+require_relative "../helpers/cyclonedx_helper"
 require_relative "../helpers/vulnerability_helper"
 
 module StillActive
@@ -69,6 +70,15 @@ module StillActive
       opts.on("--baseline=PATH", String, "Compare current state to baseline still_active JSON; emit markdown deltas. Exits 1 on regressions.") do |value|
         options[:provided_baseline] = true
         StillActive.config { |config| config.baseline_path = value }
+      end
+      opts.on("--cyclonedx[=PATH]", "CycloneDX SBOM output (default to stdout; PATH to write a file). Overrides --terminal/--markdown/--json.") do |value|
+        StillActive.config { |config| config.cyclonedx_path = value || "-" }
+      end
+      opts.on("--cyclonedx-version=VERSION", String, "CycloneDX spec version to emit: 1.6 (default) or 1.7.") do |value|
+        supported = StillActive::CyclonedxHelper::SUPPORTED_SPEC_VERSIONS
+        raise ArgumentError, "--cyclonedx-version must be one of: #{supported.join(", ")} (got #{value})" unless supported.include?(value)
+
+        StillActive.config { |config| config.cyclonedx_version = value }
       end
     end
 
