@@ -78,6 +78,7 @@ module StillActive
         supported = StillActive::CyclonedxHelper::SUPPORTED_SPEC_VERSIONS
         raise ArgumentError, "--cyclonedx-version must be one of: #{supported.join(", ")} (got #{value})" unless supported.include?(value)
 
+        options[:provided_cyclonedx_version] = true
         StillActive.config { |config| config.cyclonedx_version = value }
       end
     end

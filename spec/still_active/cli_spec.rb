@@ -436,6 +436,31 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
+  describe("conflicting output flags") do
+    before { allow($stdout).to(receive(:tty?).and_return(false)) }
+
+    it("warns which mode wins when --sarif and --cyclonedx are combined") do
+      expect do
+        Dir.mktmpdir do |dir|
+          File.write("#{dir}/Gemfile", "")
+          File.write("#{dir}/Gemfile.lock", "GEM\n  remote: https://rubygems.org/\n  specs:\n    rack (1.0)\n")
+          StillActive.config.gemfile_path = "#{dir}/Gemfile"
+          cli.run(["--gems=rack", "--sarif=-", "--cyclonedx=-"])
+        end
+      end.to(output(/multiple output modes set.*using --sarif.*ignoring --cyclonedx/m).to_stderr)
+    end
+
+    it("warns that --cyclonedx-version has no effect without --cyclonedx") do
+      expect { cli.run(["--gems=rack", "--cyclonedx-version=1.7"]) }
+        .to(output(/--cyclonedx-version has no effect without --cyclonedx/).to_stderr)
+    end
+
+    it("does not warn for a single output mode") do
+      expect { cli.run(["--gems=rack", "--cyclonedx=-"]) }
+        .not_to(output(/multiple output modes/).to_stderr)
+    end
+  end
+
   describe("Dependabot/Renovate context") do
     let(:workflow_result) { { "rack" => gem_data(last_commit_date: recent_date) } }
     let(:context) { { bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] } }

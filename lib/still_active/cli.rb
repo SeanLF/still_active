@@ -28,6 +28,8 @@ module StillActive
         end
       end
 
+      warn_output_flag_conflicts(options)
+
       result = if $stderr.tty?
         Workflow.call { |done, total| $stderr.print("\rChecking #{done}/#{total} gems...") }
       else
@@ -68,6 +70,29 @@ module StillActive
     end
 
     private
+
+    # The output destinations are mutually exclusive and resolved by precedence
+    # (baseline > sarif > cyclonedx > terminal/markdown/json). Warn rather than
+    # silently dropping the loser when more than one is set.
+    def warn_output_flag_conflicts(options)
+      modes = active_output_modes
+      if modes.size > 1
+        $stderr.puts("warning: multiple output modes set (#{modes.join(", ")}); using #{modes.first}, ignoring #{modes.drop(1).join(", ")}")
+      end
+      if options[:provided_cyclonedx_version] && StillActive.config.cyclonedx_path.nil?
+        $stderr.puts("warning: --cyclonedx-version has no effect without --cyclonedx")
+      end
+    end
+
+    # In precedence order, so the first entry is the one that actually runs.
+    def active_output_modes
+      config = StillActive.config
+      [
+        ("--baseline" if config.baseline_path),
+        ("--sarif" if config.sarif_path),
+        ("--cyclonedx" if config.cyclonedx_path),
+      ].compact
+    end
 
     def emit_sarif(result, ruby_info, sarif_path)
       lockfile = resolve_lockfile_path(StillActive.config.gemfile_path)
