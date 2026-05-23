@@ -188,7 +188,7 @@ still_active --markdown
 
 **Ruby 4.0.1** (latest) ✅
 
-**CycloneDX** -- a standards-track SBOM so your dependency graph and still_active's signals flow into Trivy, Dependency-Track, Snyk, or GitHub's dependency-submission API:
+**CycloneDX** -- a standards-track SBOM so your dependency graph and still_active's signals flow into Trivy, Dependency-Track, or Snyk:
 
 ```bash
 still_active --cyclonedx                 # CycloneDX 1.6 to stdout
