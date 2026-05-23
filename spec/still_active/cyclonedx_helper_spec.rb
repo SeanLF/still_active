@@ -75,6 +75,15 @@ RSpec.describe(StillActive::CyclonedxHelper) do
       expect(rack["licenses"]).to(eq([{ "license" => { "id" => "MIT" } }]))
     end
 
+    it("splits a multi-license gem into one valid SPDX entry each (not a comma-joined id)") do
+      result["multi"] = { source_type: :rubygems, version_used: "1.0.0", license: "Hippocratic-2.1, MIT", vulnerability_count: 0, vulnerabilities: [] }
+      multi = components.find { |c| c["name"] == "multi" }
+      expect(multi["licenses"]).to(eq([
+        { "license" => { "id" => "Hippocratic-2.1" } },
+        { "license" => { "id" => "MIT" } },
+      ]))
+    end
+
     it("carries the repository URL as a vcs externalReference") do
       rack = components.find { |c| c["name"] == "rack" }
       expect(rack["externalReferences"]).to(include("type" => "vcs", "url" => "https://github.com/rack/rack"))

@@ -56,7 +56,7 @@ module StillActive
       component["version"] = version if version
       component["bom-ref"] = bom_ref(name, data)
       component["purl"] = purl(name, version) if data[:source_type] == :rubygems && version
-      component["licenses"] = [{ "license" => { "id" => data[:license] } }] if data[:license]
+      component["licenses"] = licenses(data[:license]) if data[:license]
       if data[:repository_url]
         component["externalReferences"] = [{ "type" => "vcs", "url" => data[:repository_url] }]
       end
@@ -74,6 +74,13 @@ module StillActive
 
     def purl(name, version)
       "pkg:gem/#{name}@#{version}"
+    end
+
+    # VersionHelper joins multiple SPDX ids with ", " for terminal/markdown
+    # display; CycloneDX's license.id must be a single SPDX id, so split back
+    # into one entry per license rather than emitting an invalid joined id.
+    def licenses(license)
+      license.split(", ").map { |id| { "license" => { "id" => id } } }
     end
 
     def gem_properties(data)
