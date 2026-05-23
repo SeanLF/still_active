@@ -38,6 +38,15 @@ module StillActive
       Time.parse(release_date) unless release_date.nil?
     end
 
+    # SPDX license identifier(s) from the RubyGems versions payload.
+    # Comma-joined when a gem declares more than one. nil when unknown.
+    def license(version_hash:)
+      licenses = version_hash&.dig("licenses")
+      return if licenses.nil? || licenses.empty?
+
+      licenses.join(", ")
+    end
+
     private
 
     def normalize_version(version)

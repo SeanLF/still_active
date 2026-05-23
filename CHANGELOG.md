@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0] - Unreleased
+
+### Added
+
+- Gem license surfaced from the RubyGems versions payload we already fetch (no extra request). Shows as a `License` column in terminal and markdown output and as an additive `license` field (SPDX identifier, comma-joined when a gem declares more than one) on the JSON per-gem record. `nil`/`-` for git/path sources where no RubyGems metadata exists. See `docs/schema.md`. Read-only metadata only — license *policy* (allow/deny gating) stays the domain of `license_finder`.
+
 ## [1.4.2] - 2026-05-22
 
 ### Fixed

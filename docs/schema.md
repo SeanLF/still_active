@@ -46,6 +46,7 @@
 | `up_to_date` | bool \| absent | Present when `version_used` is known. |
 | `version_used_release_date` | string \| nil | ISO-8601 timestamp. |
 | `version_yanked` | bool \| absent | `true` if `version_used` has been yanked. |
+| `license` | string \| nil | SPDX license identifier(s) for `version_used`, comma-joined when more than one. `nil` when unknown (e.g. git/path sources). |
 | `libyear` | float \| nil | Years between `version_used` and `latest_version`. |
 
 ### Vulnerability fields

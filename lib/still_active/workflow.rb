@@ -118,6 +118,7 @@ module StillActive
 
           version_used_release_date: VersionHelper.release_date(version_hash: version_used),
           version_yanked: !vs.empty? && version_used.nil?,
+          license: VersionHelper.license(version_hash: version_used),
           libyear: LibyearHelper.gem_libyear(
             version_used_release_date: VersionHelper.release_date(version_hash: version_used),
             latest_version_release_date: VersionHelper.release_date(version_hash: last_release),

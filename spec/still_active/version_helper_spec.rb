@@ -105,4 +105,30 @@ RSpec.describe(StillActive::VersionHelper) do
       expect(described_class.release_date(version_hash: still_active_version)).to(eq(Time.parse("2021-11-07T13:07:51.346Z")))
     end
   end
+
+  describe("#license") do
+    it("returns nil for nil input") do
+      expect(described_class.license(version_hash: nil)).to(be_nil)
+    end
+
+    it("returns the single SPDX identifier") do
+      expect(described_class.license(version_hash: { "licenses" => ["MIT"] })).to(eq("MIT"))
+    end
+
+    it("joins multiple licenses with a comma") do
+      expect(described_class.license(version_hash: { "licenses" => ["MIT", "Apache-2.0"] })).to(eq("MIT, Apache-2.0"))
+    end
+
+    it("returns nil when the licenses array is empty") do
+      expect(described_class.license(version_hash: { "licenses" => [] })).to(be_nil)
+    end
+
+    it("returns nil when the licenses key is absent") do
+      expect(described_class.license(version_hash: { "number" => "1.0.0" })).to(be_nil)
+    end
+
+    it("returns nil when licenses is null") do
+      expect(described_class.license(version_hash: { "licenses" => nil })).to(be_nil)
+    end
+  end
 end

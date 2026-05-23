@@ -204,6 +204,7 @@ RSpec.describe(StillActive::Workflow) do
               up_to_date: false,
               scorecard_score: a_value > 0,
               vulnerability_count: an_instance_of(Integer),
+              license: "MIT",
             ),
             "nokogiri" => hash_including(
               version_used: "1.12.5",
