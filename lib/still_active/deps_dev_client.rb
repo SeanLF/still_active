@@ -52,6 +52,7 @@ module StillActive
         cvss3_score: body["cvss3Score"],
         cvss3_vector: body["cvss3Vector"],
         cvss2_score: body["cvss2Score"],
+        source: "deps.dev",
       }
     end
 

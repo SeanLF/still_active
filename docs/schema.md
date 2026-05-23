@@ -58,8 +58,9 @@
 | `title` | string \| nil | Short title from deps.dev. |
 | `aliases` | array | Cross-referenced IDs. |
 | `cvss3_score` | float \| nil | CVSS v3 base score (0.0–10.0). |
-| `cvss3_vector` | string \| nil | CVSS v3 vector string. |
+| `cvss3_vector` | string \| nil | CVSS v3 vector string. (Always `nil` for `ruby-advisory-db`-only advisories — bundler-audit exposes no vector.) |
 | `cvss2_score` | float \| nil | CVSS v2 fallback for older advisories. |
+| `source` | string | Which source reported the advisory: `"deps.dev"`, `"ruby-advisory-db"`, or `"merged"` (both). `ruby-advisory-db` entries appear only when `bundler-audit` is installed with a current advisory checkout. |
 
 ## Ruby fields
 

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Dual-source vulnerability data: when `bundler-audit` is installed (with a current `bundle audit update` checkout), still_active reads the `rubysec/ruby-advisory-db` advisories through bundler-audit's own loader and merges them with deps.dev results, deduplicating on shared identifiers. Each advisory carries a `source` field (`deps.dev`, `ruby-advisory-db`, or `merged`); deps.dev is preferred for CVSS/title/vector and ruby-advisory-db fills gaps. Opt-in by composition — no second source unless `bundler-audit` is present; falls back silently to deps.dev only otherwise (with a one-line hint to run `bundle audit update`). Closes the "why do bundler-audit and still_active disagree?" gap. See `docs/schema.md` and `docs/rules.md` (SA003).
 - Gem license surfaced from the RubyGems versions payload we already fetch (no extra request). Shows as a `License` column in terminal and markdown output and as an additive `license` field (SPDX identifier, comma-joined when a gem declares more than one) on the JSON per-gem record. `nil`/`-` for git/path sources where no RubyGems metadata exists. See `docs/schema.md`. Read-only metadata only — license *policy* (allow/deny gating) stays the domain of `license_finder`.
 
 ## [1.4.2] - 2026-05-22
