@@ -35,6 +35,13 @@ jobs:
         working-directory: current
         run: bundle install --jobs 4 --retry 3
 
+      # Fetch rubysec/ruby-advisory-db so still_active's dual-source merge is
+      # active (bundler-audit is a dev dependency; the DB ships separately).
+      # Best-effort: on failure still_active falls back to deps.dev only.
+      - name: Update ruby-advisory-db (enables dual-source vulnerabilities)
+        working-directory: current
+        run: bundle exec bundle-audit update || echo "::warning::bundle-audit update failed; still_active will use deps.dev only"
+
       - name: Capture baseline JSON from main
         env:
           GITHUB_TOKEN: ${{ github.token }}
