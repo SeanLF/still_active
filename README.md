@@ -101,6 +101,7 @@ Usage: still_active [options]
         --terminal                   Coloured terminal output (default in TTY)
         --markdown                   Markdown table output
         --json                       JSON output (default when piped)
+        --alternatives               Suggest maintained alternatives (Ruby Toolbox leads) for archived/critical gems
         --sarif[=PATH]               SARIF 2.1.0 output for GitHub Code Scanning
         --cyclonedx[=PATH]           CycloneDX SBOM output (stdout, or a file path)
         --cyclonedx-version=VERSION  CycloneDX spec version: 1.6 (default) or 1.7
@@ -341,6 +342,20 @@ Activity is determined by the most recent signal across last commit date, latest
 - **stale**: last activity between 1 and 3 years ago (configurable with `--warning-range-end`)
 - **critical**: last activity over 3 years ago
 
+### Alternative gem leads (opt-in)
+
+When a gem is flagged archived or critical, `--alternatives` surfaces up to three maintained gems from the same [Ruby Toolbox](https://www.ruby-toolbox.com) category, ranked by total downloads:
+
+```bash
+still_active --gems=paperclip --alternatives
+```
+
+```text
+↳ leads (Ruby Toolbox): shrine · carrierwave · kt-paperclip (verify fit)
+```
+
+These are **leads, not recommendations**: same-category does not mean drop-in replacement, so verify fit before switching. Ruby has no authoritative "use instead" metadata (unlike npm `deprecate`, Go's `// Deprecated:`, or NuGet's alternate-package field), so this is a best-effort heuristic. It is silent when the catalog has no entry for the gem, and the feature never blocks or fails a run. Leads appear in terminal, markdown, JSON, and SARIF output; when the flag is off, flagged gems show a one-line hint that it exists.
+
 ### Data sources
 
 - **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org) or [GitHub Packages](https://docs.github.com/en/packages)
@@ -348,6 +363,7 @@ Activity is determined by the most recent signal across last commit date, latest
 - **OpenSSF Scorecard**, **vulnerability counts**, and **CVSS severity** from Google's [deps.dev](https://deps.dev) API
 - **Additional advisories** from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db), merged in when `bundler-audit` is installed alongside (run `bundle audit update` to keep its checkout current)
 - **Ruby version freshness** from [endoflife.date](https://endoflife.date)
+- **Alternative gem leads** (with `--alternatives`) from the [rubytoolbox/catalog](https://github.com/rubytoolbox/catalog) category data
 
 ### Configuration defaults
 
