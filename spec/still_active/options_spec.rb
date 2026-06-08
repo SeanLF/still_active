@@ -126,6 +126,11 @@ RSpec.describe(StillActive::Options) do
         .to(raise_error(ArgumentError, /provide gemfile or gems, not both/))
     end
 
+    it("enables alternatives with --alternatives") do
+      described_class.new.parse!(["--alternatives"])
+      expect(StillActive.config.alternatives).to(be(true))
+    end
+
     it("returns provided_gems flag when gems are given") do
       result = described_class.new.parse!(["--gems=rails"])
       expect(result[:provided_gems]).to(be(true))

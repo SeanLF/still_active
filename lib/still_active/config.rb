@@ -7,7 +7,8 @@ require "open3"
 module StillActive
   class Config
     attr_writer :github_oauth_token, :gitlab_token, :gemfile_path
-    attr_accessor :baseline_path,
+    attr_accessor :alternatives,
+      :baseline_path,
       :critical_warning_emoji,
       :cyclonedx_path,
       :cyclonedx_version,
@@ -28,6 +29,7 @@ module StillActive
       :warning_range_end
 
     def initialize
+      @alternatives = false
       @fail_if_critical = false
       @fail_if_outdated = nil
       @fail_if_vulnerable = nil

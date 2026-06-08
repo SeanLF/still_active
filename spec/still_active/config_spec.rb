@@ -144,6 +144,10 @@ RSpec.describe(StillActive::Config) do
     end
   end
 
+  it("defaults alternatives to false") do
+    expect(described_class.new.alternatives).to(be(false))
+  end
+
   describe("gemfile_path discovery") do
     it("returns Bundler.default_gemfile when a Gemfile is reachable") do
       allow(Bundler).to(receive(:default_gemfile).and_return(Pathname.new("/proj/Gemfile")))
