@@ -354,7 +354,7 @@ still_active --gems=paperclip --alternatives
 ↳ leads (Ruby Toolbox): shrine · carrierwave · kt-paperclip (verify fit)
 ```
 
-These are **leads, not recommendations**: same-category does not mean drop-in replacement, so verify fit before switching. Ruby has no authoritative "use instead" metadata (unlike npm `deprecate`, Go's `// Deprecated:`, or NuGet's alternate-package field), so this is a best-effort heuristic. It is silent when the catalog has no entry for the gem, and the feature never blocks or fails a run. Leads appear in terminal, markdown, JSON, and SARIF output; when the flag is off, flagged gems show a one-line hint that it exists.
+These are **leads, not recommendations**: same-category does not mean drop-in replacement, so verify fit before switching. Ruby has no authoritative "use instead" metadata (unlike npm `deprecate`, Go's `// Deprecated:`, or NuGet's alternate-package field), so this is a best-effort heuristic. It is silent when the catalog has no entry for the gem, and the feature never blocks or fails a run. Leads appear in terminal, markdown, JSON, and SARIF output. When the flag is off, terminal output shows a one-line hint on flagged gems that the option exists (other formats stay silent).
 
 ### Data sources
 
