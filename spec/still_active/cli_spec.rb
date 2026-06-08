@@ -201,6 +201,17 @@ RSpec.describe(StillActive::CLI) do
       expect(payload).not_to(have_key("ruby"))
       expect(payload).to(have_key("gems"))
     end
+
+    it("includes alternatives in the gem entry when present") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      allow(StillActive::Workflow).to(receive(:call).and_return(
+        "paperclip" => gem_data(last_commit_date: ancient_date).merge(archived: true, alternatives: ["shrine", "carrierwave"]),
+      ))
+      cli.run(["--gems=paperclip", "--json"])
+      payload = JSON.parse(captured)
+      expect(payload.dig("gems", "paperclip", "alternatives")).to(eq(["shrine", "carrierwave"]))
+    end
   end
 
   describe("output format auto-detection") do
