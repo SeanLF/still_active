@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.0] - 2026-06-08
+
+### Added
+
+- `--alternatives` surfaces up to three maintained alternative gems for any dependency still_active flags as archived or critically abandoned, drawn from the [rubytoolbox/catalog](https://github.com/rubytoolbox/catalog) category data and ranked by total RubyGems downloads. Presented as **leads to verify, not vetted recommendations** — same Ruby Toolbox category does not guarantee a drop-in replacement — reflecting that Ruby has no authoritative successor metadata the way npm (`deprecate`), Go (`// Deprecated:`), or NuGet (alternate-package) do. Opt-in and best-effort: the catalog is fetched once and cached under `XDG_CACHE_HOME` with a 7-day TTL, any fetch/parse failure degrades to silence, and nothing here can block a run or affect `--fail-if-*` exit codes. Leads render in terminal (a dimmed sub-line), markdown (an Alternatives section), JSON (an additive `alternatives` array), and SARIF (appended to the SA001/SA002 result messages); CycloneDX is unchanged. With the flag off, terminal output shows a one-line discoverability hint on flagged gems. Silent when the catalog has no entry for the gem (the common case for niche/long-tail gems). Closes #28.
+
+### Changed
+
+- The `async` runtime dependency now requires `>= 2.2` (previously unconstrained). 2.2.0 is the verified real minimum — earlier 2.x releases hit a fiber-scheduler `io_read` bug under still_active's concurrent fan-out. A new CI job installs every runtime dependency at its declared gemspec floor and runs the suite on the minimum supported Ruby, so an under-set floor now fails loudly instead of silently.
+
 ## [1.5.0] - 2026-05-23
 
 ### Added
