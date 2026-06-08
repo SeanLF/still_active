@@ -224,5 +224,48 @@ RSpec.describe(StillActive::TerminalHelper) do
         expect { described_class.render({}) }.not_to(raise_error)
       end
     end
+
+    context("with alternatives leads sub-line") do
+      it("prints a leads sub-line under a gem with alternatives") do
+        result = {
+          "paperclip" => {
+            archived: true,
+            alternatives: ["shrine", "carrierwave"],
+            vulnerability_count: nil,
+            scorecard_score: nil,
+          },
+        }
+        out = described_class.render(result)
+        expect(out).to(include("leads (Ruby Toolbox): shrine · carrierwave"))
+      end
+
+      it("prints a discoverability hint for an archived gem when alternatives are off") do
+        StillActive.config.alternatives = false
+        result = {
+          "paperclip" => {
+            archived: true,
+            vulnerability_count: nil,
+            scorecard_score: nil,
+          },
+        }
+        out = described_class.render(result)
+        expect(out).to(include("--alternatives"))
+      end
+
+      it("prints nothing extra for a healthy gem") do
+        result = {
+          "rails" => {
+            last_commit_date: Time.now,
+            latest_version_release_date: Time.now,
+            latest_pre_release_version_release_date: nil,
+            vulnerability_count: nil,
+            scorecard_score: nil,
+          },
+        }
+        out = described_class.render(result)
+        expect(out).not_to(include("leads (Ruby Toolbox)"))
+        expect(out).not_to(include("--alternatives"))
+      end
+    end
   end
 end

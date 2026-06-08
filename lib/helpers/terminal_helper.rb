@@ -13,13 +13,18 @@ module StillActive
     HEADERS = ["Name", "Version", "Activity", "OpenSSF", "Vulns", "License"].freeze
 
     def render(result, ruby_info: nil)
-      rows = result.keys.sort.map { |name| build_row(name, result[name]) }
+      names = result.keys.sort
+      rows = names.map { |name| build_row(name, result[name]) }
       widths = column_widths(rows)
 
       lines = []
       lines << header_line(widths)
       lines << separator_line(widths)
-      rows.each { |row| lines << row_line(row, widths) }
+      names.each_with_index do |name, i|
+        lines << row_line(rows[i], widths)
+        extra = alternatives_line(result[name])
+        lines << extra if extra
+      end
       lines << ""
       lines << summary_line(result)
       lines << ruby_summary_line(ruby_info) if ruby_info
@@ -123,6 +128,18 @@ module StillActive
       row.zip(widths)
         .map { |cell, w| AnsiHelper.pad(cell, w) }
         .join
+    end
+
+    def alternatives_line(data)
+      level = ActivityHelper.activity_level(data)
+      return unless [:archived, :critical].include?(level)
+
+      leads = data[:alternatives]
+      if leads && !leads.empty?
+        AnsiHelper.dim("  ↳ leads (Ruby Toolbox): #{leads.join(" · ")} (verify fit)")
+      elsif !StillActive.config.alternatives
+        AnsiHelper.dim("  ↳ run with --alternatives for maintained replacements")
+      end
     end
 
     def ruby_summary_line(ruby_info)
