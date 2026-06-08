@@ -24,7 +24,7 @@ RSpec.describe(StillActive::BundlerHelper) do
       it("raises MissingLockfileError with the absolute path and a helpful message") do
         expect { described_class.gemfile_dependencies(gemfile_path: "Gemfile") }
           .to(raise_error(StillActive::MissingLockfileError) do |e|
-            expect(e.message).to(match(/run `bundle lock`/))
+            expect(e.message).to(include("run `bundle lock`"))
             expect(e.message).to(include(File.expand_path("Gemfile")))
           end)
       end

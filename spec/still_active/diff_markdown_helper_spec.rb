@@ -63,7 +63,7 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
 
       it("has a Regressions section listed first") do
         md = described_class.render(result)
-        expect(md).to(match(/### Regressions/))
+        expect(md).to(include("### Regressions"))
         expect(md.index("### Regressions")).to(be < (md.index("### Bumps") || md.length))
       end
 
