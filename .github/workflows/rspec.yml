@@ -26,3 +26,26 @@ jobs:
         bundler-cache: true
     - name: Execute the tests
       run: bundle exec rspec
+
+  floors:
+    name: Dependency floors (min versions)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    # Resolve the minimum supported Ruby from the gemspec so this can't drift
+    # from required_ruby_version (uses the runner's system Ruby).
+    - name: Resolve minimum Ruby from gemspec
+      id: ruby
+      run: |
+        version=$(ruby -e 'lower = Gem::Specification.load("still_active.gemspec").required_ruby_version.requirements.select { |op, _| op == ">=" }.map(&:last).min; puts lower.segments.first(2).join(".")')
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+    - name: Set up minimum supported Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ steps.ruby.outputs.version }}
+    # Gemfile.floors pins every runtime dep with a declared floor to that floor.
+    # Red here means a floor in still_active.gemspec is too low and needs bumping.
+    - name: Install declared floor versions
+      run: BUNDLE_GEMFILE=Gemfile.floors bundle install
+    - name: Run the suite against the floors
+      run: BUNDLE_GEMFILE=Gemfile.floors bundle exec rspec

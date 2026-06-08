@@ -1,0 +1,18 @@
+# frozen_string_literal: true
+
+# Resolves every runtime dependency to its declared floor (the lowest version
+# the gemspec allows) and runs the suite against it. If this goes red, a floor
+# in still_active.gemspec is too low and needs bumping. The floors are derived
+# from the gemspec, so there is nothing to keep in sync here.
+#
+# Run locally with:  BUNDLE_GEMFILE=Gemfile.floors bundle exec rspec
+# CI runs it on the minimum supported Ruby (see the "floors" job in rspec.yml).
+eval_gemfile "Gemfile"
+
+spec = Gem::Specification.load(File.expand_path("still_active.gemspec", __dir__))
+spec.runtime_dependencies.each do |dependency|
+  floor = dependency.requirement.requirements.find { |operator, _| operator == ">=" }&.last&.to_s
+  next if floor.nil? || floor == "0" || dependency.name == "bundler"
+
+  gem(dependency.name, "= #{floor}")
+end

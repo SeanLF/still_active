@@ -53,7 +53,7 @@ The bolded rows are the gap `still_active` fills: nobody else answers "is the ma
 gem install still_active
 ```
 
-**Requires an actively-maintained Ruby (currently `>= 3.3`).** The floor tracks Ruby's [EOL schedule](https://endoflife.date/ruby); running a maintenance auditor on an unmaintained runtime would be a bit rich. You don't have to run it *on* the Ruby you're auditing, though: still_active reports on the version your project pins in `Gemfile.lock`, so run it from any current Ruby (locally, in CI, or via the [`still_active-action`](https://github.com/SeanLF/still_active-action)) and it will still flag an EOL target.
+**Requires an actively-maintained Ruby.** The gemspec's `required_ruby_version` floor tracks Ruby's [EOL schedule](https://endoflife.date/ruby); running a maintenance auditor on an unmaintained runtime would be a bit rich. You don't have to run it *on* the Ruby you're auditing, though: still_active reports on the version your project pins in `Gemfile.lock`, so run it from any current Ruby (locally, in CI, or via the [`still_active-action`](https://github.com/SeanLF/still_active-action)) and it will still flag an EOL target.
 
 ## Quick Start
 

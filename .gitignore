@@ -23,3 +23,6 @@ spec/**/Gemfile.lock
 .claude/tasks/
 /docs/plans
 scratch/
+
+# floor-test lockfile (resolved fresh, never committed)
+Gemfile.floors.lock
