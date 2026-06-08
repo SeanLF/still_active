@@ -233,6 +233,46 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    context("when --alternatives is enabled and a gem is archived") do
+      before do
+        StillActive.config.gems = [{ name: "paperclip", version: "6.0.0" }]
+        StillActive.config.alternatives = true
+        allow(Gems).to(receive(:versions).with("paperclip").and_return([
+          { "number" => "6.0.0", "prerelease" => false, "created_at" => "2018-01-01T00:00:00Z", "licenses" => ["MIT"] },
+        ]))
+        allow(Gems).to(receive(:info).with("paperclip").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+        allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
+        allow(described_class).to(receive_messages(repo_archived: true, last_commit_date: nil))
+        allow(StillActive::CatalogIndex).to(receive(:load).and_return({ "paperclip" => ["shrine", "carrierwave"] }))
+        allow(StillActive::AlternativesHelper).to(receive(:leads_for).and_return(["shrine", "carrierwave"]))
+      end
+
+      after { StillActive.config.alternatives = false }
+
+      it("sets alternatives on the archived gem") do
+        expect(result["paperclip"][:alternatives]).to(eq(["shrine", "carrierwave"]))
+      end
+    end
+
+    context("when --alternatives is disabled") do
+      before do
+        StillActive.config.gems = [{ name: "paperclip", version: "6.0.0" }]
+        StillActive.config.alternatives = false
+        allow(Gems).to(receive(:versions).with("paperclip").and_return([
+          { "number" => "6.0.0", "prerelease" => false, "created_at" => "2018-01-01T00:00:00Z" },
+        ]))
+        allow(Gems).to(receive(:info).with("paperclip").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+        allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
+        allow(described_class).to(receive_messages(repo_archived: true, last_commit_date: nil))
+        allow(StillActive::CatalogIndex).to(receive(:load))
+      end
+
+      it("does not load the catalog or set alternatives") do
+        expect(result["paperclip"]).not_to(have_key(:alternatives))
+        expect(StillActive::CatalogIndex).not_to(have_received(:load))
+      end
+    end
+
     context("when configured to use gems with versions") do
       let(:gems) { ["rails", "nokogiri"] }
       let(:versions) { ["6.1.3.2", "1.12.5"] }

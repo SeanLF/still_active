@@ -3,6 +3,9 @@
 require_relative "deps_dev_client"
 require_relative "gitlab_client"
 require_relative "repository"
+require_relative "../helpers/activity_helper"
+require_relative "../helpers/alternatives_helper"
+require_relative "../helpers/catalog_index"
 require_relative "../helpers/libyear_helper"
 require_relative "../helpers/ruby_advisory_db"
 require_relative "../helpers/ruby_helper"
@@ -22,6 +25,7 @@ module StillActive
         # Load the optional ruby-advisory-db once, before the fan-out, so the
         # read-only Database is shared across fibers rather than reloaded per gem.
         advisory_db = RubyAdvisoryDb.load
+        catalog = StillActive.config.alternatives ? CatalogIndex.load : nil
         barrier = Async::Barrier.new
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result_object = {}
@@ -36,6 +40,7 @@ module StillActive
               source_type: gem[:source_type] || :rubygems,
               source_uri: gem[:source_uri],
               advisory_db: advisory_db,
+              catalog: catalog,
             )
           rescue Octokit::TooManyRequests
             $stderr.print("\r\e[K") if on_progress
@@ -60,7 +65,7 @@ module StillActive
 
     private
 
-    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, advisory_db: nil)
+    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, advisory_db: nil, catalog: nil)
       result_object[gem_name] = { source_type: source_type }
       result_object[gem_name][:version_used] = gem_version if gem_version
 
@@ -76,6 +81,8 @@ module StillActive
           advisory_db: advisory_db,
         )
       end
+
+      attach_alternatives(gem_name: gem_name, result_object: result_object, catalog: catalog)
     end
 
     def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:, advisory_db: nil)
@@ -149,6 +156,16 @@ module StillActive
         archived: repo_archived(source:, repository_owner: owner, repository_name: name),
         **deps_dev,
       })
+    end
+
+    def attach_alternatives(gem_name:, result_object:, catalog:)
+      return if catalog.nil?
+      return unless [:archived, :critical].include?(ActivityHelper.activity_level(result_object[gem_name]))
+
+      leads = AlternativesHelper.leads_for(gem_name: gem_name, index: catalog)
+      result_object[gem_name][:alternatives] = leads unless leads.empty?
+    rescue StandardError
+      nil # cosmetic best-effort: lead-fetching must never break the core audit
     end
 
     def fetch_deps_dev_info(gem_name:, version:, advisory_db: nil)
