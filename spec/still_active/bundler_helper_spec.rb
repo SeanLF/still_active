@@ -6,7 +6,18 @@ RSpec.describe(StillActive::BundlerHelper) do
   describe("#gemfile_dependencies") do
     subject(:gemfile_dependencies) { described_class.gemfile_dependencies(gemfile_path: gemfile_path) }
 
-    after do
+    # gemfile_dependencies repoints BUNDLE_GEMFILE at its argument, but Bundler
+    # memoizes #definition — so without a reset first it returns whatever gemfile
+    # was loaded earlier (still_active's own path-sourced definition when this spec
+    # runs before anything else has reset Bundler). Reset before each example so the
+    # fixture Gemfile is actually read, and restore BUNDLE_GEMFILE + reset after so
+    # the fixture path doesn't leak into later specs.
+    around do |example|
+      original_gemfile = ENV.fetch("BUNDLE_GEMFILE", nil)
+      Bundler.reset!
+      example.run
+    ensure
+      ENV["BUNDLE_GEMFILE"] = original_gemfile
       Bundler.reset!
       Bundler.reset_settings_and_root! if Bundler.respond_to?(:reset_settings_and_root!)
     end

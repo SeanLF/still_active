@@ -51,6 +51,13 @@ RSpec.describe(StillActive::Workflow) do
           advisory_detail: { id: "GHSA-deps", aliases: [], title: "from deps.dev", cvss3_score: 7.5, source: "deps.dev" },
         ))
         allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(:fake_db))
+
+        # rack's gemspec may already be activated by another spec, in which case
+        # repository_info resolves a real github.com/rack/rack URL and the commit
+        # lookup makes a live HTTP call (no cassette here) that propagates out and
+        # discards the gem's entry. Pin the repo-derived fields so this context
+        # exercises only the advisory merge, regardless of what's been activated.
+        allow(described_class).to(receive_messages(last_commit_date: nil, repo_archived: nil))
       end
 
       it("appends advisories unique to ruby-advisory-db") do
