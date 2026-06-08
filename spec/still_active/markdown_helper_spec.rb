@@ -224,6 +224,25 @@ RSpec.describe(StillActive::MarkdownHelper) do
     end
   end
 
+  describe(".alternatives_section") do
+    it("lists alternatives for flagged gems") do
+      result = { "paperclip" => { source_type: :rubygems, archived: true, alternatives: ["shrine", "carrierwave"] } }
+      out = described_class.alternatives_section(result)
+      expect(out).to(include("**Alternatives**"))
+      expect(out).to(include("`paperclip`: shrine, carrierwave"))
+    end
+
+    it("is empty when no gems have alternatives") do
+      result = { "paperclip" => { source_type: :rubygems, archived: true } }
+      expect(described_class.alternatives_section(result)).to(eq(""))
+    end
+
+    it("is empty when the alternatives array is empty") do
+      result = { "paperclip" => { source_type: :rubygems, archived: true, alternatives: [] } }
+      expect(described_class.alternatives_section(result)).to(eq(""))
+    end
+  end
+
   describe(".ruby_line") do
     it("shows latest Ruby with success emoji") do
       info = { version: "3.4.0", latest_version: "3.4.0", libyear: nil, eol: false, eol_date: nil }

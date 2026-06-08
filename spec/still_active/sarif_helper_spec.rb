@@ -95,6 +95,37 @@ RSpec.describe(StillActive::SarifHelper) do
     end
   end
 
+  describe("alternatives suffix") do
+    it("appends alternatives to the archived-gem result message") do
+      result = { "paperclip" => { source_type: :rubygems, version_used: "6.0.0", archived: true, alternatives: ["shrine", "carrierwave"] } }
+      sarif = render(result: result)
+      msg = sarif.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA001" }.dig("message", "text")
+      expect(msg).to(include("Consider: shrine, carrierwave"))
+    end
+
+    it("appends alternatives to the abandoned-gem result message") do
+      ancient = Time.now - (3 * 365 * 24 * 60 * 60)
+      result = { "paperclip" => { version_used: "6.0.0", archived: false, last_commit_date: ancient.iso8601, alternatives: ["shrine", "carrierwave"] } }
+      sarif = render(result: result)
+      msg = sarif.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA002" }.dig("message", "text")
+      expect(msg).to(include("Consider: shrine, carrierwave"))
+    end
+
+    it("omits alternatives suffix when alternatives key is absent") do
+      result = { "archived_gem" => { version_used: "1.0.0", archived: true } }
+      sarif = render(result: result)
+      msg = sarif.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA001" }.dig("message", "text")
+      expect(msg).not_to(include("Consider:"))
+    end
+
+    it("omits alternatives suffix when alternatives array is empty") do
+      result = { "archived_gem" => { version_used: "1.0.0", archived: true, alternatives: [] } }
+      sarif = render(result: result)
+      msg = sarif.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA001" }.dig("message", "text")
+      expect(msg).not_to(include("Consider:"))
+    end
+  end
+
   describe("SA002 AbandonedGem") do
     let(:ancient) { Time.now - (3 * 365 * 24 * 60 * 60) }
 

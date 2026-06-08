@@ -98,7 +98,7 @@ module StillActive
       location = location_for(name, line_index, lockfile_uri)
 
       if data[:archived]
-        out << result("SA001", name, "#{name} #{version}: upstream repository is archived#{repo_suffix(data)}.", location)
+        out << result("SA001", name, "#{name} #{version}: upstream repository is archived#{repo_suffix(data)}#{alternatives_suffix(data)}.", location)
       end
 
       unless data[:archived]
@@ -108,7 +108,7 @@ module StillActive
           out << result(
             "SA002",
             name,
-            "#{name} #{version}: no commits in #{years} years (last #{last_commit.utc.strftime("%Y-%m-%d")}).",
+            "#{name} #{version}: no commits in #{years} years (last #{last_commit.utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}.",
             location,
           )
         end
@@ -227,6 +227,13 @@ module StillActive
 
     def repo_suffix(data)
       data[:repository_url] ? " (#{data[:repository_url]})" : ""
+    end
+
+    def alternatives_suffix(data)
+      leads = data[:alternatives]
+      return "" if leads.nil? || leads.empty?
+
+      " Consider: #{leads.join(", ")}"
     end
   end
 end

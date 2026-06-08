@@ -506,6 +506,21 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
+  describe("--markdown alternatives") do
+    let(:workflow_result) do
+      { "paperclip" => gem_data(last_commit_date: ancient_date).merge(archived: true, alternatives: ["shrine", "carrierwave"]) }
+    end
+
+    it("appends an Alternatives section to markdown output") do
+      lines = []
+      allow($stdout).to(receive(:puts)) { |arg| lines << arg }
+      cli.run(["--gems=paperclip", "--markdown"])
+      output = lines.join("\n")
+      expect(output).to(include("**Alternatives**"))
+      expect(output).to(include("`paperclip`: shrine, carrierwave"))
+    end
+  end
+
   describe("--fail-if-warning") do
     context("when a gem has warning activity") do
       let(:workflow_result) { { "aging_gem" => gem_data(last_commit_date: old_date) } }

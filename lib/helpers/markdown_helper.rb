@@ -84,6 +84,17 @@ module StillActive
       "| #{cells.join(" | ")} |"
     end
 
+    def alternatives_section(result)
+      flagged = result.select do |_name, data|
+        data[:alternatives] && !data[:alternatives].empty?
+      end
+      return "" if flagged.empty?
+
+      lines = ["", "**Alternatives** (Ruby Toolbox leads, verify fit):"]
+      flagged.each { |name, data| lines << "- `#{name}`: #{data[:alternatives].join(", ")}" }
+      lines.join("\n")
+    end
+
     private
 
     def version_with_date(text:, url:, date:)

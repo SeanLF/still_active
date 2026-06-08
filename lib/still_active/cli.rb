@@ -190,6 +190,8 @@ module StillActive
 
         puts MarkdownHelper.markdown_table_body_line(gem_name: name, data: gem_data)
       end
+      alternatives = MarkdownHelper.alternatives_section(result)
+      puts alternatives unless alternatives.empty?
       if ruby_info
         puts ""
         puts MarkdownHelper.ruby_line(ruby_info)
