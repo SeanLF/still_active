@@ -15,15 +15,18 @@ module StillActive
     def leads_for(gem_name:, index:, limit: DEFAULT_LIMIT)
       return [] if index.nil?
 
-      siblings = (index[gem_name] || [])
-        .reject { |name| name.include?("/") } # github-slug-only projects can't be ranked by rubygems downloads
-        .first(MAX_SIBLINGS_CONSIDERED)
+      # Bound the per-gem download lookups so a huge category can't trigger
+      # dozens of HTTP calls. This is a catalog-order prefix, so a very large
+      # category could leave a popular sibling past the cap out of the ranking;
+      # acceptable for best-effort leads where we only ever surface a few.
+      # (CatalogIndex already reduces owner/repo slugs to their gem-name tail,
+      # so every entry here is a plain name rankable by downloads.)
+      siblings = (index[gem_name] || []).first(MAX_SIBLINGS_CONSIDERED)
       return [] if siblings.empty?
 
       siblings
-        .filter_map { |name| [name, downloads(name)] if downloads(name) }
-        .sort_by { |_name, count| -count }
-        .first(limit)
+        .filter_map { |name| (count = downloads(name)) && [name, count] }
+        .max_by(limit) { |_name, count| count }
         .map(&:first)
     end
 

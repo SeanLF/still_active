@@ -1,10 +1,15 @@
 # frozen_string_literal: true
 
 RSpec.describe(StillActive::Workflow) do
-  # Keep the optional ruby-advisory-db second source out of the default path so
-  # tests don't depend on a local `bundle audit update` checkout. The merge is
-  # exercised explicitly in its own context below.
-  before { allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil)) }
+  before do
+    # Fresh config per example so the global singleton (e.g. the --alternatives
+    # flag) can't leak across the randomized suite.
+    StillActive.reset
+    # Keep the optional ruby-advisory-db second source out of the default path so
+    # tests don't depend on a local `bundle audit update` checkout. The merge is
+    # exercised explicitly in its own context below.
+    allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil))
+  end
 
   describe("#call") do
     subject(:result) { described_class.call }
@@ -247,10 +252,26 @@ RSpec.describe(StillActive::Workflow) do
         allow(StillActive::AlternativesHelper).to(receive(:leads_for).and_return(["shrine", "carrierwave"]))
       end
 
-      after { StillActive.config.alternatives = false }
-
       it("sets alternatives on the archived gem") do
         expect(result["paperclip"][:alternatives]).to(eq(["shrine", "carrierwave"]))
+      end
+    end
+
+    context("when --alternatives is enabled but the catalog has no entry for the gem") do
+      before do
+        StillActive.config.gems = [{ name: "paperclip", version: "6.0.0" }]
+        StillActive.config.alternatives = true
+        allow(Gems).to(receive(:versions).with("paperclip").and_return([
+          { "number" => "6.0.0", "prerelease" => false, "created_at" => "2018-01-01T00:00:00Z", "licenses" => ["MIT"] },
+        ]))
+        allow(Gems).to(receive(:info).with("paperclip").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+        allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
+        allow(described_class).to(receive_messages(repo_archived: true, last_commit_date: nil))
+        allow(StillActive::CatalogIndex).to(receive(:load).and_return({}))
+      end
+
+      it("leaves no alternatives key (silent on miss)") do
+        expect(result["paperclip"]).not_to(have_key(:alternatives))
       end
     end
 

@@ -40,6 +40,17 @@ RSpec.describe(StillActive::CatalogIndex) do
       expect(index["cancan"]).to(contain_exactly("pundit"))
       expect(index).not_to(have_key("_meta"))
     end
+
+    it("indexes owner/repo slug projects by their repo tail, not the raw slug") do
+      slug_catalog = tarball(
+        "catalog-main/catalog/Web/frameworks.yml" =>
+          "name: Frameworks\nprojects:\n  - rails/rails\n  - sinatra\n",
+      )
+      index = described_class.build_index(slug_catalog)
+      expect(index["rails"]).to(contain_exactly("sinatra"))
+      expect(index["sinatra"]).to(contain_exactly("rails"))
+      expect(index.keys).not_to(include("rails/rails"))
+    end
   end
 
   describe(".load") do
