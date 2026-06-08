@@ -7,6 +7,6 @@ gemspec
 
 gem "code-scanning-rubocop"
 gem "rake", ">= 13.0"
-gem "rspec", ">= 3.0"
+gem "rspec", ">= 4.0.0.beta1"
 gem "vcr"
 gem "webmock"
