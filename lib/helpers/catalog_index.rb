@@ -4,6 +4,8 @@ require "stringio"
 require "zlib"
 require "rubygems/package"
 require "yaml"
+require "json"
+require "open-uri"
 
 module StillActive
   # Optional source of "alternative gem" leads: the rubytoolbox/catalog repo
@@ -15,6 +17,20 @@ module StillActive
     REPO = "rubytoolbox/catalog"
     CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
     MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024 # the catalog is ~50 KB; cap to avoid surprises
+
+    # Returns { gem => [siblings] } or nil. Never raises.
+    def load
+      cached = read_cache
+      return cached if cached
+
+      blob = download
+      index = build_index(blob)
+      write_cache(index)
+      index
+    rescue StandardError => e
+      warn("still_active: could not load Ruby Toolbox catalog for alternatives (#{e.class}); skipping leads")
+      nil
+    end
 
     # Parse a gzipped catalog tarball into { gem_name => [sibling gem names] }.
     def build_index(tar_gz_blob)
@@ -36,6 +52,36 @@ module StillActive
     end
 
     private
+
+    def cache_path
+      base = ENV["XDG_CACHE_HOME"]
+      base = File.join(Dir.home, ".cache") if base.nil? || base.empty?
+      File.join(base, "still_active", "catalog-siblings.json")
+    end
+
+    def read_cache
+      path = cache_path
+      return unless File.exist?(path)
+      return if Time.now - File.mtime(path) > CACHE_TTL_SECONDS
+
+      JSON.parse(File.read(path))
+    rescue JSON::ParserError
+      nil
+    end
+
+    def write_cache(index)
+      path = cache_path
+      require "fileutils"
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, JSON.dump(index))
+    rescue SystemCallError
+      nil # an unwritable cache dir must not break the feature
+    end
+
+    def download
+      url = StillActive.config.github_client.archive_link(REPO, format: "tarball", ref: "main")
+      URI.open(url) { |io| io.read(MAX_DOWNLOAD_BYTES) } # rubocop:disable Security/Open
+    end
 
     def build_siblings(categories)
       siblings = Hash.new { |h, k| h[k] = [] }

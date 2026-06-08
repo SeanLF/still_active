@@ -3,6 +3,9 @@
 require "stringio"
 require "zlib"
 require "rubygems/package"
+require "tmpdir"
+require "fileutils"
+require "json"
 require_relative "../../lib/helpers/catalog_index"
 
 RSpec.describe(StillActive::CatalogIndex) do
@@ -36,6 +39,41 @@ RSpec.describe(StillActive::CatalogIndex) do
       expect(index["paperclip"]).to(contain_exactly("shrine", "carrierwave"))
       expect(index["cancan"]).to(contain_exactly("pundit"))
       expect(index).not_to(have_key("_meta"))
+    end
+  end
+
+  describe(".load") do
+    let(:cache_dir) { Dir.mktmpdir }
+    let(:cache_file) { File.join(cache_dir, "catalog-siblings.json") }
+
+    before { allow(described_class).to(receive(:cache_path).and_return(cache_file)) }
+    after { FileUtils.remove_entry(cache_dir) }
+
+    it("fetches, builds, caches, and returns the index when cache is cold") do
+      allow(described_class).to(receive(:download).and_return(catalog))
+      index = described_class.load
+      expect(index["paperclip"]).to(contain_exactly("shrine", "carrierwave"))
+      expect(File).to(exist(cache_file))
+    end
+
+    it("reads a fresh cache without downloading") do
+      File.write(cache_file, JSON.dump("paperclip" => ["shrine"]))
+      allow(described_class).to(receive(:download))
+      result = described_class.load
+      expect(result["paperclip"]).to(eq(["shrine"]))
+      expect(described_class).not_to(have_received(:download))
+    end
+
+    it("re-fetches when the cache is older than the TTL") do
+      File.write(cache_file, JSON.dump("paperclip" => ["stale"]))
+      File.utime(Time.now - described_class::CACHE_TTL_SECONDS - 60, Time.now - described_class::CACHE_TTL_SECONDS - 60, cache_file)
+      allow(described_class).to(receive(:download).and_return(catalog))
+      expect(described_class.load["paperclip"]).to(contain_exactly("shrine", "carrierwave"))
+    end
+
+    it("returns nil (silent) when the download fails") do
+      allow(described_class).to(receive(:download).and_raise(SocketError))
+      expect(described_class.load).to(be_nil)
     end
   end
 end
