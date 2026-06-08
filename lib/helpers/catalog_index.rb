@@ -80,7 +80,10 @@ module StillActive
 
     def download
       url = StillActive.config.github_client.archive_link(REPO, format: "tarball", ref: "main")
-      URI.open(url) { |io| io.read(MAX_DOWNLOAD_BYTES) } # rubocop:disable Security/Open
+      # URI(url).open (not URI.open/Kernel#open) so a "|cmd" string can never be
+      # treated as a shell command — the URL is a constant-repo archive link, but
+      # this keeps the open path injection-proof regardless.
+      URI.parse(url).open { |io| io.read(MAX_DOWNLOAD_BYTES) }
     end
 
     def build_siblings(categories)
