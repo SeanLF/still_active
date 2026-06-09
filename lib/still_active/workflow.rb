@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "artifactory_client"
 require_relative "deps_dev_client"
 require_relative "gitlab_client"
 require_relative "repository"
@@ -185,11 +186,16 @@ module StillActive
     def versions(gem_name:, source_uri: nil)
       if github_packages_uri?(source_uri)
         fetch_github_packages_versions(gem_name: gem_name, source_uri: source_uri)
+      elsif ArtifactoryClient.artifactory_uri?(source_uri)
+        ArtifactoryClient.versions(gem_name: gem_name, source_uri: source_uri)
       else
         Gems.versions(gem_name)
       end
     rescue Gems::NotFound
       []
+    # TODO: This rescue likely only needs to wrap Gems.versions — GitHub Packages and
+    # Artifactory use HttpHelper (which swallows network errors) and ArtifactoryClient
+    # also rescues them. Only the rubygems.org path can realistically hit this today.
     rescue Errno::ECONNRESET, Errno::ECONNREFUSED, Net::OpenTimeout, Net::ReadTimeout, SocketError => e
       $stderr.puts("warning: rubygems.org versions lookup failed for #{gem_name}: #{e.class} (#{e.message})")
       []

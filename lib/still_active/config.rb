@@ -6,7 +6,7 @@ require "open3"
 
 module StillActive
   class Config
-    attr_writer :github_oauth_token, :gitlab_token, :gemfile_path
+    attr_writer :github_oauth_token, :gitlab_token, :artifactory_token, :gemfile_path
     attr_accessor :alternatives,
       :baseline_path,
       :critical_warning_emoji,
@@ -39,6 +39,7 @@ module StillActive
       @ignored_gems = []
       @github_oauth_token = nil
       @gitlab_token = nil
+      @artifactory_token = nil
 
       @parallelism = 10
 
@@ -69,6 +70,10 @@ module StillActive
 
     def gitlab_token
       @gitlab_token ||= presence(ENV["GITLAB_TOKEN"]) || glab_cli_token
+    end
+
+    def artifactory_token
+      @artifactory_token ||= presence(ENV["STILL_ACTIVE_ARTIFACTORY_TOKEN"])
     end
 
     # Lazy so that running with --gems=... (no Gemfile needed) doesn't crash

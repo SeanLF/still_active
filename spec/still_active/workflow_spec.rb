@@ -216,6 +216,79 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    context("when a gem is from Artifactory") do
+      let(:source_uri) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/" }
+      let(:versions_api_url) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/api/v1/versions/private_gem.json" }
+      let(:aql_url) { "https://my-org.jfrog.io/artifactory/api/search/aql" }
+      let(:artifactory_versions) do
+        [
+          { "number" => "1.0.0", "prerelease" => false, "created_at" => "2025-06-01T00:00:00Z", "licenses" => ["MIT"] },
+        ]
+      end
+
+      before do
+        StillActive.config.gems = [{
+          name: "private_gem",
+          version: "1.0.0",
+          source_type: :rubygems,
+          source_uri: source_uri,
+        }]
+        allow(Gems).to(receive(:info).with("private_gem").and_return({
+          "homepage_uri" => nil,
+          "source_code_uri" => nil,
+        }))
+        allow(StillActive::DepsDevClient).to(receive(:version_info).and_return(nil))
+      end
+
+      it("fetches versions from the Artifactory versions API with Bearer auth") do
+        StillActive.config.artifactory_token = "art-test-token"
+        stub_request(:get, versions_api_url)
+          .to_return(status: 200, body: artifactory_versions.to_json, headers: { "Content-Type" => "application/json" })
+
+        result
+
+        expect(WebMock).to(have_requested(:get, versions_api_url)
+          .with(headers: { "Authorization" => "Bearer art-test-token" }))
+        expect(result).to(include(
+          "private_gem" => hash_including(latest_version: "1.0.0"),
+        ))
+      end
+
+      it("sends Basic auth when Bundler.settings has user:password credentials") do
+        allow(Bundler.settings).to(receive(:[]).with(source_uri).and_return("alice:secret"))
+        allow(Bundler.settings).to(receive(:[]).with("my-org.jfrog.io").and_return(nil))
+        stub_request(:get, versions_api_url)
+          .with(headers: { "Authorization" => /^Basic / })
+          .to_return(status: 200, body: artifactory_versions.to_json, headers: { "Content-Type" => "application/json" })
+
+        result
+
+        expect(WebMock).to(have_requested(:get, versions_api_url))
+        expect(result).to(include(
+          "private_gem" => hash_including(latest_version: "1.0.0"),
+        ))
+      end
+
+      it("falls back to AQL when the versions API returns 404") do
+        StillActive.config.artifactory_token = "art-test-token"
+        stub_request(:get, versions_api_url).to_return(status: 404)
+        aql_body = {
+          "results" => [
+            { "name" => "private_gem-2.0.0.gem", "created" => "2025-07-01T00:00:00Z" },
+            { "name" => "private_gem-2.0.0-x86_64-linux.gem", "created" => "2025-07-02T00:00:00Z" },
+            { "name" => "private_gem-1.0.0.gem", "created" => "2025-06-01T00:00:00Z" },
+          ],
+        }
+        stub_request(:post, aql_url)
+          .with(body: /private_gem-\*\.gem/)
+          .to_return(status: 200, body: aql_body.to_json, headers: { "Content-Type" => "application/json" })
+
+        expect(result).to(include(
+          "private_gem" => hash_including(latest_version: "2.0.0"),
+        ))
+      end
+    end
+
     context("when a progress block is given") do
       before do
         StillActive.config.gems = [

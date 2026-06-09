@@ -89,6 +89,8 @@ Without a token, GitHub API calls are unauthenticated and rate-limited to 60 req
 
 GitLab cascade mirrors GitHub: `--gitlab-token` → `GITLAB_TOKEN` → `glab auth status --show-token`. Optional for public repos, required for private ones.
 
+Artifactory cascade: `--artifactory-token` → `STILL_ACTIVE_ARTIFACTORY_TOKEN` → Bundler credentials for the gem source URL (or host). Use `user:password` in Bundler settings for Basic auth, or a bare token for Bearer auth. Required for private JFrog gem registries (`.jfrog.io`).
+
 ### CLI options
 
 ```text
@@ -108,6 +110,7 @@ Usage: still_active [options]
         --baseline=PATH              Compare current state to baseline JSON; emit markdown deltas
         --github-oauth-token=TOKEN   GitHub OAuth token to make API calls
         --gitlab-token=TOKEN         GitLab personal access token for API calls
+        --artifactory-token=TOKEN    Artifactory token for private gem registry API calls
         --simultaneous-requests=QTY  Number of simultaneous requests made
         --safe-range-end=YEARS       maximum years since last activity considered safe (no warning)
         --warning-range-end=YEARS    maximum years since last activity that triggers a warning (beyond this is critical)
@@ -358,7 +361,7 @@ These are **leads, not recommendations**: same-category does not mean drop-in re
 
 ### Data sources
 
-- **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org) or [GitHub Packages](https://docs.github.com/en/packages)
+- **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org), [GitHub Packages](https://docs.github.com/en/packages), or [JFrog Artifactory](https://jfrog.com/artifactory/) gem registries
 - **Last commit date and archived status** from the [GitHub](https://docs.github.com/en/rest) or [GitLab](https://docs.gitlab.com/ee/api/) API
 - **OpenSSF Scorecard**, **vulnerability counts**, and **CVSS severity** from Google's [deps.dev](https://deps.dev) API
 - **Additional advisories** from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db), merged in when `bundler-audit` is installed alongside (run `bundle audit update` to keep its checkout current)

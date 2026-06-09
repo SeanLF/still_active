@@ -91,6 +91,9 @@ module StillActive
       opts.on("--gitlab-token=TOKEN", String, "GitLab personal access token for API calls") do |value|
         StillActive.config { |config| config.gitlab_token = value }
       end
+      opts.on("--artifactory-token=TOKEN", String, "Artifactory token for private gem registry API calls") do |value|
+        StillActive.config { |config| config.artifactory_token = value }
+      end
     end
 
     def add_parallelism_options(opts)

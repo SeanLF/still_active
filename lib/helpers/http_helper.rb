@@ -55,5 +55,51 @@ module StillActive
       $stderr.puts("warning: #{uri.host}#{uri.path} returned invalid JSON: #{e.message}")
       nil
     end
+
+    def post_json(base_uri, path, body:, headers: {})
+      uri = base_uri.dup
+      uri.path = path
+
+      MAX_REDIRECTS.times do
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = true
+        http.open_timeout = 10
+        http.read_timeout = 10
+
+        request = Net::HTTP::Post.new(uri)
+        headers.each { |key, value| request[key] = value }
+        request.body = body
+
+        response = http.request(request)
+
+        if response.is_a?(Net::HTTPRedirection)
+          redirect_uri = uri + response["Location"]
+          unless TRUSTED_HOSTS.include?(redirect_uri.host)
+            $stderr.puts("warning: #{uri.host}#{uri.path} redirected to untrusted host #{redirect_uri.host}, skipping")
+            return
+          end
+          $stderr.puts("warning: #{uri.host}#{uri.path} redirected to #{redirect_uri.host}#{redirect_uri.path} (stale metadata?)")
+          headers = {} if redirect_uri.host != uri.host
+          uri = redirect_uri
+          next
+        end
+
+        unless response.is_a?(Net::HTTPSuccess)
+          $stderr.puts("warning: #{uri.host}#{uri.path} returned HTTP #{response.code}") unless response.is_a?(Net::HTTPNotFound)
+          return
+        end
+
+        return JSON.parse(response.body)
+      end
+
+      $stderr.puts("warning: #{uri.host}#{uri.path} too many redirects")
+      nil
+    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED, Errno::ECONNRESET => e
+      $stderr.puts("warning: #{uri.host}#{uri.path} failed: #{e.class} (#{e.message})")
+      nil
+    rescue JSON::ParserError => e
+      $stderr.puts("warning: #{uri.host}#{uri.path} returned invalid JSON: #{e.message}")
+      nil
+    end
   end
 end

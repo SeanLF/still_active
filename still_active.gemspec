@@ -13,7 +13,7 @@ Gem::Specification.new do |spec|
     "(last commit dates via GitHub and GitLab, release dates), outdated versions, archived repos, " \
     "OpenSSF Scorecard security scores, known vulnerabilities via deps.dev, and libyear drift. " \
     "Ruby version freshness with EOL detection. " \
-    "Handles rubygems, git, path, and GitHub Packages sources. " \
+    "Handles rubygems, git, path, GitHub Packages, and SaaS JFrog / Artifactory sources. " \
     "Outputs coloured terminal tables, markdown, or JSON. " \
     "CI quality gates with --fail-if-critical, --fail-if-warning, --fail-if-vulnerable, --fail-if-outdated, and --ignore. " \
     "A comprehensive alternative to running bundle outdated, bundler-audit, and libyear-bundler separately."
