@@ -38,7 +38,7 @@ module StillActive
       private
 
       def encode(value)
-        URI.encode_www_form_component(value)
+        CGI.escape(value)
       end
 
       def credentials(source_uri)
