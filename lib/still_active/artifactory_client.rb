@@ -74,7 +74,11 @@ module StillActive
 
         base = URI(artifactory_base)
         path = "#{base.path}#{AQL_PATH}"
-        body = %(items.find({"name":{"$match":"#{gem_name}-*.gem"},"repo":"#{repo_key}"}).include("name","created"))
+        query = {
+          "name" => { "$match" => "#{gem_name}-*.gem" },
+          "repo" => repo_key,
+        }
+        body = %(items.find(#{JSON.generate(query)}).include("name","created"))
         headers = auth_headers(source_uri).merge("Content-Type" => "text/plain")
         response = HttpHelper.post_json(base, path, body: body, headers: headers)
         return [] if response.nil?

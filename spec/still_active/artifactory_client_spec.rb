@@ -160,6 +160,21 @@ RSpec.describe(StillActive::ArtifactoryClient::AqlClient) do
       expect(result.map { |h| h["number"] }).to(eq(["2.0.0"]))
     end
 
+    it("builds well-formed JSON when the gem name contains a quote") do
+      evil_gem_name = %(evil"name)
+      stub_request(:post, aql_url)
+        .to_return(status: 200, body: { "results" => [] }.to_json, headers: { "Content-Type" => "application/json" })
+
+      described_class.versions(gem_name: evil_gem_name, source_uri: source_uri)
+
+      expect(WebMock).to(have_requested(:post, aql_url).with do |request|
+        criteria = request.body[/\Aitems\.find\((.*)\)\.include/, 1]
+        parsed = JSON.parse(criteria)
+        expect(parsed.dig("name", "$match")).to(eq(%(evil"name-*.gem)))
+        true
+      end)
+    end
+
     it("returns empty and warns when the source URI cannot be parsed") do
       bad_uri = "https://my-org.jfrog.io/no-api/here/"
 
