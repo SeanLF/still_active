@@ -193,9 +193,6 @@ module StillActive
       end
     rescue Gems::NotFound
       []
-    # TODO: This rescue likely only needs to wrap Gems.versions — GitHub Packages and
-    # Artifactory use HttpHelper (which swallows network errors) and ArtifactoryClient
-    # also rescues them. Only the rubygems.org path can realistically hit this today.
     rescue Errno::ECONNRESET, Errno::ECONNREFUSED, Net::OpenTimeout, Net::ReadTimeout, SocketError => e
       $stderr.puts("warning: rubygems.org versions lookup failed for #{gem_name}: #{e.class} (#{e.message})")
       []
