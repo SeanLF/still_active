@@ -78,7 +78,7 @@ module StillActive
           "name" => { "$match" => "#{gem_name}-*.gem" },
           "repo" => repo_key,
         }
-        body = %(items.find(#{JSON.generate(query)}).include("name","created"))
+        body = %(items.find(#{JSON.generate(query)}).include("repo", "path", "name", "created"))
         headers = auth_headers(source_uri).merge("Content-Type" => "text/plain")
         response = HttpHelper.post_json(base, path, body: body, headers: headers)
         return [] if response.nil?
