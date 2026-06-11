@@ -8,6 +8,8 @@ RSpec.describe(StillActive::ArtifactoryClient) do
 
   let(:source_uri) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/" }
   let(:gem_name) { "private_gem" }
+  let(:versions_api_url) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/api/v1/versions/#{gem_name}.json" }
+  let(:aql_url) { "https://my-org.jfrog.io/artifactory/api/search/aql" }
 
   describe(".artifactory_uri?") do
     it("returns true for a jfrog.io host") do
@@ -51,18 +53,91 @@ RSpec.describe(StillActive::ArtifactoryClient) do
       expect(result).to(eq([]))
     end
 
-    it("does not send the global token on AQL fallback when artifactory_host is not configured") do
-      StillActive.config.artifactory_token = "secret-global-token"
-      attacker_uri = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/"
-      attacker_versions_api = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/api/v1/versions/#{gem_name}.json"
-      attacker_aql_url = "https://attacker.jfrog.io/artifactory/api/search/aql"
-      stub_request(:get, attacker_versions_api).to_return(status: 404)
-      stub_request(:post, attacker_aql_url).to_return(status: 404)
+    describe("authentication") do
+      it("does not send the global token to a host the lockfile names but the user never opted into") do
+        StillActive.config.artifactory_token = "secret-global-token"
+        attacker_uri = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/"
+        attacker_api = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/api/v1/versions/#{gem_name}.json"
+        attacker_aql = "https://attacker.jfrog.io/artifactory/api/search/aql"
+        stub_request(:get, attacker_api).to_return(status: 404)
+        stub_request(:post, attacker_aql).to_return(status: 404)
 
-      described_class.versions(gem_name: gem_name, source_uri: attacker_uri)
+        described_class.versions(gem_name: gem_name, source_uri: attacker_uri)
 
-      expect(WebMock).to(have_requested(:get, attacker_versions_api).with { |req| !req.headers.key?("Authorization") })
-      expect(WebMock).to(have_requested(:post, attacker_aql_url).with { |req| !req.headers.key?("Authorization") })
+        expect(WebMock).to(have_requested(:get, attacker_api).with { |req| !req.headers.key?("Authorization") })
+        expect(WebMock).to(have_requested(:post, attacker_aql).with { |req| !req.headers.key?("Authorization") })
+      end
+
+      it("does not send the global token when artifactory_host does not match the request host") do
+        StillActive.config.artifactory_token = "secret-global-token"
+        StillActive.config.artifactory_host  = "my-org.jfrog.io"
+        attacker_uri = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/"
+        attacker_api = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/api/v1/versions/#{gem_name}.json"
+        attacker_aql = "https://attacker.jfrog.io/artifactory/api/search/aql"
+        stub_request(:get, attacker_api).to_return(status: 404)
+        stub_request(:post, attacker_aql).to_return(status: 404)
+
+        described_class.versions(gem_name: gem_name, source_uri: attacker_uri)
+
+        expect(WebMock).to(have_requested(:get, attacker_api).with { |req| !req.headers.key?("Authorization") })
+        expect(WebMock).to(have_requested(:post, attacker_aql).with { |req| !req.headers.key?("Authorization") })
+      end
+
+      it("does send the global token to the host the user named") do
+        StillActive.config.artifactory_token = "secret-global-token"
+        StillActive.config.artifactory_host  = "my-org.jfrog.io"
+        body = [{ "number" => "1.0.0", "prerelease" => false, "created_at" => "2025-06-01T00:00:00Z" }]
+        stub_request(:get, versions_api_url)
+          .to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
+
+        described_class.versions(gem_name: gem_name, source_uri: source_uri)
+
+        expect(WebMock).to(have_requested(:get, versions_api_url)
+          .with(headers: { "Authorization" => "Bearer secret-global-token" }))
+      end
+
+      it("warns that the token will not be sent to an unauthorized host") do
+        StillActive.config.artifactory_token = "secret-global-token"
+        StillActive.config.artifactory_host  = "my-org.jfrog.io"
+        attacker_uri = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/"
+        attacker_api = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/api/v1/versions/#{gem_name}.json"
+        attacker_aql = "https://attacker.jfrog.io/artifactory/api/search/aql"
+        stub_request(:get, attacker_api).to_return(status: 404)
+        stub_request(:post, attacker_aql).to_return(status: 404)
+
+        expect do
+          described_class.versions(gem_name: gem_name, source_uri: attacker_uri)
+        end.to(output(
+          /an Artifactory token is set but attacker\.jfrog\.io \(source for #{gem_name}\) is not an authorized host.*--artifactory-host=attacker\.jfrog\.io/m,
+        ).to_stderr)
+      end
+
+      it("URL-decodes Bundler credentials before Basic auth") do
+        allow(Bundler.settings).to(receive(:[]).with(source_uri).and_return("user%40example.com:pa%3Ass"))
+        allow(Bundler.settings).to(receive(:[]).with("my-org.jfrog.io").and_return(nil))
+        api_body = [{ "number" => "1.0.0", "prerelease" => false, "created_at" => "2025-06-01T00:00:00Z" }]
+        stub_request(:get, versions_api_url)
+          .with(headers: { "Authorization" => "Basic #{["user@example.com:pa:ss"].pack("m0")}" })
+          .to_return(status: 200, body: api_body.to_json, headers: { "Content-Type" => "application/json" })
+
+        described_class.versions(gem_name: gem_name, source_uri: source_uri)
+
+        expect(WebMock).to(have_requested(:get, versions_api_url))
+      end
+
+      it("sends Basic auth on AQL fallback when Bundler credentials are set") do
+        allow(Bundler.settings).to(receive(:[]).with(source_uri).and_return("alice:secret"))
+        allow(Bundler.settings).to(receive(:[]).with("my-org.jfrog.io").and_return(nil))
+        stub_request(:get, versions_api_url).to_return(status: 404)
+        aql_body = { "results" => [{ "name" => "private_gem-1.0.0.gem", "created" => "2025-06-01T00:00:00Z" }] }
+        stub_request(:post, aql_url)
+          .with(headers: { "Authorization" => /^Basic / })
+          .to_return(status: 200, body: aql_body.to_json, headers: { "Content-Type" => "application/json" })
+
+        described_class.versions(gem_name: gem_name, source_uri: source_uri)
+
+        expect(WebMock).to(have_requested(:post, aql_url))
+      end
     end
   end
 end
@@ -93,56 +168,19 @@ RSpec.describe(StillActive::ArtifactoryClient::RubygemsClient) do
       expect(result).to(eq([]))
     end
 
-    describe("authentication") do
-      it("does not send the global token to a host the lockfile names but the user never opted into") do
-        StillActive.config.artifactory_token = "secret-global-token"
-        attacker_uri = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/"
-        attacker_api = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/api/v1/versions/#{gem_name}.json"
-        stub_request(:get, attacker_api).to_return(status: 404)
-        stub_request(:post, "https://attacker.jfrog.io/artifactory/api/search/aql").to_return(status: 404)
+    it("applies provided headers to the request") do
+      body = [{ "number" => "1.0.0", "prerelease" => false, "created_at" => "2025-06-01T00:00:00Z" }]
+      stub_request(:get, versions_api_url)
+        .with(headers: { "Authorization" => "Bearer test-token" })
+        .to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
 
-        described_class.versions(gem_name: gem_name, source_uri: attacker_uri)
+      described_class.versions(
+        gem_name: gem_name,
+        source_uri: source_uri,
+        headers: { "Authorization" => "Bearer test-token" },
+      )
 
-        expect(WebMock).to(have_requested(:get, attacker_api).with { |req| !req.headers.key?("Authorization") })
-      end
-
-      it("does not send the global token when artifactory_host does not match the request host") do
-        StillActive.config.artifactory_token = "secret-global-token"
-        StillActive.config.artifactory_host  = "my-org.jfrog.io"
-        attacker_uri = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/"
-        attacker_api = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/api/v1/versions/#{gem_name}.json"
-        stub_request(:get, attacker_api).to_return(status: 404)
-
-        described_class.versions(gem_name: gem_name, source_uri: attacker_uri)
-
-        expect(WebMock).to(have_requested(:get, attacker_api).with { |req| !req.headers.key?("Authorization") })
-      end
-
-      it("does send the global token to the host the user named") do
-        StillActive.config.artifactory_token = "secret-global-token"
-        StillActive.config.artifactory_host  = "my-org.jfrog.io"
-        uri  = "https://my-org.jfrog.io/artifactory/api/gems/my-repo/"
-        api  = "https://my-org.jfrog.io/artifactory/api/gems/my-repo/api/v1/versions/#{gem_name}.json"
-        body = [{ "number" => "1.0.0", "prerelease" => false, "created_at" => "2025-06-01T00:00:00Z" }]
-        stub_request(:get, api).to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
-
-        described_class.versions(gem_name: gem_name, source_uri: uri)
-
-        expect(WebMock).to(have_requested(:get, api).with(headers: { "Authorization" => "Bearer secret-global-token" }))
-      end
-
-      it("URL-decodes Bundler credentials before Basic auth") do
-        allow(Bundler.settings).to(receive(:[]).with(source_uri).and_return("user%40example.com:pa%3Ass"))
-        allow(Bundler.settings).to(receive(:[]).with("my-org.jfrog.io").and_return(nil))
-        api_body = [{ "number" => "1.0.0", "prerelease" => false, "created_at" => "2025-06-01T00:00:00Z" }]
-        stub_request(:get, versions_api_url)
-          .with(headers: { "Authorization" => "Basic #{["user@example.com:pa:ss"].pack("m0")}" })
-          .to_return(status: 200, body: api_body.to_json, headers: { "Content-Type" => "application/json" })
-
-        described_class.versions(gem_name: gem_name, source_uri: source_uri)
-
-        expect(WebMock).to(have_requested(:get, versions_api_url))
-      end
+      expect(WebMock).to(have_requested(:get, versions_api_url))
     end
   end
 end
@@ -228,54 +266,18 @@ RSpec.describe(StillActive::ArtifactoryClient::AqlClient) do
       expect(WebMock).not_to(have_requested(:post, aql_url))
     end
 
-    describe("authentication") do
-      let(:gem_name) { "private_gem" }
+    it("applies provided headers and sets Content-Type to text/plain") do
+      stub_request(:post, aql_url)
+        .with(headers: { "Authorization" => "Bearer test-token", "Content-Type" => "text/plain" })
+        .to_return(status: 200, body: { "results" => [] }.to_json, headers: { "Content-Type" => "application/json" })
 
-      it("does not send the global token to a host the lockfile names but the user never opted into") do
-        StillActive.config.artifactory_token = "secret-global-token"
-        attacker_uri = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/"
-        attacker_aql = "https://attacker.jfrog.io/artifactory/api/search/aql"
-        stub_request(:post, attacker_aql).to_return(status: 404)
+      described_class.versions(
+        gem_name: "private_gem",
+        source_uri: source_uri,
+        headers: { "Authorization" => "Bearer test-token" },
+      )
 
-        described_class.versions(gem_name: gem_name, source_uri: attacker_uri)
-
-        expect(WebMock).to(have_requested(:post, attacker_aql).with { |req| !req.headers.key?("Authorization") })
-      end
-
-      it("does not send the global token when artifactory_host does not match the request host") do
-        StillActive.config.artifactory_token = "secret-global-token"
-        StillActive.config.artifactory_host  = "my-org.jfrog.io"
-        attacker_uri = "https://attacker.jfrog.io/artifactory/api/gems/some-repo/"
-        attacker_aql = "https://attacker.jfrog.io/artifactory/api/search/aql"
-        stub_request(:post, attacker_aql).to_return(status: 404)
-
-        described_class.versions(gem_name: gem_name, source_uri: attacker_uri)
-
-        expect(WebMock).to(have_requested(:post, attacker_aql).with { |req| !req.headers.key?("Authorization") })
-      end
-
-      it("does send the global token to the host the user named") do
-        StillActive.config.artifactory_token = "secret-global-token"
-        StillActive.config.artifactory_host  = "my-org.jfrog.io"
-        stub_request(:post, aql_url)
-          .to_return(status: 200, body: { "results" => [] }.to_json, headers: { "Content-Type" => "application/json" })
-
-        described_class.versions(gem_name: gem_name, source_uri: source_uri)
-
-        expect(WebMock).to(have_requested(:post, aql_url).with(headers: { "Authorization" => "Bearer secret-global-token" }))
-      end
-
-      it("URL-decodes Bundler credentials before Basic auth") do
-        allow(Bundler.settings).to(receive(:[]).with(source_uri).and_return("user%40example.com:pa%3Ass"))
-        allow(Bundler.settings).to(receive(:[]).with("my-org.jfrog.io").and_return(nil))
-        stub_request(:post, aql_url)
-          .with(headers: { "Authorization" => "Basic #{["user@example.com:pa:ss"].pack("m0")}" })
-          .to_return(status: 200, body: { "results" => [] }.to_json, headers: { "Content-Type" => "application/json" })
-
-        described_class.versions(gem_name: gem_name, source_uri: source_uri)
-
-        expect(WebMock).to(have_requested(:post, aql_url))
-      end
+      expect(WebMock).to(have_requested(:post, aql_url))
     end
   end
 end

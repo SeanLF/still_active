@@ -17,51 +17,62 @@ module StillActive
     end
 
     def versions(gem_name:, source_uri:)
-      vs = RubygemsClient.versions(gem_name: gem_name, source_uri: source_uri)
+      headers = auth_headers(gem_name: gem_name, source_uri: source_uri)
+      vs = RubygemsClient.versions(gem_name: gem_name, source_uri: source_uri, headers: headers)
       return vs unless vs.empty?
 
-      AqlClient.versions(gem_name: gem_name, source_uri: source_uri)
+      AqlClient.versions(gem_name: gem_name, source_uri: source_uri, headers: headers)
     rescue Errno::ECONNRESET, Errno::ECONNREFUSED, Net::OpenTimeout, Net::ReadTimeout, SocketError
       []
     end
 
-    module Authentication
-      private
+    private
 
-      def credentials(source_uri)
-        host = URI(source_uri).host
-        bundler = Bundler.settings[source_uri] || Bundler.settings[host]
-        return bundler if bundler && !bundler.empty?
+    def credentials(gem_name:, source_uri:)
+      host = URI(source_uri).host
+      bundler = Bundler.settings[source_uri] || Bundler.settings[host]
+      return bundler if bundler && !bundler.empty?
 
-        global = StillActive.config.artifactory_token
-        configured_host = StillActive.config.artifactory_host
-        return unless global && configured_host && host&.casecmp?(configured_host)
+      global = StillActive.config.artifactory_token
+      return unless global
 
-        global
+      configured_host = StillActive.config.artifactory_host
+      unless configured_host && host&.casecmp?(configured_host)
+        warn_unauthorized_host(gem_name: gem_name, host: host)
+        return
       end
 
-      def auth_headers(source_uri)
-        creds = credentials(source_uri)
-        return {} unless creds
+      global
+    end
 
-        if creds.include?(":")
-          user, pass = creds.split(":", 2).map { |part| CGI.unescape(part) }
-          { "Authorization" => "Basic #{["#{user}:#{pass}"].pack("m0")}" }
-        else
-          { "Authorization" => "Bearer #{creds}" }
-        end
+    def warn_unauthorized_host(gem_name:, host:)
+      $stderr.puts(
+        "warning: an Artifactory token is set but #{host} (source for #{gem_name}) is not an authorized host, " \
+          "so the token will not be sent. " \
+          "To allow it, set --artifactory-host=#{host} or STILL_ACTIVE_ARTIFACTORY_HOST=#{host}",
+      )
+    end
+
+    def auth_headers(gem_name:, source_uri:)
+      creds = credentials(gem_name: gem_name, source_uri: source_uri)
+      return {} unless creds
+
+      if creds.include?(":")
+        user, pass = creds.split(":", 2).map { |part| CGI.unescape(part) }
+        { "Authorization" => "Basic #{["#{user}:#{pass}"].pack("m0")}" }
+      else
+        { "Authorization" => "Bearer #{creds}" }
       end
     end
 
     # Artifactory's Rubygems-compatible API
     module RubygemsClient
       extend self
-      include Authentication
 
-      def versions(gem_name:, source_uri:)
+      def versions(gem_name:, source_uri:, headers: {})
         base = URI(source_uri.chomp("/"))
         path = "#{base.path}/api/v1/versions/#{encode(gem_name)}.json"
-        HttpHelper.get_json(base, path, headers: auth_headers(source_uri)) || []
+        HttpHelper.get_json(base, path, headers: headers) || []
       end
 
       private
@@ -75,12 +86,11 @@ module StillActive
     # https://docs.jfrog.com/artifactory/docs/artifactory-query-language
     module AqlClient
       extend self
-      include Authentication
 
       SOURCE_URL_PATTERN = %r{\A(https?://[^/]+\.jfrog\.io/[^/]+)/api/gems/([^/]+)/?\z}
       AQL_PATH = "/api/search/aql"
 
-      def versions(gem_name:, source_uri:)
+      def versions(gem_name:, source_uri:, headers: {})
         artifactory_base, repo_key = parse_source_url(source_uri)
         return [] if artifactory_base.nil?
 
@@ -91,8 +101,7 @@ module StillActive
           "repo" => repo_key,
         }
         body = %(items.find(#{JSON.generate(query)}).include("repo", "path", "name", "created"))
-        headers = auth_headers(source_uri).merge("Content-Type" => "text/plain")
-        response = HttpHelper.post_json(base, path, body: body, headers: headers)
+        response = HttpHelper.post_json(base, path, body: body, headers: headers.merge("Content-Type" => "text/plain"))
         return [] if response.nil?
 
         results = response["results"] || []
