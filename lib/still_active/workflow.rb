@@ -217,7 +217,8 @@ module StillActive
     def unqueryable_private_source?(source_uri)
       return false unless source_uri.is_a?(String)
 
-      host = URI(source_uri).host&.downcase # hostnames are case-insensitive
+      # Hostnames are case-insensitive; a trailing dot (FQDN form) is equivalent.
+      host = URI(source_uri).host&.downcase&.chomp(".")
       return false if host.nil?
 
       host != "rubygems.org" && !host.end_with?(".rubygems.org")

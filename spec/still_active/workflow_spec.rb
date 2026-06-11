@@ -482,6 +482,12 @@ RSpec.describe(StillActive::Workflow) do
 
       expect(Gems).to(have_received(:versions).with("rake"))
     end
+
+    it("treats a trailing-dot FQDN rubygems.org host as public") do
+      described_class.send(:versions, gem_name: "rake", source_uri: "https://rubygems.org./")
+
+      expect(Gems).to(have_received(:versions).with("rake"))
+    end
   end
 
   describe(".repository_info") do
