@@ -58,15 +58,36 @@ module StillActive
 
     private
 
-    # Extracts "host/owner/repo" from the SOURCE_REPO link URL.
-    # URLs may have trailing slashes or extra path segments (e.g. /tree/v1.0).
+    # Builds a deps.dev project id ("host/owner/repo", or a deeper path for
+    # GitLab subgroups) from the SOURCE_REPO link URL. GitHub/Bitbucket projects
+    # are always host/owner/repo, but GitLab namespaces nest arbitrarily
+    # (host/group/subgroup/.../project), so we can't just keep three segments.
     def extract_project_id(body)
       url = body.dig("links")&.find { |l| l["label"] == "SOURCE_REPO" }&.dig("url")
       return if url.nil?
 
-      path = url.delete_prefix("https://").delete_prefix("http://")
-      segments = path.split("/")
-      segments[0..2].join("/") if segments.length >= 3
+      host, *segments = url.sub(%r{\Ahttps?://}, "").split("/")
+      segments = repo_path_segments(host, segments)
+      return if host.nil? || segments.empty?
+
+      [host, *segments].join("/")
+    end
+
+    # Trims a repo URL's path to just the project. On GitLab the project path
+    # ends at the "/-/" separator (before tree/blob/etc) and may be nested;
+    # elsewhere it's owner/repo. Drops trailing slashes and a ".git" suffix.
+    def repo_path_segments(host, segments)
+      segments = segments.reject(&:empty?)
+
+      if host.to_s.start_with?("gitlab.")
+        separator = segments.index("-")
+        segments = segments[0...separator] if separator
+      else
+        segments = segments.first(2)
+      end
+
+      segments[-1] = segments[-1].delete_suffix(".git") unless segments.empty?
+      segments
     end
 
     def encode(value)
