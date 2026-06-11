@@ -89,7 +89,7 @@ module StillActive
 
     def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:, advisory_db: nil)
       vs = versions(gem_name: gem_name, source_uri: source_uri)
-      repo_info = repository_info(gem_name: gem_name, versions: vs)
+      repo_info = repository_info(gem_name: gem_name, versions: vs, source_uri: source_uri)
       commit_date = last_commit_date(
         source: repo_info[:source],
         repository_owner: repo_info[:owner],
@@ -189,6 +189,9 @@ module StillActive
         fetch_github_packages_versions(gem_name: gem_name, source_uri: source_uri)
       elsif ArtifactoryClient.artifactory_uri?(source_uri)
         ArtifactoryClient.versions(gem_name: gem_name, source_uri: source_uri)
+      elsif unqueryable_private_source?(source_uri)
+        warn_unqueryable_private_source(gem_name: gem_name, source_uri: source_uri)
+        []
       else
         Gems.versions(gem_name)
       end
@@ -203,6 +206,32 @@ module StillActive
       uri.is_a?(String) && URI(uri).host == "rubygems.pkg.github.com"
     rescue URI::InvalidURIError
       false
+    end
+
+    # A rubygems-type source that isn't public rubygems.org and that we have no
+    # client for (Gemfury, Gemstash, geminabox, a private mirror). We must NOT
+    # fall through to Gems.versions, which always hits public rubygems.org: that
+    # would silently report a public name-collision's data, or blanks, as if it
+    # were the private gem's. github_packages/artifactory are handled above, so
+    # anything left with a non-rubygems.org host is unqueryable. Refs #43.
+    def unqueryable_private_source?(source_uri)
+      return false unless source_uri.is_a?(String)
+
+      # Hostnames are case-insensitive; a trailing dot (FQDN form) is equivalent.
+      host = URI(source_uri).host&.downcase&.chomp(".")
+      return false if host.nil?
+
+      host != "rubygems.org" && !host.end_with?(".rubygems.org")
+    rescue URI::InvalidURIError
+      false
+    end
+
+    def warn_unqueryable_private_source(gem_name:, source_uri:)
+      host = URI(source_uri).host
+      $stderr.puts(
+        "warning: #{gem_name} resolves from a private source (#{host}) still_active cannot query; " \
+          "reporting no version/latest/libyear data for it rather than substituting public rubygems.org data",
+      )
     end
 
     def fetch_github_packages_versions(gem_name:, source_uri:)
@@ -236,12 +265,23 @@ module StillActive
       repo.merge(project_id: project_id)
     end
 
-    def repository_info(gem_name:, versions:)
+    def repository_info(gem_name:, versions:, source_uri: nil)
       valid_repository_url =
         installed_gem_urls(gem_name: gem_name).find { |url| Repository.valid?(url: url) } ||
         rubygems_versions_repository_url(versions: versions).find { |url| Repository.valid?(url: url) } ||
-        rubygems_gem_repository_url(gem_name: gem_name).find { |url| Repository.valid?(url: url) }
+        public_rubygems_repository_url(gem_name: gem_name, source_uri: source_uri)
       Repository.url_with_owner_and_name(url: valid_repository_url)
+    end
+
+    # Locally-installed gem metadata and the gem's own version payload are
+    # source-accurate. This public rubygems.org Gems.info lookup is the last
+    # resort, and is skipped for an unqueryable private source: otherwise a
+    # public name-collision's repo/archived/last-commit data would stand in for
+    # the private gem, the same substitution #43 prevents for versions.
+    def public_rubygems_repository_url(gem_name:, source_uri:)
+      return if unqueryable_private_source?(source_uri)
+
+      rubygems_gem_repository_url(gem_name: gem_name).find { |url| Repository.valid?(url: url) }
     end
 
     def installed_gem_urls(gem_name:)
