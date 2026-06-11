@@ -108,4 +108,43 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(described_class.project_scorecard(project_id: "github.com/sparklemotion/nokogiri")).to(be_nil)
     end
   end
+
+  describe("#extract_project_id (SOURCE_REPO URL parsing)") do
+    def project_id(url)
+      described_class.send(:extract_project_id, { "links" => [{ "label" => "SOURCE_REPO", "url" => url }] })
+    end
+
+    it("keeps the full path for a GitLab subgroup project") do
+      expect(project_id("https://gitlab.com/group/subgroup/project")).to(eq("gitlab.com/group/subgroup/project"))
+    end
+
+    it("keeps deeply nested GitLab subgroups") do
+      expect(project_id("https://gitlab.com/a/b/c/project")).to(eq("gitlab.com/a/b/c/project"))
+    end
+
+    it("strips GitLab's /-/ tree suffix but keeps the subgroup path") do
+      expect(project_id("https://gitlab.com/group/sub/project/-/tree/main")).to(eq("gitlab.com/group/sub/project"))
+    end
+
+    it("keeps a plain two-level GitLab project") do
+      expect(project_id("https://gitlab.com/owner/project")).to(eq("gitlab.com/owner/project"))
+    end
+
+    it("keeps owner/repo for GitHub") do
+      expect(project_id("https://github.com/rails/rails")).to(eq("github.com/rails/rails"))
+    end
+
+    it("strips GitHub tree/blob extras") do
+      expect(project_id("https://github.com/rails/rails/tree/v7.1.0")).to(eq("github.com/rails/rails"))
+    end
+
+    it("strips a trailing slash and .git suffix") do
+      expect(project_id("https://github.com/rails/rails/")).to(eq("github.com/rails/rails"))
+      expect(project_id("https://github.com/rails/rails.git")).to(eq("github.com/rails/rails"))
+    end
+
+    it("returns nil when there is no SOURCE_REPO link") do
+      expect(described_class.send(:extract_project_id, { "links" => [] })).to(be_nil)
+    end
+  end
 end
