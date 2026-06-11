@@ -6,6 +6,17 @@
 
 - JFrog Artifactory gem registry support: fetches versions from `.jfrog.io` RubyGems-compatible registries via the versions API with an AQL search fallback. Auth reuses Bundler's per-source credentials when present, otherwise a global token via `--artifactory-token` or `STILL_ACTIVE_ARTIFACTORY_TOKEN` (requires a matching `--artifactory-host` / `STILL_ACTIVE_ARTIFACTORY_HOST`).
 
+### Fixed
+
+- CycloneDX SBOM: every versioned component now carries a purl. git/path gems were previously emitted as versioned `type:library` components with no purl, which made Datadog SCA and strict CycloneDX consumers reject the document. The Ruby runtime component also gains a `pkg:generic/ruby` purl and a `ruby-lang:ruby` CPE so interpreter CVEs can match. (#45)
+- deps.dev OpenSSF Scorecard lookups now keep the full GitLab subgroup path. `extract_project_id` truncated `gitlab.com/group/subgroup/project` to `gitlab.com/group/subgroup`, so the score was fetched for the wrong project on any nested GitLab namespace. (#44)
+- GitHub Packages version lookups now URL-escape the (lockfile-derived) gem name, matching the Artifactory path. A name with URL-unsafe characters previously raised `URI::InvalidComponentError`, which was swallowed and silently dropped that gem from the audit. Defensive hardening for the untrusted-lockfile stance; the GitHub token is never sent off the fixed `rubygems.pkg.github.com` host. (#50)
+
+### Security
+
+- Markdown output now escapes untrusted metadata. Gem names, licences, versions, repository URLs, and advisory ids drawn from registry/repo metadata, the Gemfile/lockfile, `--baseline`, or `--gems` could otherwise forge table columns or links, break a code span, or inject a list item/heading into a PR comment. GFM escaping is centralised in `StillActive::MarkdownEscape` and applied to both the audit table and the PR diff. (#38)
+- The Ruby Toolbox catalog (used by `--alternatives`) is now fetched via `URI.parse(url).open` instead of `URI.open`, resolving a CodeQL `rb/non-constant-kernel-open` finding. The URL is a constant repo-archive link with no injection path, so this is hardening rather than a fix for a reachable issue.
+
 ## [1.6.0] - 2026-06-08
 
 ### Added
