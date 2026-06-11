@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "markdown_escape"
 require_relative "vulnerability_helper"
 
 module StillActive
@@ -91,7 +92,7 @@ module StillActive
       return "" if flagged.empty?
 
       lines = ["", "**Alternatives** (Ruby Toolbox leads, verify fit):"]
-      flagged.each { |name, data| lines << "- `#{escape_cell(name)}`: #{escape_cell(data[:alternatives].join(", "))}" }
+      flagged.each { |name, data| lines << "- #{MarkdownEscape.code_span(name)}: #{MarkdownEscape.inline(data[:alternatives].join(", "))}" }
       lines.join("\n")
     end
 
@@ -128,7 +129,7 @@ module StillActive
     def format_license(license)
       return "-" if license.nil? || license.empty?
 
-      escape_cell(license)
+      MarkdownEscape.cell(license)
     end
 
     def format_vulns(data)
@@ -141,42 +142,15 @@ module StillActive
       ids = vulnerabilities.flat_map { |v| [v[:id], *v[:aliases]] }.compact.uniq.first(3)
 
       parts = [severity ? "#{count} (#{severity})" : count.to_s]
-      parts << escape_cell(ids.join(", ")) unless ids.empty?
+      parts << MarkdownEscape.cell(ids.join(", ")) unless ids.empty?
       parts.join(" ")
     end
 
     def markdown_url(text:, url:)
-      safe_text = escape_link_text(text)
+      safe_text = MarkdownEscape.link_text(text)
       return safe_text if url.nil?
 
-      "[#{safe_text}](#{escape_url(url)})"
-    end
-
-    # Untrusted gem names / licences / metadata land in GFM table cells. A
-    # literal "|" or newline would forge extra columns or break the row.
-    # Backslash is escaped first so it can't escape a following delimiter or a
-    # synthesized link bracket.
-    def escape_cell(text)
-      return text if text.nil?
-
-      text.to_s.gsub(/[\\|\r\n]/, "\\" => "\\\\", "|" => "\\|", "\r" => " ", "\n" => " ")
-    end
-
-    # Markdown link text additionally must not contain "[" or "]", which could
-    # forge or truncate the link.
-    def escape_link_text(text)
-      return text if text.nil?
-
-      escape_cell(text).gsub(/[\[\]]/, "[" => "\\[", "]" => "\\]")
-    end
-
-    # Percent-encode the few characters that would break out of a "(...)" link
-    # destination or the table row. Legitimate http(s) URLs never contain these
-    # literally, so encoding is lossless for real metadata.
-    def escape_url(url)
-      return url if url.nil?
-
-      url.to_s.gsub(/[|() \t\r\n]/, "|" => "%7C", "(" => "%28", ")" => "%29", " " => "%20", "\t" => "%09", "\r" => "%0D", "\n" => "%0A")
+      "[#{safe_text}](#{MarkdownEscape.url(url)})"
     end
 
     def year_month(time_object)
