@@ -27,7 +27,13 @@ module StillActive
         response = http.request(request)
 
         if response.is_a?(Net::HTTPRedirection)
-          redirect_uri = uri + response["Location"]
+          location = response["Location"]
+          if location.nil? || location.empty?
+            $stderr.puts("warning: #{uri.host}#{uri.path} returned HTTP #{response.code} with no Location header")
+            return
+          end
+
+          redirect_uri = uri + location
           unless TRUSTED_HOSTS.include?(redirect_uri.host)
             $stderr.puts("warning: #{uri.host}#{uri.path} redirected to untrusted host #{redirect_uri.host}, skipping")
             return
@@ -53,6 +59,9 @@ module StillActive
       nil
     rescue JSON::ParserError => e
       $stderr.puts("warning: #{uri.host}#{uri.path} returned invalid JSON: #{e.message}")
+      nil
+    rescue URI::InvalidURIError => e
+      $stderr.puts("warning: #{uri.host}#{uri.path} returned an invalid redirect Location: #{e.message}")
       nil
     end
 
@@ -73,7 +82,13 @@ module StillActive
         response = http.request(request)
 
         if response.is_a?(Net::HTTPRedirection)
-          redirect_uri = uri + response["Location"]
+          location = response["Location"]
+          if location.nil? || location.empty?
+            $stderr.puts("warning: #{uri.host}#{uri.path} returned HTTP #{response.code} with no Location header")
+            return
+          end
+
+          redirect_uri = uri + location
           unless TRUSTED_HOSTS.include?(redirect_uri.host)
             $stderr.puts("warning: #{uri.host}#{uri.path} redirected to untrusted host #{redirect_uri.host}, skipping")
             return
@@ -99,6 +114,9 @@ module StillActive
       nil
     rescue JSON::ParserError => e
       $stderr.puts("warning: #{uri.host}#{uri.path} returned invalid JSON: #{e.message}")
+      nil
+    rescue URI::InvalidURIError => e
+      $stderr.puts("warning: #{uri.host}#{uri.path} returned an invalid redirect Location: #{e.message}")
       nil
     end
   end

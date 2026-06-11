@@ -63,6 +63,25 @@ RSpec.describe(StillActive::HttpHelper) do
       # The loop runs MAX_REDIRECTS (3) times, so the fourth hop is never requested.
       expect(landing).not_to(have_been_requested)
     end
+
+    it("returns nil instead of raising when a 3xx response has no Location header") do
+      stub_request(:get, "https://api.deps.dev/x").to_return(status: 302)
+
+      result = nil
+      expect { result = described_class.get_json(URI("https://api.deps.dev"), "/x", headers: auth) }
+        .not_to(raise_error)
+      expect(result).to(be_nil)
+    end
+
+    it("returns nil instead of raising when a 3xx Location is malformed") do
+      stub_request(:get, "https://api.deps.dev/x")
+        .to_return(status: 302, headers: { "Location" => "http://[bad" })
+
+      result = nil
+      expect { result = described_class.get_json(URI("https://api.deps.dev"), "/x", headers: auth) }
+        .not_to(raise_error)
+      expect(result).to(be_nil)
+    end
   end
 
   # post_json carries the AQL fallback, so it must enforce the same boundary as
@@ -102,6 +121,37 @@ RSpec.describe(StillActive::HttpHelper) do
 
       expect(result).to(be_nil)
       expect(evil).not_to(have_been_requested)
+    end
+
+    it("returns nil instead of raising when a 3xx response has no Location header") do
+      stub_request(:post, "https://my-org.jfrog.io/api/search/aql").to_return(status: 302)
+
+      result = nil
+      expect do
+        result = described_class.post_json(
+          URI("https://my-org.jfrog.io"),
+          "/api/search/aql",
+          body: "items.find({})",
+          headers: auth,
+        )
+      end.not_to(raise_error)
+      expect(result).to(be_nil)
+    end
+
+    it("returns nil instead of raising when a 3xx Location is malformed") do
+      stub_request(:post, "https://my-org.jfrog.io/api/search/aql")
+        .to_return(status: 302, headers: { "Location" => "http://[bad" })
+
+      result = nil
+      expect do
+        result = described_class.post_json(
+          URI("https://my-org.jfrog.io"),
+          "/api/search/aql",
+          body: "items.find({})",
+          headers: auth,
+        )
+      end.not_to(raise_error)
+      expect(result).to(be_nil)
     end
   end
 end
