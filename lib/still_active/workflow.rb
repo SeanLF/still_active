@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "artifactory_client"
 require_relative "deps_dev_client"
 require_relative "gitlab_client"
 require_relative "repository"
@@ -185,6 +186,8 @@ module StillActive
     def versions(gem_name:, source_uri: nil)
       if github_packages_uri?(source_uri)
         fetch_github_packages_versions(gem_name: gem_name, source_uri: source_uri)
+      elsif ArtifactoryClient.artifactory_uri?(source_uri)
+        ArtifactoryClient.versions(gem_name: gem_name, source_uri: source_uri)
       else
         Gems.versions(gem_name)
       end

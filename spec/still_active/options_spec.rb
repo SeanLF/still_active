@@ -86,6 +86,16 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.gitlab_token).to(eq("glpat-123"))
     end
 
+    it("sets artifactory token") do
+      described_class.new.parse!(["--artifactory-token=art-token", "--gems=rails"])
+      expect(StillActive.config.artifactory_token).to(eq("art-token"))
+    end
+
+    it("sets artifactory host") do
+      described_class.new.parse!(["--artifactory-host=my-org.jfrog.io", "--gems=rails"])
+      expect(StillActive.config.artifactory_host).to(eq("my-org.jfrog.io"))
+    end
+
     it("sets safe range end") do
       described_class.new.parse!(["--safe-range-end=2", "--gems=rails"])
       expect(StillActive.config.no_warning_range_end).to(eq(2))

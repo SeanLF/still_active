@@ -89,6 +89,10 @@ Without a token, GitHub API calls are unauthenticated and rate-limited to 60 req
 
 GitLab cascade mirrors GitHub: `--gitlab-token` → `GITLAB_TOKEN` → `glab auth status --show-token`. Optional for public repos, required for private ones.
 
+Artifactory auth prefers Bundler's per-source credentials (`Bundler.settings` for the source URL or hostname) so private registries work the same way `bundle install` does and multiple hosts need no extra configuration. If none are set, still_active falls back to a global token via `--artifactory-token` or `STILL_ACTIVE_ARTIFACTORY_TOKEN`; that path requires `--artifactory-host` / `STILL_ACTIVE_ARTIFACTORY_HOST` to prevent sending the token to an unexpected host from the lockfile. Use `user:password` in Bundler settings for Basic auth, or a bare token for Bearer auth. Required for private JFrog gem registries (`.jfrog.io`).
+
+When providing the artifactory token via flag or env, you must also set `--artifactory-host` or `STILL_ACTIVE_ARTIFACTORY_HOST` to the expected registry hostname (e.g. `my-org.jfrog.io`). still_active only sends the token to a matching host, so a lockfile cannot redirect it elsewhere to prevent leaking the token to an unverified host. Providing a token/host in this manner will work only for a single-host. To support multiple Artifactory hosts, use Bundler's credentials per source URL or hostname (`bundle config set credentials.my-org.jfrog.io user:pass`).
+
 ### CLI options
 
 ```text
@@ -108,6 +112,8 @@ Usage: still_active [options]
         --baseline=PATH              Compare current state to baseline JSON; emit markdown deltas
         --github-oauth-token=TOKEN   GitHub OAuth token to make API calls
         --gitlab-token=TOKEN         GitLab personal access token for API calls
+        --artifactory-token=TOKEN    Artifactory token for private gem registry API calls
+        --artifactory-host=HOST      Artifactory host allowed to receive the global token (e.g. my-org.jfrog.io)
         --simultaneous-requests=QTY  Number of simultaneous requests made
         --safe-range-end=YEARS       maximum years since last activity considered safe (no warning)
         --warning-range-end=YEARS    maximum years since last activity that triggers a warning (beyond this is critical)
@@ -358,7 +364,7 @@ These are **leads, not recommendations**: same-category does not mean drop-in re
 
 ### Data sources
 
-- **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org) or [GitHub Packages](https://docs.github.com/en/packages)
+- **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org), [GitHub Packages](https://docs.github.com/en/packages), or [JFrog Artifactory](https://jfrog.com/artifactory/) gem registries
 - **Last commit date and archived status** from the [GitHub](https://docs.github.com/en/rest) or [GitLab](https://docs.gitlab.com/ee/api/) API
 - **OpenSSF Scorecard**, **vulnerability counts**, and **CVSS severity** from Google's [deps.dev](https://deps.dev) API
 - **Additional advisories** from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db), merged in when `bundler-audit` is installed alongside (run `bundle audit update` to keep its checkout current)
