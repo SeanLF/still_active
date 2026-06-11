@@ -15,6 +15,7 @@ require_relative "../helpers/vulnerability_helper"
 require "async"
 require "async/barrier"
 require "async/semaphore"
+require "cgi"
 require "gems"
 
 module StillActive
@@ -207,7 +208,7 @@ module StillActive
     def fetch_github_packages_versions(gem_name:, source_uri:)
       base = URI(source_uri.chomp("/"))
       namespace_path = base.path
-      path = "#{namespace_path}/api/v1/gems/#{gem_name}/versions.json"
+      path = "#{namespace_path}/api/v1/gems/#{CGI.escape(gem_name)}/versions.json"
       token = StillActive.config.github_oauth_token
       headers = token ? { "Authorization" => "Bearer #{token}" } : {}
       HttpHelper.get_json(base, path, headers: headers) || []
