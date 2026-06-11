@@ -25,26 +25,19 @@ module StillActive
       []
     end
 
-    # Artifactory's Rubygems-compatible API
-    module RubygemsClient
-      extend self
-
-      def versions(gem_name:, source_uri:)
-        base = URI(source_uri.chomp("/"))
-        path = "#{base.path}/api/v1/versions/#{encode(gem_name)}.json"
-        HttpHelper.get_json(base, path, headers: auth_headers(source_uri)) || []
-      end
-
+    module Authentication
       private
-
-      def encode(value)
-        CGI.escape(value)
-      end
 
       def credentials(source_uri)
         host = URI(source_uri).host
-        creds = Bundler.settings[source_uri] || Bundler.settings[host]
-        creds && !creds.empty? ? creds : StillActive.config.artifactory_token
+        bundler = Bundler.settings[source_uri] || Bundler.settings[host]
+        return bundler if bundler && !bundler.empty?
+
+        global = StillActive.config.artifactory_token
+        configured_host = StillActive.config.artifactory_host
+        return unless global && configured_host && host&.casecmp?(configured_host)
+
+        global
       end
 
       def auth_headers(source_uri)
@@ -60,10 +53,29 @@ module StillActive
       end
     end
 
+    # Artifactory's Rubygems-compatible API
+    module RubygemsClient
+      extend self
+      include Authentication
+
+      def versions(gem_name:, source_uri:)
+        base = URI(source_uri.chomp("/"))
+        path = "#{base.path}/api/v1/versions/#{encode(gem_name)}.json"
+        HttpHelper.get_json(base, path, headers: auth_headers(source_uri)) || []
+      end
+
+      private
+
+      def encode(value)
+        CGI.escape(value)
+      end
+    end
+
     # AQL stands for Artifactory Query Language
     # https://docs.jfrog.com/artifactory/docs/artifactory-query-language
     module AqlClient
       extend self
+      include Authentication
 
       SOURCE_URL_PATTERN = %r{\A(https?://[^/]+\.jfrog\.io/[^/]+)/api/gems/([^/]+)/?\z}
       AQL_PATH = "/api/search/aql"
@@ -137,24 +149,6 @@ module StillActive
           return candidate if Gem::Version.correct?(candidate)
         end
         nil
-      end
-
-      def credentials(source_uri)
-        host = URI(source_uri).host
-        creds = Bundler.settings[source_uri] || Bundler.settings[host]
-        creds && !creds.empty? ? creds : StillActive.config.artifactory_token
-      end
-
-      def auth_headers(source_uri)
-        creds = credentials(source_uri)
-        return {} unless creds
-
-        if creds.include?(":")
-          user, pass = creds.split(":", 2).map { |part| CGI.unescape(part) }
-          { "Authorization" => "Basic #{["#{user}:#{pass}"].pack("m0")}" }
-        else
-          { "Authorization" => "Bearer #{creds}" }
-        end
       end
     end
   end

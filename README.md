@@ -91,6 +91,8 @@ GitLab cascade mirrors GitHub: `--gitlab-token` → `GITLAB_TOKEN` → `glab aut
 
 Artifactory cascade: `--artifactory-token` → `STILL_ACTIVE_ARTIFACTORY_TOKEN` → Bundler credentials for the gem source URL (or host). Use `user:password` in Bundler settings for Basic auth, or a bare token for Bearer auth. Required for private JFrog gem registries (`.jfrog.io`).
 
+When providing the artifactory token via flag or env, you must also set `--artifactory-host` or `STILL_ACTIVE_ARTIFACTORY_HOST` to the expected registry hostname (e.g. `my-org.jfrog.io`). still_active only sends the a token to a matching host, so a lockfile cannot redirect it elsewhere to prevent leaking the token to an unverified host. Providing a token/host in this manner will work only for a single-host. To support multiple Artifactory hosts, use Bundler's credentials per source URL or hostname (`bundle config set credentials.my-org.jfrog.io user:pass`).
+
 ### CLI options
 
 ```text
@@ -111,6 +113,7 @@ Usage: still_active [options]
         --github-oauth-token=TOKEN   GitHub OAuth token to make API calls
         --gitlab-token=TOKEN         GitLab personal access token for API calls
         --artifactory-token=TOKEN    Artifactory token for private gem registry API calls
+        --artifactory-host=HOST      Artifactory host allowed to receive the global token (e.g. my-org.jfrog.io)
         --simultaneous-requests=QTY  Number of simultaneous requests made
         --safe-range-end=YEARS       maximum years since last activity considered safe (no warning)
         --warning-range-end=YEARS    maximum years since last activity that triggers a warning (beyond this is critical)

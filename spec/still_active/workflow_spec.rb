@@ -242,6 +242,7 @@ RSpec.describe(StillActive::Workflow) do
 
       it("fetches versions from the Artifactory versions API with Bearer auth") do
         StillActive.config.artifactory_token = "art-test-token"
+        StillActive.config.artifactory_host  = "my-org.jfrog.io"
         stub_request(:get, versions_api_url)
           .to_return(status: 200, body: artifactory_versions.to_json, headers: { "Content-Type" => "application/json" })
 
@@ -271,6 +272,7 @@ RSpec.describe(StillActive::Workflow) do
 
       it("falls back to AQL when the versions API returns 404") do
         StillActive.config.artifactory_token = "art-test-token"
+        StillActive.config.artifactory_host  = "my-org.jfrog.io"
         stub_request(:get, versions_api_url).to_return(status: 404)
         aql_body = {
           "results" => [

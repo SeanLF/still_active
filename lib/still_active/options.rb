@@ -94,6 +94,9 @@ module StillActive
       opts.on("--artifactory-token=TOKEN", String, "Artifactory token for private gem registry API calls") do |value|
         StillActive.config { |config| config.artifactory_token = value }
       end
+      opts.on("--artifactory-host=HOST", String, "Artifactory host that may receive the global token (e.g. my-org.jfrog.io)") do |value|
+        StillActive.config { |config| config.artifactory_host = value }
+      end
     end
 
     def add_parallelism_options(opts)
