@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "time"
+require_relative "bundler_helper"
 require_relative "http_helper"
 require_relative "libyear_helper"
 
@@ -48,10 +49,10 @@ module StillActive
     end
 
     def lockfile_ruby_version
-      gemfile = ENV["BUNDLE_GEMFILE"]
-      return unless gemfile
-
-      lockfile_path = "#{gemfile}.lock"
+      # Use the configured gemfile (honours --gemfile) rather than the ambient
+      # BUNDLE_GEMFILE, which only happened to work when BundlerHelper set it as
+      # a side-effect. Refs #42.
+      lockfile_path = BundlerHelper.lockfile_path_for(File.expand_path(StillActive.config.gemfile_path))
       return unless File.exist?(lockfile_path)
 
       content = File.read(lockfile_path)
