@@ -4,7 +4,7 @@
 
 ### Added
 
-- JFrog Artifactory gem registry support: fetches versions from `.jfrog.io` RubyGems-compatible registries via the versions API with an AQL search fallback. Auth via `--artifactory-token`, `STILL_ACTIVE_ARTIFACTORY_TOKEN`, or Bundler credentials for the source URL.
+- JFrog Artifactory gem registry support: fetches versions from `.jfrog.io` RubyGems-compatible registries via the versions API with an AQL search fallback. Auth reuses Bundler's per-source credentials when present, otherwise a global token via `--artifactory-token` or `STILL_ACTIVE_ARTIFACTORY_TOKEN` (requires a matching `--artifactory-host` / `STILL_ACTIVE_ARTIFACTORY_HOST`).
 
 ## [1.6.0] - 2026-06-08
 
