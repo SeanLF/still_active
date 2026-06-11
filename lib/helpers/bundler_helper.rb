@@ -1,52 +1,48 @@
 # frozen_string_literal: true
 
+require_relative "lockfile_dependency_parser"
+
 module StillActive
   module BundlerHelper
     extend self
 
     def gemfile_dependencies(gemfile_path: StillActive.config.gemfile_path)
       absolute_gemfile = File.expand_path(gemfile_path)
-      ::Bundler::SharedHelpers.set_env("BUNDLE_GEMFILE", absolute_gemfile)
-      gemfile_gems = ::Bundler.definition.dependencies.map(&:name)
-      locked_gems = ::Bundler.definition.locked_gems
-      if locked_gems.nil?
+      lockfile = lockfile_path_for(absolute_gemfile)
+      unless File.file?(lockfile)
         raise MissingLockfileError,
-          "no lockfile next to #{absolute_gemfile} — run `bundle lock` (or `bundle install`) first"
+          "no lockfile next to #{absolute_gemfile}; run `bundle lock` (or `bundle install`) first"
       end
 
-      locked_gems
-        .specs
-        .select { |spec| gemfile_gems.include?(spec.name) }
+      parsed = LockfileDependencyParser.parse(File.read(lockfile))
+      if parsed[:plugin_source?]
+        warn("warning: lockfile contains a PLUGIN SOURCE block; still_active does not audit Bundler plugins, skipping it")
+      end
+
+      direct = parsed[:direct]
+      parsed[:specs]
+        .select { |spec| direct.include?(spec.name) }
         .uniq(&:name)
         .map do |spec|
           {
             name: spec.name,
-            version: spec.version.version,
-            source_type: detect_source_type(spec),
-            source_uri: detect_source_uri(spec),
+            version: spec.version,
+            source_type: spec.source_type || :unknown,
+            source_uri: spec.source_uri,
           }
         end
     end
 
-    private
-
-    def detect_source_type(spec)
-      case spec.source
-      when ::Bundler::Source::Rubygems then :rubygems
-      when ::Bundler::Source::Git then :git
-      when ::Bundler::Source::Path then :path
-      else :unknown
-      end
-    end
-
-    def detect_source_uri(spec)
-      case spec.source
-      when ::Bundler::Source::Rubygems
-        spec.source.remotes&.first&.to_s
-      when ::Bundler::Source::Git
-        spec.source.uri
-      when ::Bundler::Source::Path
-        spec.source.path&.to_s
+    # Bundler's lockfile naming: `gems.rb` pairs with `gems.locked`, every other
+    # Gemfile with `<gemfile>.lock`. Derived from the explicit path rather than
+    # global Bundler state so `--gemfile` is honoured even under `bundle exec`
+    # (where a memoized Bundler.definition / ambient BUNDLE_GEMFILE would
+    # otherwise win). Refs #42.
+    def lockfile_path_for(gemfile)
+      if File.basename(gemfile) == "gems.rb"
+        File.join(File.dirname(gemfile), "gems.locked")
+      else
+        "#{gemfile}.lock"
       end
     end
   end
