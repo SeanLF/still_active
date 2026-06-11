@@ -1,0 +1,107 @@
+# frozen_string_literal: true
+
+require_relative "../../lib/helpers/http_helper"
+
+RSpec.describe(StillActive::HttpHelper) do
+  let(:auth) { { "Authorization" => "Bearer secret-token" } }
+
+  # The redirect branches are the load-bearing guarantee that credentials never
+  # follow a gem-source redirect onto a host they weren't issued for. A gem
+  # source URL is lockfile-controlled, so this is the security boundary.
+  describe(".get_json") do
+    it("drops the Authorization header when a redirect crosses to a different (trusted) host") do
+      stub_request(:get, "https://my-org.jfrog.io/start")
+        .to_return(status: 302, headers: { "Location" => "https://api.deps.dev/landing" })
+      stub_request(:get, "https://api.deps.dev/landing")
+        .to_return(status: 200, body: '{"ok":true}', headers: { "Content-Type" => "application/json" })
+
+      result = described_class.get_json(URI("https://my-org.jfrog.io"), "/start", headers: auth)
+
+      expect(result).to(eq("ok" => true))
+      expect(WebMock).to(have_requested(:get, "https://my-org.jfrog.io/start")
+        .with { |req| req.headers.key?("Authorization") })
+      expect(WebMock).to(have_requested(:get, "https://api.deps.dev/landing")
+        .with { |req| !req.headers.key?("Authorization") })
+    end
+
+    it("does not follow a redirect to an untrusted host, and never sends the token there") do
+      stub_request(:get, "https://my-org.jfrog.io/start")
+        .to_return(status: 302, headers: { "Location" => "https://evil.example.com/steal" })
+      evil = stub_request(:get, "https://evil.example.com/steal")
+
+      result = described_class.get_json(URI("https://my-org.jfrog.io"), "/start", headers: auth)
+
+      expect(result).to(be_nil)
+      expect(evil).not_to(have_been_requested)
+    end
+
+    it("keeps the Authorization header on a same-host redirect") do
+      stub_request(:get, "https://api.deps.dev/a")
+        .to_return(status: 302, headers: { "Location" => "https://api.deps.dev/b" })
+      stub_request(:get, "https://api.deps.dev/b")
+        .to_return(status: 200, body: "{}", headers: { "Content-Type" => "application/json" })
+
+      described_class.get_json(URI("https://api.deps.dev"), "/a", headers: auth)
+
+      expect(WebMock).to(have_requested(:get, "https://api.deps.dev/b")
+        .with { |req| req.headers.key?("Authorization") })
+    end
+
+    it("gives up after MAX_REDIRECTS and returns nil") do
+      stub_request(:get, "https://api.deps.dev/1")
+        .to_return(status: 302, headers: { "Location" => "https://github.com/2" })
+      stub_request(:get, "https://github.com/2")
+        .to_return(status: 302, headers: { "Location" => "https://gitlab.com/3" })
+      stub_request(:get, "https://gitlab.com/3")
+        .to_return(status: 302, headers: { "Location" => "https://api.deps.dev/4" })
+      landing = stub_request(:get, "https://api.deps.dev/4")
+        .to_return(status: 200, body: "{}")
+
+      result = described_class.get_json(URI("https://api.deps.dev"), "/1", headers: auth)
+
+      expect(result).to(be_nil)
+      # The loop runs MAX_REDIRECTS (3) times, so the fourth hop is never requested.
+      expect(landing).not_to(have_been_requested)
+    end
+  end
+
+  # post_json carries the AQL fallback, so it must enforce the same boundary as
+  # the versions GET.
+  describe(".post_json") do
+    it("drops the Authorization header when a redirect crosses to a different (trusted) host") do
+      stub_request(:post, "https://my-org.jfrog.io/api/search/aql")
+        .to_return(status: 302, headers: { "Location" => "https://api.deps.dev/landing" })
+      stub_request(:post, "https://api.deps.dev/landing")
+        .to_return(status: 200, body: '{"results":[]}', headers: { "Content-Type" => "application/json" })
+
+      result = described_class.post_json(
+        URI("https://my-org.jfrog.io"),
+        "/api/search/aql",
+        body: "items.find({})",
+        headers: auth,
+      )
+
+      expect(result).to(eq("results" => []))
+      expect(WebMock).to(have_requested(:post, "https://my-org.jfrog.io/api/search/aql")
+        .with { |req| req.headers.key?("Authorization") })
+      expect(WebMock).to(have_requested(:post, "https://api.deps.dev/landing")
+        .with { |req| !req.headers.key?("Authorization") })
+    end
+
+    it("does not follow a redirect to an untrusted host, and never sends the token there") do
+      stub_request(:post, "https://my-org.jfrog.io/api/search/aql")
+        .to_return(status: 302, headers: { "Location" => "https://evil.example.com/steal" })
+      evil = stub_request(:post, "https://evil.example.com/steal")
+
+      result = described_class.post_json(
+        URI("https://my-org.jfrog.io"),
+        "/api/search/aql",
+        body: "items.find({})",
+        headers: auth,
+      )
+
+      expect(result).to(be_nil)
+      expect(evil).not_to(have_been_requested)
+    end
+  end
+end
