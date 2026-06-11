@@ -444,4 +444,59 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
   end
+
+  describe(".versions") do
+    before { allow(Gems).to(receive(:versions).and_return([{ "number" => "9.9.9" }])) }
+
+    it("queries public rubygems for a gem from the public source") do
+      result = described_class.send(:versions, gem_name: "rake", source_uri: "https://rubygems.org/")
+
+      expect(result).to(eq([{ "number" => "9.9.9" }]))
+      expect(Gems).to(have_received(:versions).with("rake"))
+    end
+
+    it("queries public rubygems when no source is known (e.g. --gems mode)") do
+      described_class.send(:versions, gem_name: "rake", source_uri: nil)
+
+      expect(Gems).to(have_received(:versions).with("rake"))
+    end
+
+    it("does not query public rubygems for a gem from an unqueryable private source") do
+      result = nil
+      expect do
+        result = described_class.send(:versions, gem_name: "internalgem", source_uri: "https://gems.internal.example.com/")
+      end.to(output(/private source/i).to_stderr)
+
+      expect(result).to(eq([]))
+      expect(Gems).not_to(have_received(:versions))
+    end
+
+    it("treats rubygems.org subdomains as public") do
+      described_class.send(:versions, gem_name: "rake", source_uri: "https://index.rubygems.org/")
+
+      expect(Gems).to(have_received(:versions).with("rake"))
+    end
+
+    it("treats an uppercase RubyGems.org host as public (hostnames are case-insensitive)") do
+      described_class.send(:versions, gem_name: "rake", source_uri: "https://RubyGems.org/")
+
+      expect(Gems).to(have_received(:versions).with("rake"))
+    end
+  end
+
+  describe(".repository_info") do
+    before { allow(Gems).to(receive(:info).and_return({ "homepage_uri" => nil, "source_code_uri" => nil })) }
+
+    it("does not consult public rubygems.org metadata for an unqueryable private source") do
+      described_class.send(:repository_info, gem_name: "internalgem_xyz", versions: [], source_uri: "https://gems.internal.example.com/")
+
+      expect(Gems).not_to(have_received(:info))
+    end
+
+    it("falls back to public rubygems.org metadata for a public-source gem") do
+      described_class.send(:repository_info, gem_name: "publicgem_xyz", versions: [], source_uri: "https://rubygems.org/")
+
+      expect(Gems).to(have_received(:info).with("publicgem_xyz"))
+    end
+  end
 end

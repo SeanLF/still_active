@@ -13,6 +13,7 @@
 - GitHub Packages version lookups now URL-escape the (lockfile-derived) gem name, matching the Artifactory path. A name with URL-unsafe characters previously raised `URI::InvalidComponentError`, which was swallowed and silently dropped that gem from the audit. Defensive hardening for the untrusted-lockfile stance; the GitHub token is never sent off the fixed `rubygems.pkg.github.com` host. (#50)
 - `--gemfile` is now honoured under `bundle exec`. Dependency loading and the Ruby-version lookup derived their target from a memoized `Bundler.definition` / the ambient `BUNDLE_GEMFILE`, so an explicit `--gemfile` was ignored; both now read the given path directly. (#42)
 - `HttpHelper` no longer crashes on a 3xx response with a missing or malformed `Location` header. `uri + nil` raised `ArgumentError` and a malformed value raised `URI::InvalidURIError`, neither rescued, so the gem was silently dropped; both now return nil with a warning. (#39)
+- Gems from an unqueryable private source (Gemfury, Gemstash, geminabox, a private mirror) are no longer silently looked up on public rubygems.org. A private name with no public match reported blank data, and one that collided with a public gem reported the *public* gem's versions/dates/libyear/repository as if they were the private gem's. still_active now detects a non-rubygems.org rubygems source, warns, and skips both the public version lookup and the public repository-metadata fallback rather than substituting public data. (#43)
 
 ### Security
 
