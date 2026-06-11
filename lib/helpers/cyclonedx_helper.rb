@@ -55,7 +55,7 @@ module StillActive
       component = { "type" => "library", "name" => name }
       component["version"] = version if version
       component["bom-ref"] = bom_ref(name, data)
-      component["purl"] = purl(name, version) if data[:source_type] == :rubygems && version
+      component["purl"] = purl(name, version, data[:source_type]) if version
       component["licenses"] = licenses(data[:license]) if data[:license]
       if data[:repository_url]
         component["externalReferences"] = [{ "type" => "vcs", "url" => data[:repository_url] }]
@@ -67,13 +67,19 @@ module StillActive
 
     def bom_ref(name, data)
       version = data[:version_used]
-      return purl(name, version) if data[:source_type] == :rubygems && version
+      return purl(name, version, data[:source_type]) if version
 
-      "#{data[:source_type]}-source:#{name}@#{version || "unknown"}"
+      "#{data[:source_type]}-source:#{name}@unknown"
     end
 
-    def purl(name, version)
-      "pkg:gem/#{name}@#{version}"
+    # Datadog SCA (and strict CycloneDX consumers) hard-reject a versioned
+    # library component with no purl, so every gem with a version needs one.
+    # A path gem is local and not on rubygems, so it gets pkg:generic to avoid
+    # false-matching a public gem of the same name; git/rubygems-sourced gems
+    # get pkg:gem so a fork still matches the upstream gem's advisories.
+    def purl(name, version, source_type)
+      type = source_type == :path ? "generic" : "gem"
+      "pkg:#{type}/#{name}@#{version}"
     end
 
     # VersionHelper joins multiple SPDX ids with ", " for terminal/markdown
@@ -93,12 +99,22 @@ module StillActive
       }.filter_map { |name, value| { "name" => name, "value" => value } unless value.nil? }
     end
 
+    # The Ruby interpreter. CycloneDX's "platform" type fits semantically, but
+    # nothing consumes it and strict SCA validators (Datadog) only accept
+    # "library" + a purl. We follow Syft's convention for an unmanaged runtime:
+    # type "library", purl pkg:generic/ruby@<ver>, plus a CPE — the CPE is what
+    # actually lets a matcher (NVD/Grype) hit interpreter CVEs, since no purl
+    # type maps the Ruby runtime in OSV. The EOL/libyear signals stay as
+    # still_active properties.
     def ruby_component(ruby_info)
+      version = ruby_info[:version]
       {
-        "type" => "platform",
+        "type" => "library",
         "name" => "ruby",
-        "version" => ruby_info[:version],
-        "bom-ref" => "platform:ruby@#{ruby_info[:version]}",
+        "version" => version,
+        "bom-ref" => "pkg:generic/ruby@#{version}",
+        "purl" => "pkg:generic/ruby@#{version}",
+        "cpe" => "cpe:2.3:a:ruby-lang:ruby:#{version}:*:*:*:*:*:*:*",
         "properties" => [
           { "name" => "still_active:eol", "value" => boolean_property(ruby_info[:eol]) },
           { "name" => "still_active:libyear", "value" => ruby_info[:libyear]&.to_s },

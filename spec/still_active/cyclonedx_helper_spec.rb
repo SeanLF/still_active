@@ -99,16 +99,37 @@ RSpec.describe(StillActive::CyclonedxHelper) do
       ))
     end
 
-    it("omits the purl for a path-sourced gem but still gives it a bom-ref") do
+    it("gives a path-sourced gem a pkg:generic purl (avoids false rubygems vuln matches)") do
       local = components.find { |c| c["name"] == "local_gem" }
-      expect(local).not_to(have_key("purl"))
-      expect(local["bom-ref"]).not_to(be_empty)
+      expect(local["purl"]).to(eq("pkg:generic/local_gem@0.1.0"))
+      expect(local["bom-ref"]).to(eq("pkg:generic/local_gem@0.1.0"))
     end
 
-    it("includes Ruby as a platform component") do
+    it("gives a git-sourced gem a pkg:gem purl (matches upstream advisories for forks)") do
+      result["forked"] = { source_type: :git, version_used: "1.2.3" }
+      forked = components.find { |c| c["name"] == "forked" }
+      expect(forked["purl"]).to(eq("pkg:gem/forked@1.2.3"))
+      expect(forked["bom-ref"]).to(eq("pkg:gem/forked@1.2.3"))
+    end
+
+    it("gives every versioned component a purl (CycloneDX/SCA ingestion requirement)") do
+      versioned = components.select { |c| c["version"] }
+      expect(versioned).not_to(be_empty)
+      expect(versioned).to(all(have_key("purl")))
+    end
+
+    it("emits Ruby as a library with a pkg:generic purl and CPE (portable + ingestible)") do
       ruby = components.find { |c| c["name"] == "ruby" }
-      expect(ruby["type"]).to(eq("platform"))
+      expect(ruby["type"]).to(eq("library"))
       expect(ruby["version"]).to(eq("3.4.0"))
+      expect(ruby["purl"]).to(eq("pkg:generic/ruby@3.4.0"))
+      expect(ruby["cpe"]).to(eq("cpe:2.3:a:ruby-lang:ruby:3.4.0:*:*:*:*:*:*:*"))
+    end
+
+    it("keeps the Ruby EOL/libyear maintenance signals as properties") do
+      ruby = components.find { |c| c["name"] == "ruby" }
+      props = ruby["properties"].to_h { |p| [p["name"], p["value"]] }
+      expect(props).to(include("still_active:eol" => "false", "still_active:libyear" => "0.0"))
     end
   end
 
