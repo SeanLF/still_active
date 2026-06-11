@@ -157,5 +157,32 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
         expect(md).not_to(include("### Ruby"))
       end
     end
+
+    context("with hostile gem names (from a crafted lockfile or --baseline file)") do
+      it("fences a backtick in a regression gem name so the code span can't break out") do
+        result = StillActive::Diff::Result.new(
+          added: [],
+          removed: [],
+          bumped: [],
+          signal_changes: [],
+          ruby: nil,
+          regressions: [StillActive::Diff::Regression.new(kind: :archived, gem: "ev`il", detail: "x")],
+        )
+        # longest backtick run is 1, so a 2-backtick fence keeps the name intact
+        expect(described_class.render(result)).to(include("``ev`il``"))
+      end
+
+      it("neutralises a newline in an added gem name so the bullet list can't be forged") do
+        result = StillActive::Diff::Result.new(
+          added: [StillActive::Diff::Added.new(name: "foo\n- INJECTED", data: { "version_used" => "1.0" })],
+          removed: [],
+          bumped: [],
+          signal_changes: [],
+          regressions: [],
+          ruby: nil,
+        )
+        expect(described_class.render(result)).not_to(include("foo\n- INJECTED"))
+      end
+    end
   end
 end

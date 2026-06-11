@@ -224,6 +224,71 @@ RSpec.describe(StillActive::MarkdownHelper) do
     end
   end
 
+  describe(".markdown_table_body_line with hostile metadata") do
+    # Gem names, licences, and repo URLs come from untrusted registry/repo
+    # metadata and are rendered into PR comments. A literal "|" must not add
+    # table columns, and "[]" in a name must not forge a markdown link.
+    def body_line(gem_name:, data:)
+      described_class.markdown_table_body_line(gem_name: gem_name, data: data)
+    end
+
+    # A valid 11-column row has exactly 12 unescaped pipe delimiters.
+    def delimiter_count(line)
+      line.scan(/(?<!\\)\|/).length
+    end
+
+    let(:base_data) do
+      {
+        last_activity_warning_emoji: "",
+        up_to_date_emoji: "✅",
+        version_used: "1.0.0",
+        latest_version: "1.0.0",
+        repository_url: "https://github.com/ex/gem",
+        ruby_gems_url: "https://rubygems.org/gems/gem",
+        vulnerability_count: 0,
+        license: "MIT",
+      }
+    end
+
+    it("escapes a pipe in the gem name so the column count is preserved") do
+      line = body_line(gem_name: "evil|name", data: base_data)
+      expect(delimiter_count(line)).to(eq(12))
+    end
+
+    it("escapes a pipe in the licence so the column count is preserved") do
+      line = body_line(gem_name: "gem", data: base_data.merge(license: "MIT | --:|--: | EVIL"))
+      expect(delimiter_count(line)).to(eq(12))
+    end
+
+    it("escapes a pipe in the repository URL so the column count is preserved") do
+      line = body_line(gem_name: "gem", data: base_data.merge(repository_url: "https://evil.test/a|b"))
+      expect(delimiter_count(line)).to(eq(12))
+    end
+
+    it("escapes brackets in the gem name so no nested markdown link is forged") do
+      line = body_line(gem_name: "[click](javascript:alert(1))", data: base_data)
+      expect(line).not_to(include("[click](javascript:alert(1))"))
+    end
+
+    it("escapes a backslash in the gem name so it can't escape the closing bracket") do
+      line = body_line(gem_name: "trail\\", data: base_data)
+      expect(line).to(include("[trail\\\\](https://github.com/ex/gem)"))
+    end
+
+    it("escapes a pipe in a vulnerability id so the column count is preserved") do
+      data = base_data.merge(
+        vulnerability_count: 1,
+        vulnerabilities: [{ id: "GHSA-a|b", aliases: [], cvss3_score: 5.0 }],
+      )
+      expect(delimiter_count(body_line(gem_name: "gem", data: data))).to(eq(12))
+    end
+
+    it("still renders a normal gem name as a clean markdown link") do
+      line = body_line(gem_name: "rails", data: base_data.merge(repository_url: "https://github.com/rails/rails"))
+      expect(line).to(include("[rails](https://github.com/rails/rails)"))
+    end
+  end
+
   describe(".alternatives_section") do
     it("lists alternatives for flagged gems") do
       result = { "paperclip" => { source_type: :rubygems, archived: true, alternatives: ["shrine", "carrierwave"] } }
@@ -240,6 +305,13 @@ RSpec.describe(StillActive::MarkdownHelper) do
     it("is empty when the alternatives array is empty") do
       result = { "paperclip" => { source_type: :rubygems, archived: true, alternatives: [] } }
       expect(described_class.alternatives_section(result)).to(eq(""))
+    end
+
+    it("neutralises a newline in an alternative so the list can't be broken") do
+      result = { "paperclip" => { source_type: :rubygems, archived: true, alternatives: ["shrine\ninjected"] } }
+      out = described_class.alternatives_section(result)
+      expect(out).not_to(include("shrine\ninjected"))
+      expect(out).to(include("shrine injected"))
     end
   end
 

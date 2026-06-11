@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "markdown_escape"
+
 module StillActive
   # Renders a StillActive::Diff::Result as PR-comment-friendly markdown.
   # Section taxonomy mirrors GitHub's dependency-review-action so reviewers
@@ -49,7 +51,7 @@ module StillActive
     def regressions_section(regressions)
       return "" if regressions.empty?
 
-      lines = regressions.map { |r| "- **#{r.kind}** `#{r.gem}` — #{r.detail}" }
+      lines = regressions.map { |r| "- **#{r.kind}** #{MarkdownEscape.code_span(r.gem)} — #{MarkdownEscape.inline(r.detail)}" }
       section("Regressions (CI-failable)", lines)
     end
 
@@ -63,7 +65,7 @@ module StillActive
     def removed_section(removed)
       return "" if removed.empty?
 
-      lines = removed.map { |r| "- `#{r.name}` (was #{(r.data || {})["version_used"] || "?"})" }
+      lines = removed.map { |r| "- #{MarkdownEscape.code_span(r.name)} (was #{MarkdownEscape.inline((r.data || {})["version_used"] || "?")})" }
       section("Removed", lines)
     end
 
@@ -88,9 +90,9 @@ module StillActive
       lines = []
       if ruby[:version_changed]
         eol_suffix = ruby[:newly_eol] ? " (now EOL)" : ""
-        lines << "- Ruby `#{ruby[:from]}` → `#{ruby[:to]}`#{eol_suffix}"
+        lines << "- Ruby #{MarkdownEscape.code_span(ruby[:from])} → #{MarkdownEscape.code_span(ruby[:to])}#{eol_suffix}"
       elsif ruby[:newly_eol]
-        lines << "- Ruby `#{ruby[:to]}` is now EOL"
+        lines << "- Ruby #{MarkdownEscape.code_span(ruby[:to])} is now EOL"
       end
       section("Ruby", lines)
     end
@@ -108,30 +110,31 @@ module StillActive
         (data["archived"] ? "archived" : nil),
         data["libyear"] && "#{data["libyear"]}y behind",
       ].compact
-      "`#{added.name}` (#{bits.join(", ")})"
+      "#{MarkdownEscape.code_span(added.name)} (#{MarkdownEscape.inline(bits.join(", "))})"
     end
 
     def format_bump(bump)
       label = BUMP_KIND_LABELS[bump.kind]
       suffix = label ? " (#{label})" : ""
-      "- `#{bump.name}` #{bump.before_version} → #{bump.after_version}#{suffix}"
+      "- #{MarkdownEscape.code_span(bump.name)} #{MarkdownEscape.inline(bump.before_version)} → #{MarkdownEscape.inline(bump.after_version)}#{suffix}"
     end
 
     def format_signal_change_lines(sc)
+      name = MarkdownEscape.code_span(sc.name)
       sc.changes.filter_map do |ch|
         case ch[:kind]
         when :archived
-          "- `#{sc.name}` — archived (false → true)"
+          "- #{name} — archived (false → true)"
         when :new_vulnerability
-          ids = Array(ch[:ids]).join(", ")
-          "- `#{sc.name}` — new vulnerability (#{ch[:from]} → #{ch[:to]}#{" — #{ids}" unless ids.empty?})"
+          ids = MarkdownEscape.inline(Array(ch[:ids]).join(", "))
+          "- #{name} — new vulnerability (#{MarkdownEscape.inline(ch[:from])} → #{MarkdownEscape.inline(ch[:to])}#{" — #{ids}" unless ids.empty?})"
         when :scorecard_dropped
           note = ch[:crossed_good] ? " (crossed 7.0)" : ""
-          "- `#{sc.name}` — scorecard #{ch[:from]} → #{ch[:to]}#{note}"
+          "- #{name} — scorecard #{MarkdownEscape.inline(ch[:from])} → #{MarkdownEscape.inline(ch[:to])}#{note}"
         when :version_yanked
-          "- `#{sc.name}` — version yanked from rubygems"
+          "- #{name} — version yanked from rubygems"
         when :libyear_worsened
-          "- `#{sc.name}` — libyear #{ch[:from]} → #{ch[:to]} (+#{ch[:delta]}y; same pinned version)"
+          "- #{name} — libyear #{MarkdownEscape.inline(ch[:from])} → #{MarkdownEscape.inline(ch[:to])} (+#{ch[:delta]}y; same pinned version)"
         end
       end
     end

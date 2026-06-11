@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "markdown_escape"
 require_relative "vulnerability_helper"
 
 module StillActive
@@ -91,7 +92,7 @@ module StillActive
       return "" if flagged.empty?
 
       lines = ["", "**Alternatives** (Ruby Toolbox leads, verify fit):"]
-      flagged.each { |name, data| lines << "- `#{name}`: #{data[:alternatives].join(", ")}" }
+      flagged.each { |name, data| lines << "- #{MarkdownEscape.code_span(name)}: #{MarkdownEscape.inline(data[:alternatives].join(", "))}" }
       lines.join("\n")
     end
 
@@ -128,7 +129,7 @@ module StillActive
     def format_license(license)
       return "-" if license.nil? || license.empty?
 
-      license
+      MarkdownEscape.cell(license)
     end
 
     def format_vulns(data)
@@ -141,14 +142,15 @@ module StillActive
       ids = vulnerabilities.flat_map { |v| [v[:id], *v[:aliases]] }.compact.uniq.first(3)
 
       parts = [severity ? "#{count} (#{severity})" : count.to_s]
-      parts << ids.join(", ") unless ids.empty?
+      parts << MarkdownEscape.cell(ids.join(", ")) unless ids.empty?
       parts.join(" ")
     end
 
     def markdown_url(text:, url:)
-      return text if url.nil?
+      safe_text = MarkdownEscape.link_text(text)
+      return safe_text if url.nil?
 
-      "[#{text}](#{url})"
+      "[#{safe_text}](#{MarkdownEscape.url(url)})"
     end
 
     def year_month(time_object)
