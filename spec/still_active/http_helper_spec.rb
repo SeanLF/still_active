@@ -82,6 +82,15 @@ RSpec.describe(StillActive::HttpHelper) do
         .not_to(raise_error)
       expect(result).to(be_nil)
     end
+
+    it("returns nil instead of parsing a response body over the size cap") do
+      stub_const("StillActive::HttpHelper::MAX_BODY_BYTES", 50)
+      # Valid JSON, but larger than the cap: the cap must win before parsing.
+      stub_request(:get, "https://api.deps.dev/big")
+        .to_return(status: 200, body: "[#{"0," * 100}0]", headers: { "Content-Type" => "application/json" })
+
+      expect(described_class.get_json(URI("https://api.deps.dev"), "/big")).to(be_nil)
+    end
   end
 
   # post_json carries the AQL fallback, so it must enforce the same boundary as
@@ -151,6 +160,20 @@ RSpec.describe(StillActive::HttpHelper) do
           headers: auth,
         )
       end.not_to(raise_error)
+      expect(result).to(be_nil)
+    end
+
+    it("returns nil instead of parsing a response body over the size cap") do
+      stub_const("StillActive::HttpHelper::MAX_BODY_BYTES", 50)
+      stub_request(:post, "https://my-org.jfrog.io/api/search/aql")
+        .to_return(status: 200, body: "[#{"0," * 100}0]", headers: { "Content-Type" => "application/json" })
+
+      result = described_class.post_json(
+        URI("https://my-org.jfrog.io"),
+        "/api/search/aql",
+        body: "items.find({})",
+      )
+
       expect(result).to(be_nil)
     end
   end
