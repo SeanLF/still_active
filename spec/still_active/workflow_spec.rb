@@ -214,6 +214,45 @@ RSpec.describe(StillActive::Workflow) do
           "private_gem" => hash_including(latest_version: "1.0.0"),
         ))
       end
+
+      # A `/` in the (lockfile-controlled) gem name does NOT raise; unescaped it
+      # silently redirects the lookup to an attacker-chosen path on the trusted
+      # host. Assert the literal path string, because WebMock normalizes `%2F`
+      # back to `/` and so can't tell the escaped request from the injected one.
+      it("escapes path separators so a crafted gem name can't redirect the request to another path") do
+        StillActive.config.gems = [{
+          name: "evil/../secrets",
+          version: "1.0.0",
+          source_type: :rubygems,
+          source_uri: "https://rubygems.pkg.github.com/my-org",
+        }]
+        allow(Gems).to(receive(:info).with("evil/../secrets").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+        requested_path = nil
+        allow(StillActive::HttpHelper).to(receive(:get_json)) do |_base, path, **_kwargs|
+          requested_path = path
+          ghp_versions
+        end
+
+        result
+
+        expect(requested_path).to(eq("/my-org/api/v1/gems/evil%2F..%2Fsecrets/versions.json"))
+      end
+
+      # A space raises URI::InvalidComponentError on `uri.path =`; the swallowing
+      # rescue in #call hides the crash, so the gem silently yields no versions.
+      it("escapes a gem name that would otherwise raise on an invalid URI path, instead of silently yielding nothing") do
+        StillActive.config.gems = [{
+          name: "bad name",
+          version: "1.0.0",
+          source_type: :rubygems,
+          source_uri: "https://rubygems.pkg.github.com/my-org",
+        }]
+        allow(Gems).to(receive(:info).with("bad name").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+        stub_request(:get, "https://rubygems.pkg.github.com/my-org/api/v1/gems/bad+name/versions.json")
+          .to_return(status: 200, body: ghp_versions.to_json, headers: { "Content-Type" => "application/json" })
+
+        expect(result).to(include("bad name" => hash_including(latest_version: "1.0.0")))
+      end
     end
 
     context("when a gem is from Artifactory") do
