@@ -163,5 +163,29 @@ RSpec.describe(StillActive::LockfileDependencyParser) do
 
       expect(result[:direct]).to(eq(["rake", "bar", "plain"]))
     end
+
+    it("captures each spec's nested runtime dependencies (6-space lines)") do
+      result = described_class.parse(<<~LOCK)
+        PATH
+          remote: .
+          specs:
+            my_gem (1.0.0)
+              async (~> 2.2)
+              octokit (>= 9.0, < 11)
+
+        GEM
+          remote: https://rubygems.org/
+          specs:
+            async (2.2.0)
+            octokit (9.0.0)
+
+        DEPENDENCIES
+          my_gem!
+      LOCK
+
+      expect(result[:specs].find { |s| s.name == "my_gem" }.dependencies).to(eq(["async", "octokit"]))
+      # A leaf gem with no nested lines has an empty dependency list.
+      expect(result[:specs].find { |s| s.name == "async" }.dependencies).to(eq([]))
+    end
   end
 end

@@ -146,6 +146,104 @@ RSpec.describe(StillActive::BundlerHelper) do
         end
       end
     end
+
+    context("when the project is itself a gem (gemspec / local engine)") do
+      # gemspec surfaces the local gem's *development* deps in DEPENDENCIES, but
+      # its *runtime* deps arrive only as the path gem's nested lockfile deps.
+      def write_project(dir, lockfile)
+        File.write(File.join(dir, "Gemfile"), "source 'https://rubygems.org'\n")
+        File.write(File.join(dir, "Gemfile.lock"), lockfile)
+        described_class.gemfile_dependencies(gemfile_path: File.join(dir, "Gemfile")).map { |d| d[:name] }
+      end
+
+      it("audits the local gem's runtime deps, not just its dev deps") do
+        Dir.mktmpdir do |dir|
+          names = write_project(dir, <<~LOCK)
+            PATH
+              remote: .
+              specs:
+                my_gem (1.0.0)
+                  octokit (~> 9.0)
+                  async (~> 2.2)
+
+            GEM
+              remote: https://rubygems.org/
+              specs:
+                async (2.2.0)
+                octokit (9.0.0)
+                rspec (3.12.0)
+                  rspec-core (~> 3.12)
+                rspec-core (3.12.0)
+
+            DEPENDENCIES
+              my_gem!
+              rspec
+          LOCK
+
+          expect(names).to(include("octokit", "async")) # runtime deps of the local gem
+          expect(names).to(include("rspec"))             # dev dep, already in DEPENDENCIES
+          expect(names).to(include("my_gem"))            # the local gem itself
+          # A regular gem's transitive deps are still NOT audited.
+          expect(names).not_to(include("rspec-core"))
+        end
+      end
+
+      it("follows nested local engines transitively (path -> path)") do
+        Dir.mktmpdir do |dir|
+          names = write_project(dir, <<~LOCK)
+            PATH
+              remote: engines/a
+              specs:
+                engine_a (1.0.0)
+                  engine_b (= 1.0.0)
+                  rake (~> 13.0)
+
+            PATH
+              remote: engines/b
+              specs:
+                engine_b (1.0.0)
+                  faraday (~> 2.0)
+
+            GEM
+              remote: https://rubygems.org/
+              specs:
+                faraday (2.9.0)
+                rake (13.0.0)
+
+            DEPENDENCIES
+              engine_a!
+          LOCK
+
+          # engine_a -> engine_b -> faraday all reached; rake (engine_a's dep) too.
+          expect(names).to(include("engine_a", "engine_b", "faraday", "rake"))
+        end
+      end
+
+      it("terminates on a cyclic path-gem graph (hand-crafted lockfile)") do
+        Dir.mktmpdir do |dir|
+          # a -> b -> a: a lockfile can't normally cycle, but the input is
+          # untrusted, so the worklist must not spin forever.
+          names = write_project(dir, <<~LOCK)
+            PATH
+              remote: engines/a
+              specs:
+                engine_a (1.0.0)
+                  engine_b (= 1.0.0)
+
+            PATH
+              remote: engines/b
+              specs:
+                engine_b (1.0.0)
+                  engine_a (= 1.0.0)
+
+            DEPENDENCIES
+              engine_a!
+          LOCK
+
+          expect(names).to(contain_exactly("engine_a", "engine_b"))
+        end
+      end
+    end
   end
 
   describe("#lockfile_path_for") do
