@@ -4,6 +4,7 @@
 
 ### Added
 
+- JSON output now includes a derived `activity_level` per gem (`"ok"`, `"stale"`, `"critical"`, `"archived"`, or `"unknown"`), so a machine or LLM consumer reads still_active's maintenance verdict directly instead of re-deriving it from the raw dates. Documented in `docs/schema.md`. (#33)
 - JFrog Artifactory gem registry support: fetches versions from `.jfrog.io` RubyGems-compatible registries via the versions API with an AQL search fallback. Auth reuses Bundler's per-source credentials when present, otherwise a global token via `--artifactory-token` or `STILL_ACTIVE_ARTIFACTORY_TOKEN` (requires a matching `--artifactory-host` / `STILL_ACTIVE_ARTIFACTORY_HOST`).
 
 ### Changed

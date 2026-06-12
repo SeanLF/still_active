@@ -53,7 +53,9 @@ module StillActive
             schema_version: 1,
             tool: { name: "still_active", version: StillActive::VERSION },
             generated_at: Time.now.utc.iso8601,
-            gems: result,
+            # Surface the derived verdict so a machine/LLM consumer reads it
+            # directly instead of re-deriving it from the raw dates.
+            gems: result.transform_values { |data| data.merge(activity_level: ActivityHelper.activity_level(data)) },
           }
           output[:ruby] = ruby_info if ruby_info
           output[:pr_context] = pr_context if pr_context

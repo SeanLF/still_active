@@ -192,6 +192,15 @@ RSpec.describe(StillActive::CLI) do
       expect(payload["ruby"]).to(eq("version" => "3.4.0", "eol" => false))
     end
 
+    it("exposes the computed activity_level verdict per gem, so machine consumers need not recompute it") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rails", "--json"])
+      payload = JSON.parse(captured)
+      # rails has a recent commit and no releases here, so it lands :ok.
+      expect(payload.dig("gems", "rails", "activity_level")).to(eq("ok"))
+    end
+
     it("omits ruby key when ruby info is nil") do
       allow(StillActive::Workflow).to(receive(:ruby_freshness).and_return(nil))
       captured = nil
