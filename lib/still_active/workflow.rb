@@ -2,6 +2,7 @@
 
 require_relative "artifactory_client"
 require_relative "deps_dev_client"
+require_relative "github_client"
 require_relative "gitlab_client"
 require_relative "repository"
 require_relative "../helpers/activity_helper"
@@ -318,37 +319,19 @@ module StillActive
     def repo_archived(source:, repository_owner:, repository_name:)
       case source
       when :github
-        repo = StillActive.config.github_client.repository("#{repository_owner}/#{repository_name}")
-        repo&.archived
+        GithubClient.archived(owner: repository_owner, name: repository_name)
       when :gitlab
         GitlabClient.archived(owner: repository_owner, name: repository_name)
       end
-    rescue Octokit::Error, Faraday::Error => e
-      $stderr.puts("warning: archived check failed for #{repository_owner}/#{repository_name}: #{e.class}")
-      nil
     end
 
     def last_commit_date(source:, repository_owner:, repository_name:)
       case source
       when :github
-        commit = StillActive.config.github_client.commits("#{repository_owner}/#{repository_name}", per_page: 1)&.first
-        date = commit&.commit&.author&.date
-        case date
-        when Time then date
-        when String
-          begin
-            Time.parse(date)
-          rescue ArgumentError
-            $stderr.puts("warning: could not parse commit date for #{repository_owner}/#{repository_name}: #{date.inspect}")
-            nil
-          end
-        end
+        GithubClient.last_commit_date(owner: repository_owner, name: repository_name)
       when :gitlab
         GitlabClient.last_commit_date(owner: repository_owner, name: repository_name)
       end
-    rescue Octokit::Error, Faraday::Error => e
-      $stderr.puts("warning: last commit check failed for #{repository_owner}/#{repository_name}: #{e.class}")
-      nil
     end
   end
 end
