@@ -11,10 +11,17 @@ module StillActive
   module GithubClient
     extend self
 
+    # A rate-limit response whose reset is at most this many seconds away is
+    # waited out and retried; a longer wait (hourly-limit exhaustion) is not
+    # auto-taken and falls through to the caller's rescue (warn + nil).
+    MAX_RATE_LIMIT_WAIT = 60
+
     def archived(owner:, name:)
       return if owner.nil? || name.nil?
 
-      StillActive.config.github_client.repository("#{owner}/#{name}")&.archived
+      with_rate_limit_retry("archived #{owner}/#{name}") do
+        StillActive.config.github_client.repository("#{owner}/#{name}")&.archived
+      end
     rescue Octokit::Error, Faraday::Error => e
       $stderr.puts("warning: archived check failed for #{owner}/#{name}: #{e.class}")
       nil
@@ -23,7 +30,9 @@ module StillActive
     def last_commit_date(owner:, name:)
       return if owner.nil? || name.nil?
 
-      commit = StillActive.config.github_client.commits("#{owner}/#{name}", per_page: 1)&.first
+      commit = with_rate_limit_retry("last commit #{owner}/#{name}") do
+        StillActive.config.github_client.commits("#{owner}/#{name}", per_page: 1)&.first
+      end
       date = commit&.commit&.author&.date
       case date
       when Time then date
@@ -47,7 +56,7 @@ module StillActive
 
       repo = "#{owner}/#{name}"
       ["v#{version}", version.to_s].each do |tag|
-        return StillActive.config.github_client.compare(repo, tag, "HEAD").ahead_by
+        return with_rate_limit_retry("unreleased-commits #{repo}") { StillActive.config.github_client.compare(repo, tag, "HEAD").ahead_by }
       rescue Octokit::NotFound
         # this tag form doesn't exist; fall through to try the next one
       end
@@ -58,6 +67,59 @@ module StillActive
     end
 
     private
+
+    # Pause-and-retry on a rate-limit response when the reset is near, so a
+    # transient secondary/burst limit (which GitHub's concurrent fan-out can
+    # trip even with a token) self-heals instead of dropping the gem's signal.
+    # Retries at most once. Under the async reactor, sleep yields to other
+    # fibers rather than blocking the thread.
+    def with_rate_limit_retry(label)
+      retried = false
+      begin
+        yield
+      rescue Octokit::TooManyRequests => e
+        wait = rate_limit_wait(e)
+        if retried || wait.nil? || wait > MAX_RATE_LIMIT_WAIT
+          # Hourly-limit exhaustion (or a far reset): not worth auto-waiting.
+          # Surface the one actionable hint rather than a generic class name,
+          # then return nil so this signal is simply absent for the gem.
+          $stderr.puts("rate limited on #{label}; set GITHUB_TOKEN to raise your limit, or run less often")
+          return
+        end
+
+        retried = true
+        $stderr.puts("rate limited on #{label}; waiting #{wait}s for reset")
+        sleep(wait)
+        retry
+      end
+    end
+
+    # Seconds to wait before retrying, from the Retry-After header (secondary
+    # limits) or x-ratelimit-reset (primary), or nil when neither is present.
+    def rate_limit_wait(error)
+      # Octokit normalises response headers to lowercase (Faraday is
+      # case-insensitive), so a single lowercase lookup covers any casing.
+      headers = response_headers(error)
+      return if headers.nil? || headers.empty?
+
+      if (retry_after = headers["retry-after"])
+        return retry_after.to_i
+      end
+
+      reset = headers["x-ratelimit-reset"]
+      return if reset.nil?
+
+      [reset.to_i - Time.now.to_i, 0].max
+    end
+
+    # Octokit raises NoMethodError reading headers off an error with no response
+    # attached; treat only that as "can't tell" so the limiter degrades to no
+    # wait, while a real NoMethodError elsewhere still surfaces.
+    def response_headers(error)
+      error.response_headers
+    rescue NoMethodError
+      nil
+    end
 
     def parse_commit_date(date, owner, name)
       Time.parse(date)

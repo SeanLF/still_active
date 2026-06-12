@@ -13,6 +13,7 @@
 
 ### Changed
 
+- A GitHub rate-limit response is now waited out and retried once when its reset is near (at most 60 seconds away), instead of silently dropping that gem's repo signals. GitHub's concurrent fan-out can trip the secondary/burst limit even with a token, especially now that the full transitive graph is audited (#60); honouring the `Retry-After` / `x-ratelimit-reset` header lets the run self-heal rather than return blanks. Under the async reactor the wait yields to other fibers rather than blocking. A far-away reset (hourly-limit exhaustion) is not auto-waited; it still warns and moves on (set a token, or run less often). (#35)
 - A gem's activity level is now driven by release recency rather than the most recent of release-or-commit. A single trivial commit (a rubocop autofix, a README tweak) on a gem whose last real release was years ago previously masked the release drought and read as healthy; the commit date is now context only, and stands in for the level solely when a gem has no releases at all (e.g. a git-sourced gem). The "ok" ceiling also moves from 12 to 18 months, calibrated against real RubyGems release cadence rather than the npm-derived annual convention, since healthy mature gems (mime-types, bcrypt, mail) routinely go a year or more between releases. (#32)
 
 ### Fixed
