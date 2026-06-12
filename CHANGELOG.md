@@ -6,6 +6,10 @@
 
 - JFrog Artifactory gem registry support: fetches versions from `.jfrog.io` RubyGems-compatible registries via the versions API with an AQL search fallback. Auth reuses Bundler's per-source credentials when present, otherwise a global token via `--artifactory-token` or `STILL_ACTIVE_ARTIFACTORY_TOKEN` (requires a matching `--artifactory-host` / `STILL_ACTIVE_ARTIFACTORY_HOST`).
 
+### Changed
+
+- A gem's activity level is now driven by release recency rather than the most recent of release-or-commit. A single trivial commit (a rubocop autofix, a README tweak) on a gem whose last real release was years ago previously masked the release drought and read as healthy; the commit date is now context only, and stands in for the level solely when a gem has no releases at all (e.g. a git-sourced gem). The "ok" ceiling also moves from 12 to 18 months, calibrated against real RubyGems release cadence rather than the npm-derived annual convention, since healthy mature gems (mime-types, bcrypt, mail) routinely go a year or more between releases. (#32)
+
 ### Fixed
 
 - CycloneDX SBOM: every versioned component now carries a purl. git/path gems were previously emitted as versioned `type:library` components with no purl, which made Datadog SCA and strict CycloneDX consumers reject the document. The Ruby runtime component also gains a `pkg:generic/ruby` purl and a `ruby-lang:ruby` CPE so interpreter CVEs can match. (#45)

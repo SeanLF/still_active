@@ -56,7 +56,11 @@ module StillActive
       @unsure_emoji = "❓"
       @warning_emoji = "⚠️"
 
-      @no_warning_range_end = 1
+      # Release-age thresholds (years) calibrated against real RubyGems cadence,
+      # not the npm-derived 12-month convention: healthy mature gems routinely go
+      # 12-18 months between releases, so the ok ceiling is 18 months. > 3 years
+      # is critical. See #32.
+      @no_warning_range_end = 1.5
       @warning_range_end = 3
     end
 
