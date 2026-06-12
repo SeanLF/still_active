@@ -27,10 +27,45 @@ RSpec.describe(StillActive::BundlerHelper) do
       end
     end
 
-    it("returns only direct dependencies, not the full locked graph") do
+    it("audits the full transitive lockfile graph by default") do
       gem_names = gemfile_dependencies.map { |dep| dep[:name] }
       # rspec-core and diff-lcs are locked transitive deps, not in DEPENDENCIES.
-      expect(gem_names).not_to(include("rspec-core", "diff-lcs"))
+      expect(gem_names).to(include("rake", "rspec", "rspec-core", "diff-lcs", "rspec-support"))
+    end
+
+    it("marks DEPENDENCIES entries direct and the rest transitive") do
+      by_name = gemfile_dependencies.to_h { |dep| [dep[:name], dep] }
+      expect(by_name["rspec"][:direct]).to(be(true))
+      expect(by_name["rake"][:direct]).to(be(true))
+      expect(by_name["rspec-core"][:direct]).to(be(false))
+      expect(by_name["diff-lcs"][:direct]).to(be(false))
+    end
+
+    it("gives each transitive gem a dependency path headed by a direct parent") do
+      by_name = gemfile_dependencies.to_h { |dep| [dep[:name], dep] }
+      # rspec -> rspec-core (rspec declares it directly)
+      expect(by_name["rspec-core"][:dependency_path]).to(eq(["rspec", "rspec-core"]))
+      # diff-lcs is reached via rspec -> rspec-expectations (or -mocks) -> diff-lcs
+      path = by_name["diff-lcs"][:dependency_path]
+      expect(path.first).to(eq("rspec"))
+      expect(path.last).to(eq("diff-lcs"))
+    end
+
+    it("does not attach a dependency_path to direct deps") do
+      by_name = gemfile_dependencies.to_h { |dep| [dep[:name], dep] }
+      expect(by_name["rspec"][:dependency_path]).to(be_nil)
+    end
+
+    context("with config.direct_only set (the --direct-only opt-out)") do
+      before { StillActive.config.direct_only = true }
+
+      after { StillActive.reset }
+
+      it("returns only direct dependencies, not the full locked graph") do
+        gem_names = gemfile_dependencies.map { |dep| dep[:name] }
+        expect(gem_names).to(include("rake", "rspec"))
+        expect(gem_names).not_to(include("rspec-core", "diff-lcs"))
+      end
     end
 
     context("when no lockfile sits next to the Gemfile") do
@@ -148,6 +183,13 @@ RSpec.describe(StillActive::BundlerHelper) do
     end
 
     context("when the project is itself a gem (gemspec / local engine)") do
+      # The #41 selective expansion (declared deps + local engine runtime deps,
+      # but NOT a regular gem's transitive graph) is the --direct-only scope; the
+      # default now audits the whole graph, so pin these to direct-only.
+      before { StillActive.config.direct_only = true }
+
+      after { StillActive.reset }
+
       # gemspec surfaces the local gem's *development* deps in DEPENDENCIES, but
       # its *runtime* deps arrive only as the path gem's nested lockfile deps.
       def write_project(dir, lockfile)

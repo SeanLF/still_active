@@ -10,6 +10,7 @@ module StillActive
     attr_writer :github_oauth_token, :gitlab_token, :forgejo_token, :artifactory_token, :artifactory_host, :gemfile_path
     attr_accessor :alternatives,
       :unreleased_commits,
+      :direct_only,
       :baseline_path,
       :critical_warning_emoji,
       :cyclonedx_path,
@@ -34,6 +35,7 @@ module StillActive
     def initialize
       @alternatives = false
       @unreleased_commits = false
+      @direct_only = false
       @fail_if_critical = false
       @fail_if_outdated = nil
       @fail_if_vulnerable = nil

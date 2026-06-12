@@ -43,6 +43,8 @@ module StillActive
               gem_version: gem[:version],
               source_type: gem[:source_type] || :rubygems,
               source_uri: gem[:source_uri],
+              direct: gem.fetch(:direct, true),
+              dependency_path: gem[:dependency_path],
               advisory_db: advisory_db,
               catalog: catalog,
             )
@@ -72,8 +74,9 @@ module StillActive
 
     private
 
-    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, advisory_db: nil, catalog: nil)
-      result_object[gem_name] = { source_type: source_type }
+    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, direct: true, dependency_path: nil, advisory_db: nil, catalog: nil)
+      result_object[gem_name] = { source_type: source_type, direct: direct }
+      result_object[gem_name][:dependency_path] = dependency_path if dependency_path
       result_object[gem_name][:version_used] = gem_version if gem_version
 
       case source_type
@@ -176,6 +179,10 @@ module StillActive
 
     def attach_alternatives(gem_name:, result_object:, catalog:)
       return if catalog.nil?
+      # Direct-only by design: "replace gem X with better-maintained Y" is
+      # incoherent for a transitive gem the user never chose (#60). The
+      # path-to-parent points them at the direct gem they can actually swap.
+      return unless result_object[gem_name][:direct]
       return unless [:archived, :critical].include?(ActivityHelper.activity_level(result_object[gem_name]))
 
       leads = AlternativesHelper.leads_for(gem_name: gem_name, index: catalog)

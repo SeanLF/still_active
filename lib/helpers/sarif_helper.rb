@@ -99,7 +99,7 @@ module StillActive
       location = location_for(name, line_index, lockfile_uri)
 
       if data[:archived]
-        out << mark_suppressed(result("SA001", name, "#{name} #{version}: upstream repository is archived#{repo_suffix(data)}#{alternatives_suffix(data)}.", location), name, :activity)
+        out << mark_suppressed(result("SA001", name, "#{name} #{version}: upstream repository is archived#{repo_suffix(data)}#{alternatives_suffix(data)}#{transitive_suffix(data)}.", location), name, :activity)
       end
 
       unless data[:archived]
@@ -111,7 +111,7 @@ module StillActive
             result(
               "SA002",
               name,
-              "#{name} #{version}: #{noun} in #{years} years (last #{activity[:date].utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}.",
+              "#{name} #{version}: #{noun} in #{years} years (last #{activity[:date].utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}#{transitive_suffix(data)}.",
               location,
             ),
             name,
@@ -121,12 +121,12 @@ module StillActive
       end
 
       Array(data[:vulnerabilities]).each do |vuln|
-        out << vulnerability_result(name, version, vuln, location)
+        out << vulnerability_result(name, version, vuln, location, data)
       end
 
       if data[:libyear] && data[:libyear] > LIBYEAR_THRESHOLD
         latest = data[:latest_version] ? " behind #{data[:latest_version]}" : ""
-        out << mark_suppressed(result("SA004", name, "#{name} #{version}: #{data[:libyear]} libyears#{latest}.", location), name, :libyear)
+        out << mark_suppressed(result("SA004", name, "#{name} #{version}: #{data[:libyear]} libyears#{latest}#{transitive_suffix(data)}.", location), name, :libyear)
       end
 
       if data[:scorecard_score] && data[:scorecard_score] < SCORECARD_LOW_THRESHOLD
@@ -160,7 +160,7 @@ module StillActive
       result_hash
     end
 
-    def vulnerability_result(name, version, vuln, location)
+    def vulnerability_result(name, version, vuln, location, data = {})
       score = vuln[:cvss3_score] || vuln[:cvss2_score]
       level = Sarif::Rules.cvss_to_level(score)
       severity = Sarif::Rules.cvss_to_security_severity(score)
@@ -172,13 +172,23 @@ module StillActive
       base = result(
         "SA003",
         name,
-        "#{name} #{version}: #{advisory_id}#{title}#{alias_suffix}.",
+        "#{name} #{version}: #{advisory_id}#{title}#{alias_suffix}#{transitive_suffix(data)}.",
         location,
         level: level,
         fp_extra: advisory_id,
       )
       base["properties"] = { "security-severity" => severity } if severity
       mark_suppressed(base, name, :vulnerability, advisory: vuln[:id], aliases: Array(vuln[:aliases]))
+    end
+
+    # Names the direct dependency a transitive flagged gem rides in on, so a
+    # code-scanning consumer gets the actionable "replace your direct gem" hop
+    # instead of an un-actionable transitive finding (#60).
+    def transitive_suffix(data)
+      path = data[:dependency_path]
+      return "" unless data[:direct] == false && path && path.length >= 2
+
+      " (transitive, pulled in by #{path.first})"
     end
 
     def ruby_eol_result(ruby_info, ruby_line, lockfile_uri)

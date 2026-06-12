@@ -50,7 +50,8 @@ module StillActive
     def add_gems_option(opts)
       opts.on("--gems=GEM,GEM2,...", Array, "Gem(s)") do |value|
         options[:provided_gems] = true
-        StillActive.config { |config| config.gems = value.map { |g| { name: g } } }
+        # Explicitly named gems are direct by definition (the user chose them).
+        StillActive.config { |config| config.gems = value.map { |g| { name: g, direct: true } } }
       end
     end
 
@@ -66,6 +67,7 @@ module StillActive
       opts.on("--json", "JSON output (default when piped)") { StillActive.config { |config| config.output_format = :json } }
       opts.on("--alternatives", "Suggest maintained alternatives (Ruby Toolbox leads) for archived/critical gems") { StillActive.config { |config| config.alternatives = true } }
       opts.on("--unreleased-commits", "Count commits on the default branch since the latest release (GitHub only; opt-in, one extra API call per gem)") { StillActive.config { |config| config.unreleased_commits = true } }
+      opts.on("--direct-only", "Audit only direct (declared) dependencies, not the full transitive lockfile graph") { StillActive.config { |config| config.direct_only = true } }
       opts.on("--sarif[=PATH]", "SARIF 2.1.0 output for GitHub Code Scanning (default path: still_active.sarif.json; '-' for stdout). Overrides --terminal/--markdown/--json.") do |value|
         StillActive.config { |config| config.sarif_path = value || "still_active.sarif.json" }
       end

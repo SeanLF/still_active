@@ -51,9 +51,14 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.output_format).to(eq(:markdown))
     end
 
-    it("sets gems from comma-separated list") do
+    it("sets gems from comma-separated list, marked direct") do
       described_class.new.parse!(["--gems=rails,nokogiri"])
-      expect(StillActive.config.gems).to(eq([{ name: "rails" }, { name: "nokogiri" }]))
+      expect(StillActive.config.gems).to(eq([{ name: "rails", direct: true }, { name: "nokogiri", direct: true }]))
+    end
+
+    it("enables direct-only with --direct-only") do
+      described_class.new.parse!(["--direct-only"])
+      expect(StillActive.config.direct_only).to(be(true))
     end
 
     it("sets gemfile path") do

@@ -393,6 +393,27 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    context("when an archived gem is transitive (#60: alternatives stay direct-only)") do
+      before do
+        StillActive.config.gems = [{ name: "paperclip", version: "6.0.0", direct: false, dependency_path: ["rails", "paperclip"] }]
+        StillActive.config.alternatives = true
+        allow(Gems).to(receive(:versions).with("paperclip").and_return([
+          { "number" => "6.0.0", "prerelease" => false, "created_at" => "2018-01-01T00:00:00Z", "licenses" => ["MIT"] },
+        ]))
+        allow(Gems).to(receive(:info).with("paperclip").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+        allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
+        allow(described_class).to(receive_messages(repo_archived: true, last_commit_date: nil))
+        allow(StillActive::CatalogIndex).to(receive(:load).and_return({ "paperclip" => ["shrine", "carrierwave"] }))
+        allow(StillActive::AlternativesHelper).to(receive(:leads_for).and_return(["shrine", "carrierwave"]))
+      end
+
+      it("does not suggest alternatives for a transitive gem, but records the path to the direct parent") do
+        expect(result["paperclip"]).not_to(have_key(:alternatives))
+        expect(result["paperclip"][:direct]).to(be(false))
+        expect(result["paperclip"][:dependency_path]).to(eq(["rails", "paperclip"]))
+      end
+    end
+
     context("when --alternatives is enabled but the catalog has no entry for the gem") do
       before do
         StillActive.config.gems = [{ name: "paperclip", version: "6.0.0" }]
