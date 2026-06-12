@@ -129,6 +129,15 @@ module StillActive
         result_object[gem_name][:ruby_gems_url] = "https://rubygems.org/gems/#{gem_name}"
       end
 
+      if StillActive.config.unreleased_commits
+        result_object[gem_name][:unreleased_commits] = unreleased_commits(
+          source: repo_info[:source],
+          repository_owner: repo_info[:owner],
+          repository_name: repo_info[:name],
+          version: VersionHelper.gem_version(version_hash: last_release),
+        )
+      end
+
       if gem_version
         version_used = VersionHelper.find_version(versions: vs, version_string: gem_version)
         result_object[gem_name].merge!({
@@ -321,26 +330,32 @@ module StillActive
       []
     end
 
-    def repo_archived(source:, repository_owner:, repository_name:)
+    # The repo-signal provider for a source, or nil for an unhandled host. Every
+    # provider answers archived/last_commit_date; richer signals (e.g.
+    # commits_since_release) are duck-typed and dispatched by respond_to?, so a
+    # provider opts into them by defining the method, with no base class and no
+    # assumption that every source supports every signal.
+    def provider_for(source)
       case source
-      when :github
-        GithubClient.archived(owner: repository_owner, name: repository_name)
-      when :gitlab
-        GitlabClient.archived(owner: repository_owner, name: repository_name)
-      when :forgejo
-        ForgejoClient.archived(owner: repository_owner, name: repository_name)
+      when :github then GithubClient
+      when :gitlab then GitlabClient
+      when :forgejo then ForgejoClient
       end
     end
 
+    def repo_archived(source:, repository_owner:, repository_name:)
+      provider_for(source)&.archived(owner: repository_owner, name: repository_name)
+    end
+
     def last_commit_date(source:, repository_owner:, repository_name:)
-      case source
-      when :github
-        GithubClient.last_commit_date(owner: repository_owner, name: repository_name)
-      when :gitlab
-        GitlabClient.last_commit_date(owner: repository_owner, name: repository_name)
-      when :forgejo
-        ForgejoClient.last_commit_date(owner: repository_owner, name: repository_name)
-      end
+      provider_for(source)&.last_commit_date(owner: repository_owner, name: repository_name)
+    end
+
+    def unreleased_commits(source:, repository_owner:, repository_name:, version:)
+      provider = provider_for(source)
+      return unless provider.respond_to?(:commits_since_release)
+
+      provider.commits_since_release(owner: repository_owner, name: repository_name, version: version)
     end
   end
 end
