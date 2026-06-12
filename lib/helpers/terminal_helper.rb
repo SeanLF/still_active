@@ -22,7 +22,10 @@ module StillActive
       lines << separator_line(widths)
       names.each_with_index do |name, i|
         lines << row_line(rows[i], widths)
-        extra = alternatives_line(result[name])
+        data = result[name]
+        # Transitive gems can't be swapped directly, so point at the direct
+        # parent instead of suggesting alternatives for them (#60).
+        extra = data[:direct] == false ? dependency_path_line(data) : alternatives_line(data)
         lines << extra if extra
       end
       lines << ""
@@ -140,6 +143,18 @@ module StillActive
       elsif !StillActive.config.alternatives
         AnsiHelper.dim("  ↳ run with --alternatives for maintained replacements")
       end
+    end
+
+    # For a flagged transitive gem, name the direct dependency that pulls it in,
+    # the gem the user can actually act on (#60).
+    def dependency_path_line(data)
+      path = data[:dependency_path]
+      return unless path && path.length >= 2
+
+      level = ActivityHelper.activity_level(data)
+      return unless [:archived, :critical].include?(level) || data[:vulnerability_count].to_i.positive?
+
+      AnsiHelper.dim("  ↳ transitive, pulled in by #{path.first}")
     end
 
     def ruby_summary_line(ruby_info)

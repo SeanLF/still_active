@@ -2,6 +2,7 @@
 
 require_relative "markdown_escape"
 require_relative "vulnerability_helper"
+require_relative "activity_helper"
 
 module StillActive
   module MarkdownHelper
@@ -96,7 +97,26 @@ module StillActive
       lines.join("\n")
     end
 
+    # Flagged transitive gems can't be swapped directly; name the direct
+    # dependency that pulls each one in so the finding becomes actionable (#60).
+    def transitive_section(result)
+      flagged = result.select do |_name, data|
+        data[:direct] == false && Array(data[:dependency_path]).length >= 2 && transitive_flagged?(data)
+      end
+      return "" if flagged.empty?
+
+      lines = ["", "**Transitive findings** (pulled in by a direct dependency):"]
+      flagged.each do |name, data|
+        lines << "- #{MarkdownEscape.code_span(name)} via #{MarkdownEscape.code_span(data[:dependency_path].first)}"
+      end
+      lines.join("\n")
+    end
+
     private
+
+    def transitive_flagged?(data)
+      [:archived, :critical].include?(ActivityHelper.activity_level(data)) || data[:vulnerability_count].to_i.positive?
+    end
 
     def version_with_date(text:, url:, date:)
       version_part = markdown_url(text: text, url: url)

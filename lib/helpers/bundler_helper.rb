@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "set"
 require_relative "lockfile_dependency_parser"
 
 module StillActive
@@ -19,18 +20,57 @@ module StillActive
         warn("warning: lockfile contains a PLUGIN SOURCE block; still_active does not audit Bundler plugins, skipping it")
       end
 
-      audited = audited_names(parsed)
+      direct = audited_names(parsed)
+      # Maintenance signals cover the full resolved graph by default (matching
+      # libyear-bundler and the CVE scanners we compose with); --direct-only
+      # opts back to just the declared/shipped set. Transitive gems carry the
+      # path back to the direct dep that pulls them in, so an un-actionable
+      # transitive flag becomes an actionable "replace your direct gem A". #60.
+      audited = StillActive.config.direct_only ? direct : parsed[:specs].map(&:name)
+      direct_set = direct.to_set
+      paths = StillActive.config.direct_only ? {} : dependency_paths(parsed[:specs], direct)
+
       parsed[:specs]
         .select { |spec| audited.include?(spec.name) }
         .uniq(&:name)
         .map do |spec|
+          is_direct = direct_set.include?(spec.name)
           {
             name: spec.name,
             version: spec.version,
             source_type: spec.source_type || :unknown,
             source_uri: spec.source_uri,
+            direct: is_direct,
+            dependency_path: is_direct ? nil : paths[spec.name],
           }
         end
+    end
+
+    # Shortest path from a direct dependency to each reachable gem, by BFS over
+    # the lockfile's resolved dependency edges. A direct root maps to [name];
+    # a transitive gem maps to [direct_root, ..., name], whose head names the
+    # direct dependency a maintainer can actually act on. An unreachable spec
+    # (no declared ancestor) gets no path.
+    def dependency_paths(specs, roots)
+      specs_by_name = specs.to_h { |spec| [spec.name, spec] }
+      paths = {}
+      queue = []
+      roots.each do |name|
+        paths[name] = [name]
+        queue << name
+      end
+
+      until queue.empty?
+        name = queue.shift
+        specs_by_name[name]&.dependencies&.each do |dep|
+          next if paths.key?(dep)
+
+          paths[dep] = paths[name] + [dep]
+          queue << dep
+        end
+      end
+
+      paths
     end
 
     # The DEPENDENCIES names, plus the runtime deps of any local path-sourced gem

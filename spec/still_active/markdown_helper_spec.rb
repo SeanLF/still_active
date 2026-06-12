@@ -315,6 +315,23 @@ RSpec.describe(StillActive::MarkdownHelper) do
     end
   end
 
+  describe(".transitive_section") do
+    it("names the direct parent of a flagged transitive gem") do
+      result = { "rack" => { source_type: :rubygems, archived: true, direct: false, dependency_path: ["rails", "actionpack", "rack"] } }
+      out = described_class.transitive_section(result)
+      expect(out).to(include("**Transitive findings**"))
+      expect(out).to(include("`rack` via `rails`"))
+    end
+
+    it("ignores healthy transitive gems and direct gems") do
+      result = {
+        "healthy" => { source_type: :rubygems, direct: false, dependency_path: ["a", "healthy"] },
+        "direct_archived" => { source_type: :rubygems, archived: true, direct: true },
+      }
+      expect(described_class.transitive_section(result)).to(eq(""))
+    end
+  end
+
   describe(".ruby_line") do
     it("shows latest Ruby with success emoji") do
       info = { version: "3.4.0", latest_version: "3.4.0", libyear: nil, eol: false, eol_date: nil }

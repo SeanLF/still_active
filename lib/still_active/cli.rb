@@ -203,6 +203,8 @@ module StillActive
       end
       alternatives = MarkdownHelper.alternatives_section(result)
       puts alternatives unless alternatives.empty?
+      transitive = MarkdownHelper.transitive_section(result)
+      puts transitive unless transitive.empty?
       if ruby_info
         puts ""
         puts MarkdownHelper.ruby_line(ruby_info)

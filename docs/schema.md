@@ -32,6 +32,8 @@
 | Field | Type | Notes |
 | --- | --- | --- |
 | `source_type` | string | `"rubygems"`, `"git"`, `"path"`, or `"unknown"`. |
+| `direct` | bool | `true` for a declared (direct) dependency, `false` for a transitive one. The full transitive graph is audited by default; `--direct-only` restricts to direct deps. |
+| `dependency_path` | array \| absent | Present only for transitive gems: the resolved path from a direct dependency down to this gem, e.g. `["rails", "actionpack", "rack"]`. The head is the direct dep a maintainer can actually act on. |
 | `version_used` | string \| nil | The version pinned in `Gemfile.lock`. |
 | `latest_version` | string \| nil | Latest non-pre-release version on RubyGems. |
 | `latest_version_release_date` | string \| nil | ISO-8601 timestamp. |

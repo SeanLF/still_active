@@ -109,6 +109,7 @@ Usage: still_active [options]
         --json                       JSON output (default when piped)
         --alternatives               Suggest maintained alternatives (Ruby Toolbox leads) for archived/critical gems
         --unreleased-commits         Count commits on the default branch since the latest release (GitHub only; opt-in)
+        --direct-only                Audit only direct (declared) deps, not the full transitive graph
         --sarif[=PATH]               SARIF 2.1.0 output for GitHub Code Scanning
         --cyclonedx[=PATH]           CycloneDX SBOM output (stdout, or a file path)
         --cyclonedx-version=VERSION  CycloneDX spec version: 1.6 (default) or 1.7
@@ -404,6 +405,16 @@ still_active --gems=paperclip --alternatives
 ```
 
 These are **leads, not recommendations**: same-category does not mean drop-in replacement, so verify fit before switching. Ruby has no authoritative "use instead" metadata (unlike npm `deprecate`, Go's `// Deprecated:`, or NuGet's alternate-package field), so this is a best-effort heuristic. It is silent when the catalog has no entry for the gem, and the feature never blocks or fails a run. Leads appear in terminal, markdown, JSON, and SARIF output. When the flag is off, terminal output shows a one-line hint on flagged gems that the option exists (other formats stay silent).
+
+### Transitive dependencies
+
+Maintenance signals (stale releases, archived repos, last-commit age, advisories, libyear) cover the **full transitive lockfile graph by default** — an unmaintained gem you ship transitively is real risk even though you never named it, and the CVE tools still_active composes with already enumerate the whole resolved graph. This matches libyear-bundler (transitive by default, `--only-explicit` opts out) and every CVE scanner (bundler-audit, npm/cargo/pip-audit are all full-tree).
+
+When a transitive gem trips a signal, the output names the **direct dependency that pulls it in**: `dependency_path` in JSON, a dimmed `↳ transitive, pulled in by X` line in the terminal, a `(transitive, pulled in by X)` suffix in SARIF messages, and a **Transitive findings** list in markdown. That turns an un-actionable transitive finding into an actionable one: you can't bump a gem you didn't choose, but you can replace or pressure the direct gem that drags it in.
+
+`--alternatives` stays **direct-only** by design — "replace gem X with Y" is incoherent for a gem you never selected. Pass `--direct-only` to audit just your declared dependencies (the pre-1.7 behaviour), which is also much cheaper in API calls.
+
+> **Run on a schedule, not on every commit.** Auditing the full graph means a repo/release/advisory lookup for *every* resolved gem (hundreds, for a real app), and the GitHub signals are rate-limited (60 req/hour unauthenticated, 5000 with a token). Maintenance status changes over days and weeks, not per-commit, so a nightly or weekly job (or `--direct-only` in PR gates) gets you the signal without burning your API budget for nothing. This is why advisory tools like Brakeman ship their check database; still_active's signals are inherently live (a release date or an archived flag can't be vendored), so the answer is cadence, not bundling.
 
 ### Unreleased commits (opt-in)
 
