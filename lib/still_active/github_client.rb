@@ -16,31 +16,23 @@ module StillActive
     # auto-taken and falls through to the caller's rescue (warn + nil).
     MAX_RATE_LIMIT_WAIT = 60
 
-    def archived(owner:, name:)
-      return if owner.nil? || name.nil?
+    # archived + last-activity date from a single repository call. The repo
+    # object's pushed_at (last push) stands in for the last-commit date: it
+    # matches the default-branch commit date to the day in practice, and folding
+    # the two signals into one call halves the per-gem GitHub requests. Returns
+    # {} when the repo can't be read, so the caller leaves both signals blank.
+    def repo_signals(owner:, name:)
+      return {} if owner.nil? || name.nil?
 
-      with_rate_limit_retry("archived #{owner}/#{name}") do
-        StillActive.config.github_client.repository("#{owner}/#{name}")&.archived
+      repo = with_rate_limit_retry("repo #{owner}/#{name}") do
+        StillActive.config.github_client.repository("#{owner}/#{name}")
       end
+      return {} unless repo
+
+      { archived: repo.archived, last_commit_date: as_time(repo.pushed_at, owner, name) }
     rescue Octokit::Error, Faraday::Error => e
-      $stderr.puts("warning: archived check failed for #{owner}/#{name}: #{e.class}")
-      nil
-    end
-
-    def last_commit_date(owner:, name:)
-      return if owner.nil? || name.nil?
-
-      commit = with_rate_limit_retry("last commit #{owner}/#{name}") do
-        StillActive.config.github_client.commits("#{owner}/#{name}", per_page: 1)&.first
-      end
-      date = commit&.commit&.author&.date
-      case date
-      when Time then date
-      when String then parse_commit_date(date, owner, name)
-      end
-    rescue Octokit::Error, Faraday::Error => e
-      $stderr.puts("warning: last commit check failed for #{owner}/#{name}: #{e.class}")
-      nil
+      $stderr.puts("warning: repo signals failed for #{owner}/#{name}: #{e.class}")
+      {}
     end
 
     # Commits on the default branch since the latest release's tag: the
@@ -121,10 +113,13 @@ module StillActive
       nil
     end
 
-    def parse_commit_date(date, owner, name)
-      Time.parse(date)
+    def as_time(value, owner, name)
+      return value if value.is_a?(Time)
+      return if value.nil?
+
+      Time.parse(value)
     rescue ArgumentError
-      $stderr.puts("warning: could not parse commit date for #{owner}/#{name}: #{date.inspect}")
+      $stderr.puts("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
       nil
     end
   end

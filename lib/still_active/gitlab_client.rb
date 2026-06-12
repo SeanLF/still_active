@@ -9,35 +9,30 @@ module StillActive
 
     BASE_URI = URI("https://gitlab.com/")
 
-    def archived(owner:, name:)
-      return if owner.nil? || name.nil?
+    # archived + last-activity date from a single project call. The project
+    # object's last_activity_at matches the latest commit date to the day in
+    # practice, so folding the two signals into one call halves the per-gem
+    # requests. Returns {} when the project can't be read.
+    def repo_signals(owner:, name:)
+      return {} if owner.nil? || name.nil?
 
       path = "/api/v4/projects/#{encode_project(owner, name)}"
       body = HttpHelper.get_json(BASE_URI, path, headers: auth_headers)
-      return if body.nil?
+      return {} if body.nil?
 
-      body["archived"] == true
-    end
-
-    def last_commit_date(owner:, name:)
-      return if owner.nil? || name.nil?
-
-      path = "/api/v4/projects/#{encode_project(owner, name)}/repository/commits"
-      body = HttpHelper.get_json(BASE_URI, path, headers: auth_headers, params: { per_page: 1 })
-      return if body.nil? || body.empty?
-
-      date = body.first["committed_date"]
-      return unless date
-
-      begin
-        Time.parse(date)
-      rescue ArgumentError
-        $stderr.puts("warning: could not parse commit date for #{owner}/#{name}: #{date.inspect}")
-        nil
-      end
+      { archived: body["archived"] == true, last_commit_date: parse_time(body["last_activity_at"], owner, name) }
     end
 
     private
+
+    def parse_time(value, owner, name)
+      return if value.nil?
+
+      Time.parse(value)
+    rescue ArgumentError
+      $stderr.puts("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
+      nil
+    end
 
     def auth_headers
       token = StillActive.config.gitlab_token

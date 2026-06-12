@@ -14,36 +14,29 @@ module StillActive
 
     DEFAULT_HOST = "codeberg.org"
 
-    def archived(owner:, name:, host: DEFAULT_HOST)
-      return if owner.nil? || name.nil?
+    # archived + last-activity date from a single repository call. The repo
+    # object's updated_at matches the latest commit date to the day in practice,
+    # so folding the two signals into one call halves the per-gem requests.
+    # Returns {} when the repo can't be read.
+    def repo_signals(owner:, name:, host: DEFAULT_HOST)
+      return {} if owner.nil? || name.nil?
 
       body = HttpHelper.get_json(base_uri(host), "/api/v1/repos/#{owner}/#{name}", headers: auth_headers)
-      return if body.nil?
+      return {} if body.nil?
 
-      body["archived"] == true
-    end
-
-    def last_commit_date(owner:, name:, host: DEFAULT_HOST)
-      return if owner.nil? || name.nil?
-
-      # stat/verification/files default on and pull per-commit diffs and GPG
-      # checks we don't use; turn them off so a single-commit lookup stays cheap.
-      params = { limit: 1, stat: false, verification: false, files: false }
-      body = HttpHelper.get_json(base_uri(host), "/api/v1/repos/#{owner}/#{name}/commits", headers: auth_headers, params: params)
-      return if body.nil? || body.empty?
-
-      date = body.first.dig("commit", "committer", "date") || body.first.dig("commit", "author", "date")
-      return unless date
-
-      begin
-        Time.parse(date)
-      rescue ArgumentError
-        $stderr.puts("warning: could not parse commit date for #{owner}/#{name}: #{date.inspect}")
-        nil
-      end
+      { archived: body["archived"] == true, last_commit_date: parse_time(body["updated_at"], owner, name) }
     end
 
     private
+
+    def parse_time(value, owner, name)
+      return if value.nil?
+
+      Time.parse(value)
+    rescue ArgumentError
+      $stderr.puts("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
+      nil
+    end
 
     def base_uri(host)
       URI("https://#{host}/")

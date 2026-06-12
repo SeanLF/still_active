@@ -98,16 +98,13 @@ module StillActive
     def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:, advisory_db: nil)
       vs = versions(gem_name: gem_name, source_uri: source_uri)
       repo_info = repository_info(gem_name: gem_name, versions: vs, source_uri: source_uri)
-      commit_date = last_commit_date(
+      signals = repo_signals(
         source: repo_info[:source],
         repository_owner: repo_info[:owner],
         repository_name: repo_info[:name],
       )
-      archived = repo_archived(
-        source: repo_info[:source],
-        repository_owner: repo_info[:owner],
-        repository_name: repo_info[:name],
-      )
+      commit_date = signals[:last_commit_date]
+      archived = signals[:archived]
       last_release = VersionHelper.find_version(versions: vs, pre_release: false)
       last_pre_release = VersionHelper.find_version(versions: vs, pre_release: true)
       deps_dev = fetch_deps_dev_info(
@@ -169,10 +166,11 @@ module StillActive
       # Fall back to repo-derived project_id for scorecard when deps.dev doesn't have the version
       deps_dev[:scorecard_score] ||= DepsDevClient.project_scorecard(project_id: repo_info[:project_id])&.dig(:score)
 
+      signals = repo_signals(source:, repository_owner: owner, repository_name: name)
       result_object[gem_name].merge!({
         repository_url: repo_info[:url],
-        last_commit_date: last_commit_date(source:, repository_owner: owner, repository_name: name),
-        archived: repo_archived(source:, repository_owner: owner, repository_name: name),
+        last_commit_date: signals[:last_commit_date],
+        archived: signals[:archived],
         **deps_dev,
       })
     end
@@ -350,12 +348,11 @@ module StillActive
       end
     end
 
-    def repo_archived(source:, repository_owner:, repository_name:)
-      provider_for(source)&.archived(owner: repository_owner, name: repository_name)
-    end
-
-    def last_commit_date(source:, repository_owner:, repository_name:)
-      provider_for(source)&.last_commit_date(owner: repository_owner, name: repository_name)
+    # One provider call yields both archived and the last-activity date (the
+    # repo object carries both), so a gem's repo signals cost a single request
+    # instead of two. Returns {} for an unhandled host.
+    def repo_signals(source:, repository_owner:, repository_name:)
+      provider_for(source)&.repo_signals(owner: repository_owner, name: repository_name) || {}
     end
 
     def unreleased_commits(source:, repository_owner:, repository_name:, version:)
