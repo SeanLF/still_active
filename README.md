@@ -343,6 +343,46 @@ still_active --fail-if-outdated=3 --json
 still_active --fail-if-warning --fail-if-vulnerable --ignore=legacy_gem --json
 ```
 
+### Configuration file (`.still_active.yml`)
+
+`--ignore=GEM` is blunt: it drops a gem from **every** gate at once, so accepting one unfixable advisory also blinds you to that gem going archived or to a *new* CVE. A committed `.still_active.yml` in the project root replaces that with granular, auditable suppression, and lets you keep your policy flags in version control instead of threading them through every invocation.
+
+```yaml
+# .still_active.yml -- policy defaults plus granular suppression
+fail_if_critical: true
+fail_if_vulnerable: high       # true, or a minimum severity: low|medium|high|critical
+fail_if_outdated: 3            # libyears
+unreleased_commits: true
+output: json                   # terminal | markdown | json
+
+# Pull bundler-audit's accepted-advisory list instead of maintaining two files
+import:
+  - .bundler-audit.yml
+
+ignore:
+  # Accept ONE advisory, by id -- a different/new CVE on nokogiri still fails
+  - advisory: CVE-2024-1234
+    gem: nokogiri
+    reason: "no fix released; not reachable from our code path"
+    expires: 2026-09-01        # re-surfaces as a normal failure after this date
+
+  # Accept staleness on a vendored gem, but still fail if it gets a CVE
+  - gem: legacy_thing
+    signal: activity            # activity | vulnerability | libyear
+    reason: "vendored, intentionally frozen"
+
+  # A bare gem name keeps the old whole-gem behaviour (mutes every signal)
+  - some_internal_gem
+```
+
+Design:
+
+- **Granularity.** Key by `advisory:` (one CVE) and/or `signal:` (`activity` / `vulnerability` / `libyear`), not the whole gem. A vulnerability suppression **must** name an advisory id, so a newly disclosed CVE on the same gem is never pre-silenced. `--ignore=GEM` (and a bare gem-name entry) still mute everything, by design.
+- **Precedence.** CLI flag > env var > config file > default. A CLI flag always wins; `--ignore` unions with the file's suppressions rather than replacing them. Secrets (tokens) and invocation-specific paths (`--gemfile`, `--gems`, `--baseline`, output paths) are intentionally **not** read from the file, so a committed config never carries a credential.
+- **Expiry.** An `expires:` date makes accepted risk visible: once it passes, the entry stops applying and the finding fails the gate again (Trivy-style), so a suppression can't rot silently. `reason:` is optional but recommended.
+- **bundler-audit, suggested not absorbed.** still_active never silently inherits another tool's ignore list: auto-importing `.bundler-audit.yml` would suppress vulnerabilities you only accepted in bundler-audit's context, with no reason or expiry here. Instead, when `--fail-if-vulnerable` is on and an un-imported `.bundler-audit.yml` is present, it prints a one-line hint suggesting the `import:` line, leaving the opt-in to you.
+- **Output.** Suppression changes the **exit code** and marks the finding in **SARIF** as a native `suppressions[]` entry (with your `reason` as the justification, so GitHub Code Scanning renders it dismissed rather than open). The finding still appears in JSON/terminal/markdown output; suppression accepts a risk, it doesn't hide that the risk exists.
+
 ### Activity thresholds
 
 Activity is driven by release recency (the latest stable or pre-release date), since a release is what you can actually `bundle update` to. A recent commit does not offset a stale release: the last commit date is shown as context and only stands in when a gem has no releases at all (e.g. git-sourced). Thresholds are calibrated against real RubyGems cadence, where healthy mature gems often go a year or more between releases:

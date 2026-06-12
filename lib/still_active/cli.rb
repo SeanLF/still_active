@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "options"
+require_relative "config_file"
 require_relative "diff"
 require_relative "../helpers/activity_helper"
 require_relative "../helpers/bot_context"
@@ -18,7 +19,15 @@ require_relative "workflow"
 module StillActive
   class CLI
     def run(args)
+      # Apply the committed .still_active.yml first so CLI flags (parsed next)
+      # win over it: CLI flag > env var > config file > default.
+      config_data = ConfigFile.load
+      ConfigFile.apply(StillActive.config, config_data).each { |warning| $stderr.puts("warning: #{warning}") }
       options = Options.new.parse!(args)
+      # After CLI flags resolve, nudge (don't auto-inherit) an un-imported
+      # bundler-audit ignore list when the vulnerability gate is on.
+      hint = ConfigFile.import_hint(config_data)
+      $stderr.puts("hint: #{hint}") if hint
       unless options[:provided_gems]
         begin
           StillActive.config.gems = BundlerHelper.gemfile_dependencies
@@ -204,27 +213,50 @@ module StillActive
       config = StillActive.config
       return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated
 
-      ignored = config.ignored_gems
-      checked = result.reject { |name, _| ignored.include?(name) }
+      exit(1) if result.any? { |name, data| gate_failed?(name, data, config) }
+    end
 
-      if config.fail_if_critical || config.fail_if_warning
-        levels = checked.each_value.map { |gem_data| ActivityHelper.activity_level(gem_data) }
-        exit(1) if config.fail_if_warning && levels.intersect?([:stale, :critical, :archived])
-        exit(1) if config.fail_if_critical && levels.intersect?([:critical, :archived])
+    # A gem fails the run when it trips an enabled gate that is neither
+    # whole-gem --ignore'd nor covered by a granular .still_active.yml
+    # suppression. Each signal is checked independently so accepting one finding
+    # (e.g. a single advisory) never blinds the others.
+    def gate_failed?(name, data, config)
+      return false if config.ignored_gems.include?(name)
+
+      suppressions = config.suppressions
+      failed_activity?(name, data, config, suppressions) ||
+        failed_vulnerability?(name, data, config, suppressions) ||
+        failed_outdated?(name, data, config, suppressions)
+    end
+
+    def failed_activity?(name, data, config, suppressions)
+      return false unless config.fail_if_warning || config.fail_if_critical
+      return false if suppressions.suppressed?(gem: name, signal: :activity)
+
+      level = ActivityHelper.activity_level(data)
+      (config.fail_if_warning && [:stale, :critical, :archived].include?(level)) ||
+        (config.fail_if_critical && [:critical, :archived].include?(level))
+    end
+
+    def failed_vulnerability?(name, data, config, suppressions)
+      setting = config.fail_if_vulnerable
+      return false unless setting
+      return false unless data[:vulnerability_count]&.positive?
+
+      live = Array(data[:vulnerabilities]).reject do |vuln|
+        suppressions.suppressed?(gem: name, signal: :vulnerability, advisory: vuln[:id], aliases: Array(vuln[:aliases]))
       end
+      return false if live.empty?
 
-      if (vuln_setting = config.fail_if_vulnerable)
-        checked.each_value do |d|
-          next unless d[:vulnerability_count]&.positive?
+      setting == true || VulnerabilityHelper.severity_at_or_above?(live, setting)
+    end
 
-          exit(1) if vuln_setting == true
-          exit(1) if VulnerabilityHelper.severity_at_or_above?(d[:vulnerabilities], vuln_setting)
-        end
-      end
+    def failed_outdated?(name, data, config, suppressions)
+      threshold = config.fail_if_outdated
+      return false unless threshold
+      return false if suppressions.suppressed?(gem: name, signal: :libyear)
 
-      if (threshold = config.fail_if_outdated)
-        exit(1) if checked.each_value.any? { |d| d[:libyear] && d[:libyear] > threshold }
-      end
+      data[:libyear] && data[:libyear] > threshold
     end
   end
 end

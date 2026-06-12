@@ -95,6 +95,42 @@ RSpec.describe(StillActive::SarifHelper) do
     end
   end
 
+  describe("native suppressions[] from .still_active.yml") do
+    subject(:results) { render(result: report).dig("runs", 0, "results") }
+
+    let(:report) { { "archived_gem" => { version_used: "1.0.0", archived: true, repository_url: "https://github.com/x/y" } } }
+
+    before { StillActive.reset }
+
+    after { StillActive.reset }
+
+    it("marks a suppressed activity finding with the reason as justification") do
+      StillActive.config.suppressions = StillActive::Suppressions.from([{ "gem" => "archived_gem", "signal" => "activity", "reason" => "vendored fork" }])
+      sa001 = results.find { |r| r["ruleId"] == "SA001" }
+      expect(sa001["suppressions"]).to(eq([{ "kind" => "external", "justification" => "vendored fork" }]))
+    end
+
+    it("leaves an unrelated finding unsuppressed") do
+      StillActive.config.suppressions = StillActive::Suppressions.from([{ "gem" => "other", "signal" => "activity" }])
+      expect(results.find { |r| r["ruleId"] == "SA001" }).not_to(have_key("suppressions"))
+    end
+
+    it("marks a whole-gem --ignore'd finding as suppressed") do
+      StillActive.config.ignored_gems = ["archived_gem"]
+      sa001 = results.find { |r| r["ruleId"] == "SA001" }
+      expect(sa001.dig("suppressions", 0, "kind")).to(eq("external"))
+    end
+
+    it("marks only the matching advisory on a vulnerability finding") do
+      StillActive.config.suppressions = StillActive::Suppressions.from([{ "gem" => "vg", "advisory" => "CVE-1", "reason" => "no fix" }])
+      rpt = { "vg" => { version_used: "1.0.0", vulnerabilities: [{ id: "CVE-1" }, { id: "CVE-2" }] } }
+      sa003 = render(result: rpt).dig("runs", 0, "results").select { |r| r["ruleId"] == "SA003" }
+      suppressed = sa003.select { |r| r.key?("suppressions") }
+      expect(suppressed.size).to(eq(1))
+      expect(suppressed[0]["message"]["text"]).to(include("CVE-1"))
+    end
+  end
+
   describe("alternatives suffix") do
     it("appends alternatives to the archived-gem result message") do
       result = { "paperclip" => { source_type: :rubygems, version_used: "6.0.0", archived: true, alternatives: ["shrine", "carrierwave"] } }

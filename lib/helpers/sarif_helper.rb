@@ -99,7 +99,7 @@ module StillActive
       location = location_for(name, line_index, lockfile_uri)
 
       if data[:archived]
-        out << result("SA001", name, "#{name} #{version}: upstream repository is archived#{repo_suffix(data)}#{alternatives_suffix(data)}.", location)
+        out << mark_suppressed(result("SA001", name, "#{name} #{version}: upstream repository is archived#{repo_suffix(data)}#{alternatives_suffix(data)}.", location), name, :activity)
       end
 
       unless data[:archived]
@@ -107,11 +107,15 @@ module StillActive
           activity = ActivityHelper.last_activity(data)
           years = ((Time.now - activity[:date]) / SECONDS_PER_YEAR).round(1)
           noun = activity[:kind] == :release ? "no release" : "no commits"
-          out << result(
-            "SA002",
+          out << mark_suppressed(
+            result(
+              "SA002",
+              name,
+              "#{name} #{version}: #{noun} in #{years} years (last #{activity[:date].utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}.",
+              location,
+            ),
             name,
-            "#{name} #{version}: #{noun} in #{years} years (last #{activity[:date].utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}.",
-            location,
+            :activity,
           )
         end
       end
@@ -122,18 +126,38 @@ module StillActive
 
       if data[:libyear] && data[:libyear] > LIBYEAR_THRESHOLD
         latest = data[:latest_version] ? " behind #{data[:latest_version]}" : ""
-        out << result("SA004", name, "#{name} #{version}: #{data[:libyear]} libyears#{latest}.", location)
+        out << mark_suppressed(result("SA004", name, "#{name} #{version}: #{data[:libyear]} libyears#{latest}.", location), name, :libyear)
       end
 
       if data[:scorecard_score] && data[:scorecard_score] < SCORECARD_LOW_THRESHOLD
-        out << result("SA005", name, "#{name} #{version}: OpenSSF Scorecard #{data[:scorecard_score]}/10 (low).", location)
+        out << mark_suppressed(result("SA005", name, "#{name} #{version}: OpenSSF Scorecard #{data[:scorecard_score]}/10 (low).", location), name, :scorecard)
       end
 
       if data[:version_yanked]
-        out << result("SA007", name, "#{name} #{version}: this version has been yanked from RubyGems.", location)
+        out << mark_suppressed(result("SA007", name, "#{name} #{version}: this version has been yanked from RubyGems.", location), name, :yanked)
       end
 
       out
+    end
+
+    # Attaches a SARIF native suppressions[] entry when this finding is covered
+    # by a whole-gem --ignore or a granular .still_active.yml suppression, so a
+    # GitHub code-scanning consumer renders it dismissed rather than open. The
+    # suppression's reason rides along as the justification.
+    def mark_suppressed(result_hash, gem_name, signal, advisory: nil, aliases: [])
+      config = StillActive.config
+      if config.ignored_gems.include?(gem_name)
+        result_hash["suppressions"] = [{ "kind" => "external", "justification" => "ignored via --ignore" }]
+        return result_hash
+      end
+
+      entry = config.suppressions.match(gem: gem_name, signal: signal, advisory: advisory, aliases: aliases)
+      return result_hash unless entry
+
+      suppression = { "kind" => "external" }
+      suppression["justification"] = entry.reason if entry.reason
+      result_hash["suppressions"] = [suppression]
+      result_hash
     end
 
     def vulnerability_result(name, version, vuln, location)
@@ -154,7 +178,7 @@ module StillActive
         fp_extra: advisory_id,
       )
       base["properties"] = { "security-severity" => severity } if severity
-      base
+      mark_suppressed(base, name, :vulnerability, advisory: vuln[:id], aliases: Array(vuln[:aliases]))
     end
 
     def ruby_eol_result(ruby_info, ruby_line, lockfile_uri)
