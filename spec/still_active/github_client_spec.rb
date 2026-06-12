@@ -64,7 +64,7 @@ RSpec.describe(StillActive::GithubClient) do
     end
 
     it("returns nil and warns on an Octokit error") do
-      allow(client).to(receive(:commits).and_raise(Octokit::TooManyRequests))
+      allow(client).to(receive(:commits).and_raise(Octokit::InternalServerError))
       expect { expect(described_class.last_commit_date(owner: owner, name: name)).to(be_nil) }
         .to(output(/last commit check failed/).to_stderr)
     end
@@ -73,6 +73,57 @@ RSpec.describe(StillActive::GithubClient) do
       allow(client).to(receive(:commits).and_return([commit_with("not-a-date")]))
       expect { expect(described_class.last_commit_date(owner: owner, name: name)).to(be_nil) }
         .to(output(/could not parse commit date/).to_stderr)
+    end
+  end
+
+  describe("rate-limit retry") do
+    before { allow(described_class).to(receive(:sleep)) } # never actually wait in specs
+
+    def too_many(retry_after: nil, reset: nil)
+      headers = {}
+      headers["retry-after"] = retry_after.to_s if retry_after
+      headers["x-ratelimit-reset"] = reset.to_s if reset
+      error = Octokit::TooManyRequests.new
+      allow(error).to(receive(:response_headers).and_return(headers))
+      error
+    end
+
+    it("waits for a near reset and retries once, then succeeds") do
+      calls = 0
+      allow(client).to(receive(:repository)) do
+        calls += 1
+        raise too_many(retry_after: 2) if calls == 1
+
+        double(archived: false)
+      end
+
+      expect { expect(described_class.archived(owner: owner, name: name)).to(be(false)) }.to(output(/rate limited/).to_stderr)
+      expect(described_class).to(have_received(:sleep).with(2))
+    end
+
+    it("derives the wait from x-ratelimit-reset when retry-after is absent") do
+      calls = 0
+      allow(client).to(receive(:repository)) do
+        calls += 1
+        raise too_many(reset: Time.now.to_i + 3) if calls == 1
+
+        double(archived: true)
+      end
+
+      expect { expect(described_class.archived(owner: owner, name: name)).to(be(true)) }.to(output.to_stderr)
+      expect(described_class).to(have_received(:sleep))
+    end
+
+    it("does not auto-wait when the reset is far away; warns with the token hint and returns nil") do
+      allow(client).to(receive(:repository).and_raise(too_many(retry_after: 9999)))
+      expect { expect(described_class.archived(owner: owner, name: name)).to(be_nil) }.to(output(/set GITHUB_TOKEN/).to_stderr)
+      expect(described_class).not_to(have_received(:sleep))
+    end
+
+    it("retries at most once on a persistent rate limit, then gives up with the token hint") do
+      allow(client).to(receive(:repository).and_raise(too_many(retry_after: 1)))
+      expect { expect(described_class.archived(owner: owner, name: name)).to(be_nil) }.to(output(/waiting 1s.*set GITHUB_TOKEN/m).to_stderr)
+      expect(described_class).to(have_received(:sleep).once)
     end
   end
 
@@ -106,7 +157,7 @@ RSpec.describe(StillActive::GithubClient) do
     end
 
     it("returns nil and warns on a non-NotFound Octokit error") do
-      allow(client).to(receive(:compare).and_raise(Octokit::TooManyRequests))
+      allow(client).to(receive(:compare).and_raise(Octokit::InternalServerError))
       expect { expect(described_class.commits_since_release(owner: owner, name: name, version: "7.0.1")).to(be_nil) }
         .to(output(/unreleased-commits check failed/).to_stderr)
     end

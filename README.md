@@ -85,7 +85,7 @@ still_active --markdown
 3. `GH_TOKEN` environment variable (`gh` CLI convention)
 4. `gh auth token` (if `gh` is installed and authenticated)
 
-Without a token, GitHub API calls are unauthenticated and rate-limited to 60 requests/hour — you will hit the limit on anything beyond a handful of gems. With a token the limit is 5000 requests/hour.
+Without a token, GitHub API calls are unauthenticated and rate-limited to 60 requests/hour — you will hit the limit on anything beyond a handful of gems. With a token the limit is 5000 requests/hour. When a rate-limit response comes back with a reset that's near (within 60 seconds, typically a secondary/burst limit that the concurrent fan-out can trip even with a token), still_active waits it out and retries rather than dropping that gem's signals; a far-off reset (you've exhausted the hourly limit) isn't waited out, so add a token or run less often.
 
 GitLab cascade mirrors GitHub: `--gitlab-token` → `GITLAB_TOKEN` → `glab auth status --show-token`. Optional for public repos, required for private ones.
 
