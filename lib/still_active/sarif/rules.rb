@@ -48,8 +48,8 @@ module StillActive
         {
           id: "SA002",
           name: "AbandonedGem",
-          short: "Gem has had no commits for over 2 years",
-          full: "The gem's source repository shows no commit activity for over 2 years. Not formally archived, but a strong dormancy signal.",
+          short: "Gem has had no release for over 3 years",
+          full: "The gem's latest release is over 3 years old. Not formally archived, but a strong abandonment signal: a consumer cannot pull fixes that were never released. For a gem with no releases at all (e.g. git-sourced), the last commit date is used instead.",
           help_text: "Verify the gem still works on supported Ruby versions and consider a maintained alternative.",
           level: "warning",
           security_severity: nil,
