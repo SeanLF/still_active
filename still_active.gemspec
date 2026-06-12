@@ -9,13 +9,15 @@ Gem::Specification.new do |spec|
   spec.email         = ["contact@seanfloyd.dev"]
 
   spec.summary       = "Audit your Ruby dependencies for maintenance health, outdated versions, vulnerabilities, and abandoned gems."
-  spec.description   = "Analyses your Gemfile for dependency health: checks if gems are actively maintained " \
-    "(last commit dates via GitHub and GitLab, release dates), outdated versions, archived repos, " \
-    "OpenSSF Scorecard security scores, known vulnerabilities via deps.dev, and libyear drift. " \
-    "Ruby version freshness with EOL detection. " \
-    "Handles rubygems, git, path, GitHub Packages, and SaaS JFrog / Artifactory sources. " \
-    "Outputs coloured terminal tables, markdown, or JSON. " \
-    "CI quality gates with --fail-if-critical, --fail-if-warning, --fail-if-vulnerable, --fail-if-outdated, and --ignore. " \
+  spec.description   = "Analyses your Gemfile.lock for dependency health across the full transitive graph: " \
+    "whether each gem is actively maintained (last activity on GitHub, GitLab, or Codeberg/Forgejo, plus " \
+    "release recency), outdated versions, archived repos, OpenSSF Scorecard scores, known vulnerabilities " \
+    "(deps.dev merged with ruby-advisory-db), and libyear drift. Ruby version freshness with EOL detection. " \
+    "Handles rubygems, git, path, GitHub Packages, and JFrog Artifactory sources. " \
+    "Outputs coloured terminal tables, markdown, JSON (with a versioned, contract-tested schema), " \
+    "SARIF for GitHub code scanning, and a CycloneDX SBOM. " \
+    "CI quality gates (--fail-if-critical / -warning / -vulnerable / -outdated) with granular, committed " \
+    "suppression via .still_active.yml. " \
     "A comprehensive alternative to running bundle outdated, bundler-audit, and libyear-bundler separately."
   spec.homepage      = "https://github.com/SeanLF/still_active"
   spec.license       = "MIT"
