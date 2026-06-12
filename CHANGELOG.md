@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Upgrading to 2.0
+
+2.0 is a major bump because two changes can alter `--fail-if-*` outcomes on upgrade (the CLI flags and JSON `schema_version` are otherwise backward-compatible):
+
+- **Transitive by default.** Maintenance signals now cover the full resolved lockfile, so a CI gate can newly fail on a transitive critical/vulnerable/outdated gem. Add `--direct-only` to restore the pre-2.0 declared-deps scope.
+- **Activity recalibration.** The "ok" ceiling moved 12 → 18 months and the level is release-driven, so some gems are reclassified. Tune with `--safe-range-end` / `--warning-range-end`.
+- **Baselines:** re-capture your `--baseline` JSON after upgrading. The transitive expansion shows the new gems as additions (and any unhealthy transitive deps as regressions) on the first run.
+
 ### Added
 
 - The `--json` output is now a **versioned, contract-tested machine schema** ([`docs/still_active.schema.json`](docs/still_active.schema.json), JSON Schema 2020-12), carried as a `$schema` URL so the output is self-describing, and it gains a `summary{}` digest, the audit's headline posture (total / direct / transitive, the activity-level breakdown, archived / up-to-date / outdated counts, and vulnerability totals) in one object so a machine or LLM consumer reads it without iterating every gem. The terminal summary line now derives from the same digest, so the human and machine summaries can't drift. Unlike SARIF (findings-only) and CycloneDX (SBOM-only), this is the complete correlation-layer view. (#33)
