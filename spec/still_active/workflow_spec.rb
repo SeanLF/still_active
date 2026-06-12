@@ -527,4 +527,18 @@ RSpec.describe(StillActive::Workflow) do
       expect(Gems).to(have_received(:info).with("publicgem_xyz"))
     end
   end
+
+  describe(".repository_info_for_non_rubygems") do
+    it("builds a deps.dev project_id for a github-hosted source") do
+      info = described_class.send(:repository_info_for_non_rubygems, gem_name: "ghgem_xyz", source_uri: "https://github.com/owner/ghgem_xyz")
+
+      expect(info).to(include(source: :github, project_id: "github.com/owner/ghgem_xyz"))
+    end
+
+    it("leaves project_id nil for a codeberg/forgejo source deps.dev does not index") do
+      info = described_class.send(:repository_info_for_non_rubygems, gem_name: "cbgem_xyz", source_uri: "https://codeberg.org/owner/cbgem_xyz")
+
+      expect(info).to(include(source: :forgejo, project_id: nil))
+    end
+  end
 end

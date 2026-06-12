@@ -6,7 +6,7 @@ require "open3"
 
 module StillActive
   class Config
-    attr_writer :github_oauth_token, :gitlab_token, :artifactory_token, :artifactory_host, :gemfile_path
+    attr_writer :github_oauth_token, :gitlab_token, :forgejo_token, :artifactory_token, :artifactory_host, :gemfile_path
     attr_accessor :alternatives,
       :baseline_path,
       :critical_warning_emoji,
@@ -39,6 +39,7 @@ module StillActive
       @ignored_gems = []
       @github_oauth_token = nil
       @gitlab_token = nil
+      @forgejo_token = nil
       @artifactory_token = nil
       @artifactory_host = nil
 
@@ -75,6 +76,14 @@ module StillActive
 
     def gitlab_token
       @gitlab_token ||= presence(ENV["GITLAB_TOKEN"]) || glab_cli_token
+    end
+
+    # Codeberg/Forgejo has no ubiquitous CLI to borrow a token from (unlike
+    # gh/glab), so it's env-var only. Anonymous works for public repos; a token
+    # only raises the rate limit. CODEBERG_TOKEN is accepted as a convenience
+    # alias for the codeberg.org default host.
+    def forgejo_token
+      @forgejo_token ||= presence(ENV["STILL_ACTIVE_FORGEJO_TOKEN"]) || presence(ENV["CODEBERG_TOKEN"])
     end
 
     def artifactory_token

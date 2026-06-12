@@ -15,8 +15,15 @@ RSpec.describe(StillActive::Repository) do
       "https://gitlab.com/gitlab-org/gitlab.git",
     ]
   end
+  let(:valid_codeberg_urls) do
+    [
+      "https://codeberg.org/forgejo/forgejo",
+      "https://codeberg.org/forgejo/forgejo/src/branch/main",
+      "https://codeberg.org/forgejo/forgejo.git",
+    ]
+  end
   let(:valid_urls) do
-    [valid_github_urls, valid_gitlab_urls].flatten
+    [valid_github_urls, valid_gitlab_urls, valid_codeberg_urls].flatten
   end
 
   describe("#valid?") do
@@ -55,6 +62,16 @@ RSpec.describe(StillActive::Repository) do
           valid_gitlab_urls.each do |url|
             subject = described_class.url_with_owner_and_name(url: url)
             expected_result = { source: :gitlab, owner: "gitlab-org", name: "gitlab" }
+            expect(subject).to(include(expected_result))
+          end
+        end
+      end
+
+      context("with a Codeberg URL") do
+        it("maps codeberg.org to the :forgejo source") do
+          valid_codeberg_urls.each do |url|
+            subject = described_class.url_with_owner_and_name(url: url)
+            expected_result = { source: :forgejo, owner: "forgejo", name: "forgejo" }
             expect(subject).to(include(expected_result))
           end
         end
