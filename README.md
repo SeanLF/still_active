@@ -2,7 +2,7 @@
 
 **How do you know if your Ruby dependencies are still maintained?**
 
-`bundle outdated` tells you version drift. `bundler-audit` catches known CVEs. Neither tells you whether anyone is still working on the thing. `still_active` checks maintenance activity, version freshness, security scores, vulnerabilities, libyear drift, and archived repos for every gem in your Gemfile.
+`bundle outdated` tells you version drift. `bundler-audit` catches known CVEs. Neither tells you whether anyone is still working on the thing. `still_active` checks maintenance activity, version freshness, security scores, vulnerabilities, libyear drift, and archived repos for every gem in your dependency graph — direct and transitive by default (`--direct-only` to narrow), with granular, committed suppression via `.still_active.yml`.
 
 Findings ship as **terminal / markdown / JSON / SARIF / CycloneDX** — SARIF lands in your GitHub Security tab and as inline PR annotations on `Gemfile.lock`; CycloneDX feeds Trivy / Dependency-Track / Snyk. PR mode (`--baseline=FILE`) reports only what got worse since main, so reviewers see one line ("`vcr` newly archived") instead of an absolute snapshot of every dep.
 
