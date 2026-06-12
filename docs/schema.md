@@ -37,7 +37,7 @@
 | `latest_version_release_date` | string \| nil | ISO-8601 timestamp. |
 | `latest_pre_release_version` | string \| nil | Latest pre-release version if any. |
 | `latest_pre_release_version_release_date` | string \| nil | ISO-8601 timestamp. |
-| `repository_url` | string \| nil | Canonical GitHub/GitLab URL when found. |
+| `repository_url` | string \| nil | Canonical GitHub/GitLab/Codeberg URL when found. |
 | `last_commit_date` | string \| nil | ISO-8601 timestamp of the latest commit. |
 | `archived` | bool \| nil | `true` if the repo is archived; `nil` if unknown. |
 | `activity_level` | string | Derived maintenance verdict: `"ok"`, `"stale"`, `"critical"`, `"archived"`, or `"unknown"`. Driven by release recency, with the last commit used only as a fallback when a gem has no releases. |

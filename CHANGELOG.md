@@ -4,6 +4,7 @@
 
 ### Added
 
+- Forgejo/Codeberg repos are now a recognised source for the archived and last-commit signals, alongside GitHub and GitLab. A gem whose canonical `source_code_uri` points at `codeberg.org` previously fell through to no repo signals at all; it now resolves through a new `ForgejoClient` (the Gitea `/api/v1` surface every Forgejo/Gitea instance shares), so the host is a parameter for later self-hosted support. Reads are anonymous by default; `STILL_ACTIVE_FORGEJO_TOKEN`/`CODEBERG_TOKEN` only raise the rate limit or reach private repos. Codeberg-hosted repos are correctly left out of deps.dev OpenSSF Scorecard lookups (deps.dev indexes only github.com/gitlab.com) rather than minting a bogus `github.com/owner/name` project id. (#31)
 - JSON output now includes a derived `activity_level` per gem (`"ok"`, `"stale"`, `"critical"`, `"archived"`, or `"unknown"`), so a machine or LLM consumer reads still_active's maintenance verdict directly instead of re-deriving it from the raw dates. Documented in `docs/schema.md`. (#33)
 - JFrog Artifactory gem registry support: fetches versions from `.jfrog.io` RubyGems-compatible registries via the versions API with an AQL search fallback. Auth reuses Bundler's per-source credentials when present, otherwise a global token via `--artifactory-token` or `STILL_ACTIVE_ARTIFACTORY_TOKEN` (requires a matching `--artifactory-host` / `STILL_ACTIVE_ARTIFACTORY_HOST`).
 

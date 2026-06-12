@@ -2,6 +2,7 @@
 
 require_relative "artifactory_client"
 require_relative "deps_dev_client"
+require_relative "forgejo_client"
 require_relative "github_client"
 require_relative "gitlab_client"
 require_relative "repository"
@@ -251,22 +252,26 @@ module StillActive
       valid_repository_url =
         [source_uri, *installed_gem_urls(gem_name: gem_name)].find { |url| Repository.valid?(url: url) }
       repo = Repository.url_with_owner_and_name(url: valid_repository_url)
-      project_id = if repo[:url]
-        host = repo[:source] == :gitlab ? "gitlab.com" : "github.com"
-        "#{host}/#{repo[:owner]}/#{repo[:name]}"
-      end
-      repo.merge(project_id: project_id)
+      repo.merge(project_id: deps_dev_project_id(repo))
     end
 
     def repository_info_from_installed_gem(gem_name:)
       valid_repository_url =
         installed_gem_urls(gem_name: gem_name).find { |url| Repository.valid?(url: url) }
       repo = Repository.url_with_owner_and_name(url: valid_repository_url)
-      project_id = if repo[:url]
-        host = repo[:source] == :gitlab ? "gitlab.com" : "github.com"
-        "#{host}/#{repo[:owner]}/#{repo[:name]}"
-      end
-      repo.merge(project_id: project_id)
+      repo.merge(project_id: deps_dev_project_id(repo))
+    end
+
+    # deps.dev scorecards index github.com and gitlab.com only. A Forgejo/Codeberg
+    # repo has no deps.dev project, so leave its project_id nil rather than minting
+    # a bogus github.com/owner/name that would fetch the wrong (or no) scorecard.
+    DEPS_DEV_HOST_BY_SOURCE = { github: "github.com", gitlab: "gitlab.com" }.freeze
+
+    def deps_dev_project_id(repo)
+      host = DEPS_DEV_HOST_BY_SOURCE[repo[:source]]
+      return unless repo[:url] && host
+
+      "#{host}/#{repo[:owner]}/#{repo[:name]}"
     end
 
     def repository_info(gem_name:, versions:, source_uri: nil)
@@ -322,6 +327,8 @@ module StillActive
         GithubClient.archived(owner: repository_owner, name: repository_name)
       when :gitlab
         GitlabClient.archived(owner: repository_owner, name: repository_name)
+      when :forgejo
+        ForgejoClient.archived(owner: repository_owner, name: repository_name)
       end
     end
 
@@ -331,6 +338,8 @@ module StillActive
         GithubClient.last_commit_date(owner: repository_owner, name: repository_name)
       when :gitlab
         GitlabClient.last_commit_date(owner: repository_owner, name: repository_name)
+      when :forgejo
+        ForgejoClient.last_commit_date(owner: repository_owner, name: repository_name)
       end
     end
   end

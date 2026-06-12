@@ -89,6 +89,8 @@ Without a token, GitHub API calls are unauthenticated and rate-limited to 60 req
 
 GitLab cascade mirrors GitHub: `--gitlab-token` → `GITLAB_TOKEN` → `glab auth status --show-token`. Optional for public repos, required for private ones.
 
+Forgejo/Codeberg (the rare gem whose canonical `source_code_uri` is `codeberg.org`) is read anonymously by default; set `STILL_ACTIVE_FORGEJO_TOKEN` (or `CODEBERG_TOKEN`) only to raise the rate limit or reach a private repo. There is no CLI flag, since Codeberg has no ubiquitous CLI to borrow a token from the way `gh`/`glab` do.
+
 Artifactory auth prefers Bundler's per-source credentials (`Bundler.settings` for the source URL or hostname) so private registries work the same way `bundle install` does and multiple hosts need no extra configuration. If none are set, still_active falls back to a global token via `--artifactory-token` or `STILL_ACTIVE_ARTIFACTORY_TOKEN`; that path requires `--artifactory-host` / `STILL_ACTIVE_ARTIFACTORY_HOST` to prevent sending the token to an unexpected host from the lockfile. Use `user:password` in Bundler settings for Basic auth, or a bare token for Bearer auth. Required for private JFrog gem registries (`.jfrog.io`).
 
 When providing the artifactory token via flag or env, you must also set `--artifactory-host` or `STILL_ACTIVE_ARTIFACTORY_HOST` to the expected registry hostname (e.g. `my-org.jfrog.io`). still_active only sends the token to a matching host, so a lockfile cannot redirect it elsewhere to prevent leaking the token to an unverified host. Providing a token/host in this manner will work only for a single-host. To support multiple Artifactory hosts, use Bundler's credentials per source URL or hostname (`bundle config set credentials.my-org.jfrog.io user:pass`).
@@ -365,7 +367,7 @@ These are **leads, not recommendations**: same-category does not mean drop-in re
 ### Data sources
 
 - **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org), [GitHub Packages](https://docs.github.com/en/packages), or [JFrog Artifactory](https://jfrog.com/artifactory/) gem registries
-- **Last commit date and archived status** from the [GitHub](https://docs.github.com/en/rest) or [GitLab](https://docs.gitlab.com/ee/api/) API
+- **Last commit date and archived status** from the [GitHub](https://docs.github.com/en/rest), [GitLab](https://docs.gitlab.com/ee/api/), or [Forgejo/Gitea](https://forgejo.org/docs/latest/user/api-usage/) (Codeberg) API
 - **OpenSSF Scorecard**, **vulnerability counts**, and **CVSS severity** from Google's [deps.dev](https://deps.dev) API
 - **Additional advisories** from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db), merged in when `bundler-audit` is installed alongside (run `bundle audit update` to keep its checkout current)
 - **Ruby version freshness** from [endoflife.date](https://endoflife.date)

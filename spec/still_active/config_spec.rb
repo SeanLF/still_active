@@ -82,6 +82,43 @@ RSpec.describe(StillActive::Config) do
     end
   end
 
+  describe("forgejo_token discovery") do
+    around do |example|
+      original = ENV.to_hash
+      ENV.delete("STILL_ACTIVE_FORGEJO_TOKEN")
+      ENV.delete("CODEBERG_TOKEN")
+      example.run
+    ensure
+      ENV.clear
+      original.each { |k, v| ENV[k] = v }
+    end
+
+    it("uses STILL_ACTIVE_FORGEJO_TOKEN when set") do
+      ENV["STILL_ACTIVE_FORGEJO_TOKEN"] = "fj_from_env"
+      expect(described_class.new.forgejo_token).to(eq("fj_from_env"))
+    end
+
+    it("accepts CODEBERG_TOKEN as an alias") do
+      ENV["CODEBERG_TOKEN"] = "fj_from_codeberg"
+      expect(described_class.new.forgejo_token).to(eq("fj_from_codeberg"))
+    end
+
+    it("prefers STILL_ACTIVE_FORGEJO_TOKEN over CODEBERG_TOKEN") do
+      ENV["STILL_ACTIVE_FORGEJO_TOKEN"] = "fj_primary"
+      ENV["CODEBERG_TOKEN"] = "fj_alias"
+      expect(described_class.new.forgejo_token).to(eq("fj_primary"))
+    end
+
+    it("treats an empty token as unset") do
+      ENV["STILL_ACTIVE_FORGEJO_TOKEN"] = ""
+      expect(described_class.new.forgejo_token).to(be_nil)
+    end
+
+    it("returns nil when no token env var is set (anonymous reads)") do
+      expect(described_class.new.forgejo_token).to(be_nil)
+    end
+  end
+
   describe("gitlab_token discovery") do
     around do |example|
       original = ENV.to_hash
