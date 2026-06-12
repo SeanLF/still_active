@@ -19,9 +19,9 @@ module StillActive
         warn("warning: lockfile contains a PLUGIN SOURCE block; still_active does not audit Bundler plugins, skipping it")
       end
 
-      direct = parsed[:direct]
+      audited = audited_names(parsed)
       parsed[:specs]
-        .select { |spec| direct.include?(spec.name) }
+        .select { |spec| audited.include?(spec.name) }
         .uniq(&:name)
         .map do |spec|
           {
@@ -31,6 +31,31 @@ module StillActive
             source_uri: spec.source_uri,
           }
         end
+    end
+
+    # The DEPENDENCIES names, plus the runtime deps of any local path-sourced gem
+    # reachable from them (a gemspec project's own gem, or a local Rails engine).
+    # A `gemspec` / `gem path:` directive surfaces the local gem's *development*
+    # deps in DEPENDENCIES but its *runtime* deps arrive only as that gem's
+    # nested lockfile deps, so without this a gem maintainer auditing their own
+    # repo would never see the deps they ship. We follow path gems transitively
+    # (nested engines) but never expand a regular gem's transitive graph, keeping
+    # parity with the "audit what you declare" scope for normal projects. Refs #41.
+    def audited_names(parsed)
+      specs_by_name = parsed[:specs].to_h { |spec| [spec.name, spec] }
+      names = []
+      queue = parsed[:direct].dup
+
+      until queue.empty?
+        name = queue.shift
+        next if names.include?(name)
+
+        names << name
+        spec = specs_by_name[name]
+        queue.concat(spec.dependencies) if spec&.source_type == :path
+      end
+
+      names
     end
 
     # Bundler's lockfile naming: `gems.rb` pairs with `gems.locked`, every other

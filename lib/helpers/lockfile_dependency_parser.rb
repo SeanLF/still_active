@@ -16,7 +16,11 @@ module StillActive
   module LockfileDependencyParser
     extend self
 
-    Spec = Struct.new(:name, :version, :source_type, :source_uri, keyword_init: true)
+    # `dependencies` holds the names listed under this spec in the lockfile (its
+    # resolved runtime deps). For a local path gem (a gemspec project or engine)
+    # these are the gems it ships, which Bundler does not surface in the
+    # DEPENDENCIES section, so they are what #41 needs to reach.
+    Spec = Struct.new(:name, :version, :source_type, :source_uri, :dependencies, keyword_init: true)
 
     # Lockfile source blocks and the source_type each maps to. PLUGIN SOURCE is
     # recognized as a block (so its lines are consumed as inert data, not
@@ -35,6 +39,9 @@ module StillActive
     # evasion on a hand-crafted lockfile).
     SPEC_LINE = /\A {4}(\S+) \(([^-)]+)(?:-[^)]*)?\)/
     REMOTE_LINE = /\A {2}remote: (.+)\z/
+    # A spec's nested runtime dep is indented exactly 6 spaces: `      name` or
+    # `      name (~> 1.0)`.
+    NESTED_DEP_LINE = /\A {6}([^\s(!]+)/
     # A DEPENDENCIES entry is indented 2 spaces: `  name`, `  name (~> 1.0)`, or
     # `  name!` (the `!` marks a pinned git/path source).
     DEPENDENCY_LINE = /\A {2}([^\s(!]+)/
@@ -49,6 +56,7 @@ module StillActive
       section = nil
       source_type = nil
       remote = nil
+      current_spec = nil
       plugin_source = false
 
       content.each_line do |raw|
@@ -58,6 +66,7 @@ module StillActive
           section = line
           source_type = SOURCE_TYPES[line]
           remote = nil
+          current_spec = nil
           plugin_source ||= (line == PLUGIN_SOURCE)
           next
         end
@@ -67,7 +76,10 @@ module StillActive
           if (m = REMOTE_LINE.match(line))
             remote ||= m[1] # first remote wins, matching Bundler's remotes.first
           elsif (m = SPEC_LINE.match(line))
-            specs << Spec.new(name: m[1], version: m[2], source_type: source_type, source_uri: remote)
+            current_spec = Spec.new(name: m[1], version: m[2], source_type: source_type, source_uri: remote, dependencies: [])
+            specs << current_spec
+          elsif current_spec && (m = NESTED_DEP_LINE.match(line))
+            current_spec.dependencies << m[1]
           end
         when "DEPENDENCIES"
           if (m = DEPENDENCY_LINE.match(line))
