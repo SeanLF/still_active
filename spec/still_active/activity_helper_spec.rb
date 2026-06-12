@@ -69,4 +69,24 @@ RSpec.describe(StillActive::ActivityHelper) do
       expect(described_class.activity_level(data)).to(eq(:ok))
     end
   end
+
+  describe(".last_activity") do
+    it("returns the most recent release tagged :release, ignoring a newer commit") do
+      result = described_class.last_activity(gem_data(release: 2.years.ago, pre_release: 5.years.ago, last_commit: Time.now))
+      expect(result[:kind]).to(eq(:release))
+      expect(result[:date]).to(be_within(1).of(2.years.ago))
+    end
+
+    it("falls back to the commit date tagged :commit when there are no releases") do
+      expect(described_class.last_activity(gem_data(last_commit: 2.years.ago))[:kind]).to(eq(:commit))
+    end
+
+    it("returns nil when there is no activity at all") do
+      expect(described_class.last_activity(gem_data)).to(be_nil)
+    end
+
+    it("parses iso8601 string dates, which the SARIF path may supply") do
+      expect(described_class.last_activity(gem_data(release: 2.years.ago.iso8601))[:kind]).to(eq(:release))
+    end
+  end
 end

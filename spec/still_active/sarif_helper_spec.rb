@@ -104,8 +104,8 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("appends alternatives to the abandoned-gem result message") do
-      ancient = Time.now - (3 * 365 * 24 * 60 * 60)
-      result = { "paperclip" => { version_used: "6.0.0", archived: false, last_commit_date: ancient.iso8601, alternatives: ["shrine", "carrierwave"] } }
+      ancient = Time.now - (4 * 365 * 24 * 60 * 60)
+      result = { "paperclip" => { version_used: "6.0.0", archived: false, latest_version_release_date: ancient, alternatives: ["shrine", "carrierwave"] } }
       sarif = render(result: result)
       msg = sarif.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA002" }.dig("message", "text")
       expect(msg).to(include("Consider: shrine, carrierwave"))
@@ -127,25 +127,58 @@ RSpec.describe(StillActive::SarifHelper) do
   end
 
   describe("SA002 AbandonedGem") do
-    let(:ancient) { Time.now - (3 * 365 * 24 * 60 * 60) }
+    # Release-driven, matching the rest of the tool: a gem is abandoned when its
+    # last release was over 3 years ago (the :critical tier), regardless of
+    # commit churn. ~4 years sits comfortably past the 3-year line.
+    let(:ancient_release) { Time.now - (4 * 365 * 24 * 60 * 60) }
 
-    it("fires when last_commit_date is more than 2 years old and not archived") do
-      report = { "abandoned_gem" => { version_used: "2.0.0", archived: false, last_commit_date: ancient.iso8601 } }
+    it("fires when the last release is over 3 years old, reporting the release gap") do
+      report = { "abandoned_gem" => { version_used: "2.0.0", archived: false, latest_version_release_date: ancient_release } }
       results = render(result: report).dig("runs", 0, "results")
       sa002 = results.select { |r| r["ruleId"] == "SA002" }
       expect(sa002.size).to(eq(1))
       expect(sa002[0]["level"]).to(eq("warning"))
+      expect(sa002[0].dig("message", "text")).to(match(/no release in [\d.]+ years/))
+    end
+
+    it("fires on a stale release even when commits are recent (commit churn does not rescue it)") do
+      # The unification bug this fixes: SARIF previously keyed on commit date, so
+      # a gem with a fresh commit but a years-old release slipped through.
+      report = {
+        "abandoned_gem" => {
+          version_used: "2.0.0",
+          archived: false,
+          latest_version_release_date: ancient_release,
+          last_commit_date: Time.now,
+        },
+      }
+      results = render(result: report).dig("runs", 0, "results")
+      expect(results.any? { |r| r["ruleId"] == "SA002" }).to(be(true))
+    end
+
+    it("falls back to the commit date for a gem with no releases (git-sourced)") do
+      report = { "git_gem" => { version_used: "1.0.0", archived: false, last_commit_date: ancient_release } }
+      results = render(result: report).dig("runs", 0, "results")
+      sa002 = results.select { |r| r["ruleId"] == "SA002" }
+      expect(sa002.size).to(eq(1))
+      expect(sa002[0].dig("message", "text")).to(match(/no commits in [\d.]+ years/))
     end
 
     it("does NOT fire when the gem is also archived (SA001 dominates)") do
-      report = { "abandoned_gem" => { version_used: "2.0.0", archived: true, last_commit_date: ancient.iso8601 } }
+      report = { "abandoned_gem" => { version_used: "2.0.0", archived: true, latest_version_release_date: ancient_release } }
       results = render(result: report).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA002" }).to(be(false))
       expect(results.any? { |r| r["ruleId"] == "SA001" }).to(be(true))
     end
 
-    it("does NOT fire on recent commits") do
-      report = { "abandoned_gem" => { version_used: "2.0.0", archived: false, last_commit_date: Time.now.iso8601 } }
+    it("does NOT fire on a recent release") do
+      report = { "fresh_gem" => { version_used: "2.0.0", archived: false, latest_version_release_date: Time.now } }
+      results = render(result: report).dig("runs", 0, "results")
+      expect(results.any? { |r| r["ruleId"] == "SA002" }).to(be(false))
+    end
+
+    it("does NOT fire on a stale-but-not-critical release (18mo-3yr stays terminal-only)") do
+      report = { "stale_gem" => { version_used: "2.0.0", archived: false, latest_version_release_date: Time.now - (2 * 365 * 24 * 60 * 60) } }
       results = render(result: report).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA002" }).to(be(false))
     end

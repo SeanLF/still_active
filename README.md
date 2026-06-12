@@ -115,8 +115,8 @@ Usage: still_active [options]
         --artifactory-token=TOKEN    Artifactory token for private gem registry API calls
         --artifactory-host=HOST      Artifactory host allowed to receive the global token (e.g. my-org.jfrog.io)
         --simultaneous-requests=QTY  Number of simultaneous requests made
-        --safe-range-end=YEARS       maximum years since last activity considered safe (no warning)
-        --warning-range-end=YEARS    maximum years since last activity that triggers a warning (beyond this is critical)
+        --safe-range-end=YEARS       maximum years since last release considered safe, no warning (default 1.5)
+        --warning-range-end=YEARS    maximum years since last release that triggers a warning, beyond this is critical (default 3)
         --fail-if-critical           Exit 1 if any gem has critical activity warning
         --fail-if-warning            Exit 1 if any gem has warning or critical activity warning
         --fail-if-vulnerable[=SEVERITY]
@@ -342,11 +342,11 @@ still_active --fail-if-warning --fail-if-vulnerable --ignore=legacy_gem --json
 
 ### Activity thresholds
 
-Activity is determined by the most recent signal across last commit date, latest release date, and latest pre-release date:
+Activity is driven by release recency (the latest stable or pre-release date), since a release is what you can actually `bundle update` to. A recent commit does not offset a stale release: the last commit date is shown as context and only stands in when a gem has no releases at all (e.g. git-sourced). Thresholds are calibrated against real RubyGems cadence, where healthy mature gems often go a year or more between releases:
 
-- **ok**: last activity within 1 year (configurable with `--safe-range-end`)
-- **stale**: last activity between 1 and 3 years ago (configurable with `--warning-range-end`)
-- **critical**: last activity over 3 years ago
+- **ok**: last release within 18 months (configurable with `--safe-range-end`)
+- **stale**: last release between 18 months and 3 years ago
+- **critical**: last release over 3 years ago (configurable with `--warning-range-end`)
 
 ### Alternative gem leads (opt-in)
 
@@ -376,8 +376,8 @@ These are **leads, not recommendations**: same-category does not mean drop-in re
 | Option                  | Default     | Description                                                      |
 | ----------------------- | ----------- | ---------------------------------------------------------------- |
 | `output_format`         | auto-detect | Coloured terminal on TTY, JSON when piped                        |
-| `safe_range_end`        | 1 year      | Last activity within this range is "ok"                          |
-| `warning_range_end`     | 3 years     | Last activity within this range is "stale"; beyond is "critical" |
+| `safe_range_end`        | 1.5 years   | Last release within this range is "ok"                           |
+| `warning_range_end`     | 3 years     | Last release within this range is "stale"; beyond is "critical"  |
 | `simultaneous_requests` | 10          | Concurrent API requests                                          |
 
 ## Development

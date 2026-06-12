@@ -5,6 +5,7 @@ require "digest"
 require "time"
 require_relative "../still_active/sarif/rules"
 require_relative "lockfile_indexer"
+require_relative "activity_helper"
 
 module StillActive
   # Renders a still_active workflow result as a SARIF 2.1.0 document.
@@ -19,7 +20,7 @@ module StillActive
 
     LIBYEAR_THRESHOLD = 1.0
     SCORECARD_LOW_THRESHOLD = 4.0
-    ABANDONED_SECONDS = 2 * 365 * 24 * 60 * 60 # 2 years
+    SECONDS_PER_YEAR = 365 * 24 * 60 * 60 # for the human-readable "in N years"
 
     # result: same hash StillActive::Workflow.call returns (gem_name => gem_data)
     # ruby_info: optional Ruby freshness hash (or nil)
@@ -102,13 +103,14 @@ module StillActive
       end
 
       unless data[:archived]
-        last_commit = parse_time(data[:last_commit_date])
-        if last_commit && last_commit < (Time.now - ABANDONED_SECONDS)
-          years = ((Time.now - last_commit) / (365 * 24 * 60 * 60)).round(1)
+        if ActivityHelper.activity_level(data) == :critical
+          activity = ActivityHelper.last_activity(data)
+          years = ((Time.now - activity[:date]) / SECONDS_PER_YEAR).round(1)
+          noun = activity[:kind] == :release ? "no release" : "no commits"
           out << result(
             "SA002",
             name,
-            "#{name} #{version}: no commits in #{years} years (last #{last_commit.utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}.",
+            "#{name} #{version}: #{noun} in #{years} years (last #{activity[:date].utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}.",
             location,
           )
         end
@@ -211,17 +213,8 @@ module StillActive
       Sarif::Rules.all.index { |r| r[:id] == rule_id }
     end
 
-    def parse_time(value)
-      return value if value.is_a?(Time)
-      return if value.nil?
-
-      Time.parse(value.to_s)
-    rescue ArgumentError, TypeError, RangeError
-      nil
-    end
-
     def format_date(value)
-      t = parse_time(value)
+      t = ActivityHelper.parse_time(value)
       t ? t.utc.strftime("%Y-%m-%d") : value.to_s
     end
 
