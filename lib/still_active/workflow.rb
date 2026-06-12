@@ -56,7 +56,10 @@ module StillActive
           end
         end
         barrier.wait
-        result_object
+        # Gems are inserted as their async tasks finish, so the natural order is
+        # nondeterministic completion order. Sort by name once here so every
+        # consumer (JSON, SARIF, the baseline diff) gets a stable, diffable order.
+        result_object.sort_by { |name, _| name }.to_h
       end
       task.wait
     end

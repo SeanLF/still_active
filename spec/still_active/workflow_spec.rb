@@ -352,6 +352,28 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    context("when gems resolve in a non-alphabetical order") do
+      # Gems land in the result hash as their async tasks finish, so insertion
+      # order is completion order (nondeterministic across runs). Every consumer
+      # (JSON, SARIF, the baseline diff) needs a stable order to be diffable.
+      before do
+        StillActive.config.gems = [
+          { name: "zebra", version: "1.0.0" },
+          { name: "mango", version: "1.0.0" },
+          { name: "apple", version: "1.0.0" },
+        ]
+        allow(Gems).to(receive_messages(
+          versions: [{ "number" => "1.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z" }],
+          info: { "homepage_uri" => nil, "source_code_uri" => nil },
+        ))
+        allow(StillActive::DepsDevClient).to(receive(:version_info).and_return(nil))
+      end
+
+      it("returns gems in a deterministic, name-sorted order") do
+        expect(result.keys).to(eq(["apple", "mango", "zebra"]))
+      end
+    end
+
     context("when --alternatives is enabled and a gem is archived") do
       before do
         StillActive.config.gems = [{ name: "paperclip", version: "6.0.0" }]
