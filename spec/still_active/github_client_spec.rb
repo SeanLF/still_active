@@ -75,4 +75,40 @@ RSpec.describe(StillActive::GithubClient) do
         .to(output(/could not parse commit date/).to_stderr)
     end
   end
+
+  describe(".commits_since_release") do
+    it("returns ahead_by when the v-prefixed tag resolves") do
+      allow(client).to(receive(:compare).with("rails/rails", "v7.0.1", "HEAD").and_return(double(ahead_by: 42)))
+      expect(described_class.commits_since_release(owner: owner, name: name, version: "7.0.1")).to(eq(42))
+    end
+
+    it("falls back to the bare version tag when the v-prefixed tag 404s") do
+      allow(client).to(receive(:compare).with("rails/rails", "v7.0.1", "HEAD").and_raise(Octokit::NotFound))
+      allow(client).to(receive(:compare).with("rails/rails", "7.0.1", "HEAD").and_return(double(ahead_by: 7)))
+      expect(described_class.commits_since_release(owner: owner, name: name, version: "7.0.1")).to(eq(7))
+    end
+
+    it("returns nil when no tag form resolves") do
+      allow(client).to(receive(:compare).and_raise(Octokit::NotFound))
+      expect(described_class.commits_since_release(owner: owner, name: name, version: "7.0.1")).to(be_nil)
+    end
+
+    it("returns nil when version is nil, without calling the API") do
+      allow(client).to(receive(:compare))
+      expect(described_class.commits_since_release(owner: owner, name: name, version: nil)).to(be_nil)
+      expect(client).not_to(have_received(:compare))
+    end
+
+    it("returns nil when owner is nil, without calling the API") do
+      allow(client).to(receive(:compare))
+      expect(described_class.commits_since_release(owner: nil, name: name, version: "7.0.1")).to(be_nil)
+      expect(client).not_to(have_received(:compare))
+    end
+
+    it("returns nil and warns on a non-NotFound Octokit error") do
+      allow(client).to(receive(:compare).and_raise(Octokit::TooManyRequests))
+      expect { expect(described_class.commits_since_release(owner: owner, name: name, version: "7.0.1")).to(be_nil) }
+        .to(output(/unreleased-commits check failed/).to_stderr)
+    end
+  end
 end

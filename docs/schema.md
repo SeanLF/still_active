@@ -41,6 +41,7 @@
 | `last_commit_date` | string \| nil | ISO-8601 timestamp of the latest commit. |
 | `archived` | bool \| nil | `true` if the repo is archived; `nil` if unknown. |
 | `activity_level` | string | Derived maintenance verdict: `"ok"`, `"stale"`, `"critical"`, `"archived"`, or `"unknown"`. Driven by release recency, with the last commit used only as a fallback when a gem has no releases. |
+| `unreleased_commits` | integer \| null \| absent | Present only with `--unreleased-commits`. Commits on the default branch since the latest release's tag (GitHub-hosted gems only; `null` for non-GitHub sources or when the tag can't be resolved). Informational, never a gate. Inflated for monorepos and release-branch projects (the count covers the whole repo / the next-version trunk), so read it as a lead, not a verdict. |
 | `scorecard_score` | float \| nil | OpenSSF Scorecard score 0.0–10.0 from deps.dev. |
 | `vulnerability_count` | integer | Number of advisories affecting `version_used`. |
 | `vulnerabilities` | array | One entry per advisory (see below). |

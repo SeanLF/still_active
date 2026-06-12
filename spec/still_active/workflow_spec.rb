@@ -528,6 +528,50 @@ RSpec.describe(StillActive::Workflow) do
     end
   end
 
+  describe(".unreleased_commits dispatch") do
+    it("delegates to GithubClient for a github source") do
+      allow(StillActive::GithubClient).to(receive(:commits_since_release).with(owner: "rails", name: "rails", version: "7.0.1").and_return(5))
+      result = described_class.send(:unreleased_commits, source: :github, repository_owner: "rails", repository_name: "rails", version: "7.0.1")
+      expect(result).to(eq(5))
+    end
+
+    it("returns nil for a gitlab source, which does not implement the capability") do
+      # GitLab has no scalar ahead_by; it must not be assumed to support the signal.
+      expect(StillActive::GitlabClient).not_to(respond_to(:commits_since_release))
+      expect(described_class.send(:unreleased_commits, source: :gitlab, repository_owner: "g", repository_name: "g", version: "1.0")).to(be_nil)
+    end
+
+    it("returns nil for a forgejo source, which does not implement the capability") do
+      expect(StillActive::ForgejoClient).not_to(respond_to(:commits_since_release))
+      expect(described_class.send(:unreleased_commits, source: :forgejo, repository_owner: "f", repository_name: "f", version: "1.0")).to(be_nil)
+    end
+
+    it("returns nil for an unhandled source without raising") do
+      expect(described_class.send(:unreleased_commits, source: :unhandled, repository_owner: nil, repository_name: nil, version: nil)).to(be_nil)
+    end
+  end
+
+  describe("#call with --unreleased-commits") do
+    before do
+      StillActive.config.unreleased_commits = true
+      StillActive.config.gems = [{ name: "rails" }]
+    end
+
+    it("merges the unreleased_commits count into the gem entry") do
+      allow(described_class).to(receive(:unreleased_commits).and_return(17))
+      VCR.use_cassette("gems") do
+        expect(described_class.call["rails"]).to(include(unreleased_commits: 17))
+      end
+    end
+
+    it("does not set the key when the flag is off") do
+      StillActive.config.unreleased_commits = false
+      VCR.use_cassette("gems") do
+        expect(described_class.call["rails"]).not_to(have_key(:unreleased_commits))
+      end
+    end
+  end
+
   describe(".repository_info_for_non_rubygems") do
     it("builds a deps.dev project_id for a github-hosted source") do
       info = described_class.send(:repository_info_for_non_rubygems, gem_name: "ghgem_xyz", source_uri: "https://github.com/owner/ghgem_xyz")

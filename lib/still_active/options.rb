@@ -65,6 +65,7 @@ module StillActive
       opts.on("--markdown", "Markdown table output") { StillActive.config { |config| config.output_format = :markdown } }
       opts.on("--json", "JSON output (default when piped)") { StillActive.config { |config| config.output_format = :json } }
       opts.on("--alternatives", "Suggest maintained alternatives (Ruby Toolbox leads) for archived/critical gems") { StillActive.config { |config| config.alternatives = true } }
+      opts.on("--unreleased-commits", "Count commits on the default branch since the latest release (GitHub only; opt-in, one extra API call per gem)") { StillActive.config { |config| config.unreleased_commits = true } }
       opts.on("--sarif[=PATH]", "SARIF 2.1.0 output for GitHub Code Scanning (default path: still_active.sarif.json; '-' for stdout). Overrides --terminal/--markdown/--json.") do |value|
         StillActive.config { |config| config.sarif_path = value || "still_active.sarif.json" }
       end

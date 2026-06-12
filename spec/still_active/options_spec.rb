@@ -146,6 +146,16 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.alternatives).to(be(true))
     end
 
+    it("enables the unreleased-commits signal with --unreleased-commits") do
+      described_class.new.parse!(["--unreleased-commits"])
+      expect(StillActive.config.unreleased_commits).to(be(true))
+    end
+
+    it("leaves unreleased_commits off by default") do
+      described_class.new.parse!([])
+      expect(StillActive.config.unreleased_commits).to(be(false))
+    end
+
     it("returns provided_gems flag when gems are given") do
       result = described_class.new.parse!(["--gems=rails"])
       expect(result[:provided_gems]).to(be(true))

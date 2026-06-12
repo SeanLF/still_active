@@ -108,6 +108,7 @@ Usage: still_active [options]
         --markdown                   Markdown table output
         --json                       JSON output (default when piped)
         --alternatives               Suggest maintained alternatives (Ruby Toolbox leads) for archived/critical gems
+        --unreleased-commits         Count commits on the default branch since the latest release (GitHub only; opt-in)
         --sarif[=PATH]               SARIF 2.1.0 output for GitHub Code Scanning
         --cyclonedx[=PATH]           CycloneDX SBOM output (stdout, or a file path)
         --cyclonedx-version=VERSION  CycloneDX spec version: 1.6 (default) or 1.7
@@ -363,6 +364,12 @@ still_active --gems=paperclip --alternatives
 ```
 
 These are **leads, not recommendations**: same-category does not mean drop-in replacement, so verify fit before switching. Ruby has no authoritative "use instead" metadata (unlike npm `deprecate`, Go's `// Deprecated:`, or NuGet's alternate-package field), so this is a best-effort heuristic. It is silent when the catalog has no entry for the gem, and the feature never blocks or fails a run. Leads appear in terminal, markdown, JSON, and SARIF output. When the flag is off, terminal output shows a one-line hint on flagged gems that the option exists (other formats stay silent).
+
+### Unreleased commits (opt-in)
+
+`--unreleased-commits` adds an `unreleased_commits` count to the JSON output: commits on the default branch since the latest release's tag. It catches the case the release-recency signal can't, a gem with a *recent* release but a pile of merged-but-unreleased fixes sitting on top, or conversely one that looks stale but is genuinely *done* (no unreleased work). It is the one maintenance signal no Ruby tool surfaces today; only GitHub's own UI shows it.
+
+It is **opt-in and GitHub-only**: enabling it adds one extra API call per GitHub-hosted gem (the git tag is resolved from the RubyGems version by trying `v1.2.3` then `1.2.3` as the compare base), so mind your rate limit on a large lockfile. Non-GitHub sources report `null` (GitLab has no equivalent scalar; the signal is duck-typed, so a provider either implements it or doesn't). The count is **informational and never gates a run**. Read it as a lead, not a verdict: it is inflated for monorepos (the count spans the whole repository, e.g. `bundler` living in `rubygems/rubygems`) and for release-branch projects (the default branch is the next-version trunk, so `rails` reads ~2000 commits ahead of its latest stable tag).
 
 ### Data sources
 
