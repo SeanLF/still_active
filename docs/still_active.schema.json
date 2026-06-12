@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/SeanLF/still_active/main/docs/still_active.schema.json",
+  "title": "still_active --json output",
+  "description": "Versioned machine schema for `still_active --json`. Stable within a major version; additive fields do not bump schema_version. See docs/schema.md for prose.",
+  "type": "object",
+  "required": ["schema_version", "tool", "generated_at", "summary", "gems"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "type": "integer", "const": 1 },
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "const": "still_active" },
+        "version": { "type": "string" }
+      }
+    },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "summary": { "$ref": "#/$defs/summary" },
+    "gems": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/gem" }
+    },
+    "ruby": { "$ref": "#/$defs/ruby" },
+    "pr_context": { "$ref": "#/$defs/pr_context" }
+  },
+  "$defs": {
+    "summary": {
+      "type": "object",
+      "required": ["total_gems", "direct", "transitive", "activity", "archived", "up_to_date", "outdated", "vulnerable_gems", "vulnerabilities"],
+      "additionalProperties": false,
+      "properties": {
+        "total_gems": { "type": "integer", "minimum": 0 },
+        "direct": { "type": "integer", "minimum": 0 },
+        "transitive": { "type": "integer", "minimum": 0 },
+        "activity": {
+          "type": "object",
+          "required": ["ok", "stale", "critical", "archived", "unknown"],
+          "additionalProperties": false,
+          "properties": {
+            "ok": { "type": "integer", "minimum": 0 },
+            "stale": { "type": "integer", "minimum": 0 },
+            "critical": { "type": "integer", "minimum": 0 },
+            "archived": { "type": "integer", "minimum": 0 },
+            "unknown": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "archived": { "type": "integer", "minimum": 0 },
+        "up_to_date": { "type": "integer", "minimum": 0 },
+        "outdated": { "type": "integer", "minimum": 0 },
+        "vulnerable_gems": { "type": "integer", "minimum": 0 },
+        "vulnerabilities": { "type": "integer", "minimum": 0 },
+        "ruby_eol": { "type": "boolean" }
+      }
+    },
+    "gem": {
+      "type": "object",
+      "required": ["source_type", "direct", "activity_level"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": { "type": "string", "enum": ["rubygems", "git", "path", "unknown"] },
+        "direct": { "type": "boolean" },
+        "dependency_path": { "type": "array", "items": { "type": "string" } },
+        "version_used": { "type": ["string", "null"] },
+        "latest_version": { "type": ["string", "null"] },
+        "latest_version_release_date": { "type": ["string", "null"] },
+        "latest_pre_release_version": { "type": ["string", "null"] },
+        "latest_pre_release_version_release_date": { "type": ["string", "null"] },
+        "repository_url": { "type": ["string", "null"] },
+        "last_commit_date": { "type": ["string", "null"] },
+        "archived": { "type": ["boolean", "null"] },
+        "activity_level": { "type": "string", "enum": ["ok", "stale", "critical", "archived", "unknown"] },
+        "unreleased_commits": { "type": ["integer", "null"] },
+        "scorecard_score": { "type": ["number", "null"] },
+        "vulnerability_count": { "type": "integer", "minimum": 0 },
+        "vulnerabilities": { "type": "array", "items": { "$ref": "#/$defs/vulnerability" } },
+        "alternatives": { "type": "array", "items": { "type": "string" } },
+        "ruby_gems_url": { "type": "string" },
+        "up_to_date": { "type": "boolean" },
+        "version_used_release_date": { "type": ["string", "null"] },
+        "version_yanked": { "type": "boolean" },
+        "license": { "type": ["string", "null"] },
+        "libyear": { "type": ["number", "null"] }
+      }
+    },
+    "vulnerability": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": ["string", "null"] },
+        "title": { "type": ["string", "null"] },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "cvss3_score": { "type": ["number", "null"] },
+        "cvss3_vector": { "type": ["string", "null"] },
+        "cvss2_score": { "type": ["number", "null"] },
+        "source": { "type": "string", "enum": ["deps.dev", "ruby-advisory-db", "merged"] }
+      }
+    },
+    "ruby": {
+      "type": "object",
+      "required": ["version", "eol"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string" },
+        "release_date": { "type": ["string", "null"] },
+        "eol_date": { "type": ["string", "null"] },
+        "eol": { "type": "boolean" },
+        "latest_version": { "type": ["string", "null"] },
+        "latest_release_date": { "type": ["string", "null"] },
+        "libyear": { "type": ["number", "null"] }
+      }
+    },
+    "pr_context": {
+      "type": "object",
+      "required": ["bot", "bumps"],
+      "additionalProperties": false,
+      "properties": {
+        "bot": { "type": "string", "enum": ["dependabot", "renovate"] },
+        "bumps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["gem", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "gem": { "type": "string" },
+              "from": { "type": ["string", "null"] },
+              "to": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

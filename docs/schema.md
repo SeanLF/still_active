@@ -2,6 +2,8 @@
 
 `still_active --json` emits a versioned envelope. The schema is stable within a major version; additive changes (new fields) do not bump `schema_version`.
 
+A machine-readable JSON Schema lives at [`docs/still_active.schema.json`](still_active.schema.json) and is contract-tested against real output; the envelope carries its URL as `$schema` so the output is self-describing.
+
 ## Top-level shape
 
 ```json
@@ -19,13 +21,32 @@
 
 | Field | Type | Notes |
 | --- | --- | --- |
+| `$schema` | string | URL of the JSON Schema this document conforms to. |
 | `schema_version` | integer | `1` for this version. Bumped only on breaking changes. |
+| `summary` | object | One-object digest of the audit's posture (see below). |
 | `tool.name` | string | Always `"still_active"`. |
 | `tool.version` | string | Gem version that produced this report (e.g. `"1.4.0"`). |
 | `generated_at` | string | ISO-8601 UTC timestamp (e.g. `"2026-05-22T14:33:00Z"`). |
 | `gems` | object | Map of gem name → gem data (see below). |
 | `ruby` | object \| absent | Ruby freshness info; absent when not detectable. |
 | `pr_context` | object \| absent | Present only when the run is detected as Dependabot/Renovate-authored. `{ "bot": "dependabot" \| "renovate", "bumps": [{ "gem", "from", "to" }] }`. `from` is `null` for Renovate (its commit subject carries no source version); `bumps` is `[]` for grouped/unparseable subjects. Best-effort detection — absence does not guarantee the run is not a bot's. |
+
+## Summary fields
+
+A digest so a consumer reads the headline posture without iterating every gem. Counts derive from the canonical per-gem fields (`activity_level`, `archived`, `up_to_date`, `vulnerability_count`), so they never drift from a separately-thresholded SARIF rule.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `total_gems` | integer | Number of gems audited (direct + transitive). |
+| `direct` | integer | Declared dependencies. |
+| `transitive` | integer | Pulled-in dependencies (0 with `--direct-only`). |
+| `activity` | object | Gem count per `activity_level`: `{ ok, stale, critical, archived, unknown }`. Every key is always present (0 if none). |
+| `archived` | integer | Gems whose repo is archived. |
+| `up_to_date` | integer | Gems on the latest version (`up_to_date == true`). |
+| `outdated` | integer | Gems not on the latest version (`up_to_date == false`). |
+| `vulnerable_gems` | integer | Gems with at least one advisory. |
+| `vulnerabilities` | integer | Total advisories across all gems. |
+| `ruby_eol` | bool \| absent | `true` if the project's Ruby has reached EOL. Absent when Ruby info isn't detectable. |
 
 ## Per-gem fields
 
@@ -47,6 +68,7 @@
 | `scorecard_score` | float \| nil | OpenSSF Scorecard score 0.0–10.0 from deps.dev. |
 | `vulnerability_count` | integer | Number of advisories affecting `version_used`. |
 | `vulnerabilities` | array | One entry per advisory (see below). |
+| `alternatives` | array \| absent | Present only with `--alternatives` on an archived/critical **direct** gem: up to three maintained Ruby Toolbox leads to verify. Direct-only by design (you can't swap a gem you didn't choose). |
 | `ruby_gems_url` | string \| absent | Present for rubygems-sourced gems. |
 | `up_to_date` | bool \| absent | Present when `version_used` is known. |
 | `version_used_release_date` | string \| nil | ISO-8601 timestamp. |

@@ -58,6 +58,18 @@ RSpec.describe(StillActive::DepsDevClient) do
       ))
     end
 
+    it("drops alias entries with no id, so aliases stays a clean string array") do
+      body = {
+        "advisoryKey" => { "id" => "GHSA-nullalias" },
+        "aliases" => [{ "id" => "CVE-2024-9" }, { "foo" => "bar" }, {}],
+      }
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/}).to_return(
+        status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" },
+      )
+
+      expect(described_class.advisory_detail(advisory_id: "GHSA-nullalias")[:aliases]).to(eq(["CVE-2024-9"]))
+    end
+
     it("extracts cvss2_score when present") do
       body = {
         "advisoryKey" => { "id" => "GHSA-old-vuln" },
