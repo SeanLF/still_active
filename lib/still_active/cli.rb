@@ -11,6 +11,7 @@ require_relative "../helpers/diff_markdown_helper"
 require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
 require_relative "../helpers/sarif_helper"
+require_relative "../helpers/summary_helper"
 require_relative "../helpers/terminal_helper"
 require_relative "../helpers/version_helper"
 require_relative "../helpers/vulnerability_helper"
@@ -18,6 +19,10 @@ require_relative "workflow"
 
 module StillActive
   class CLI
+    # The committed JSON Schema for the --json output. Emitted as `$schema` so
+    # the output is self-describing and a consumer can validate it.
+    SCHEMA_URL = "https://raw.githubusercontent.com/SeanLF/still_active/main/docs/still_active.schema.json"
+
     def run(args)
       # Apply the committed .still_active.yml first so CLI flags (parsed next)
       # win over it: CLI flag > env var > config file > default.
@@ -59,9 +64,13 @@ module StillActive
         case resolve_format
         when :json
           output = {
+            "$schema": SCHEMA_URL,
             schema_version: 1,
             tool: { name: "still_active", version: StillActive::VERSION },
             generated_at: Time.now.utc.iso8601,
+            # A one-object digest of the audit's posture, so a machine/LLM
+            # consumer reads the headline counts without iterating every gem.
+            summary: SummaryHelper.summarize(result, ruby_info: ruby_info),
             # Surface the derived verdict so a machine/LLM consumer reads it
             # directly instead of re-deriving it from the raw dates.
             gems: result.transform_values { |data| data.merge(activity_level: ActivityHelper.activity_level(data)) },

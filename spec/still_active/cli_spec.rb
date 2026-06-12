@@ -201,6 +201,58 @@ RSpec.describe(StillActive::CLI) do
       expect(payload.dig("gems", "rails", "activity_level")).to(eq("ok"))
     end
 
+    it("emits JSON that validates against the published JSON Schema and carries a summary digest") do
+      require "json_schemer"
+      schema_path = File.expand_path("../../docs/still_active.schema.json", __dir__)
+      rich = {
+        "rails" => {
+          source_type: :rubygems,
+          direct: true,
+          version_used: "7.0.0",
+          latest_version: "7.1.0",
+          latest_version_release_date: "2026-01-01T00:00:00Z",
+          latest_pre_release_version: nil,
+          latest_pre_release_version_release_date: nil,
+          repository_url: "https://github.com/rails/rails",
+          last_commit_date: recent_date,
+          archived: false,
+          scorecard_score: 8.5,
+          vulnerability_count: 0,
+          vulnerabilities: [],
+          ruby_gems_url: "https://rubygems.org/gems/rails",
+          up_to_date: false,
+          version_used_release_date: "2025-01-01T00:00:00Z",
+          version_yanked: false,
+          license: "MIT",
+          libyear: 1.2,
+          unreleased_commits: 17,
+        },
+        "rack" => {
+          source_type: :rubygems,
+          direct: false,
+          dependency_path: ["rails", "actionpack", "rack"],
+          last_commit_date: recent_date,
+          vulnerability_count: 1,
+          alternatives: ["foo"],
+          vulnerabilities: [{ id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "merged" }],
+        },
+      }
+      allow(StillActive::Workflow).to(receive_messages(
+        call: rich,
+        ruby_freshness: { version: "3.4.0", release_date: "2025-01-01T00:00:00Z", eol_date: "2028-01-01T00:00:00Z", eol: false, latest_version: "3.4.1", latest_release_date: "2026-01-01T00:00:00Z", libyear: 0.1 },
+      ))
+      allow(StillActive::BotContext).to(receive(:detect).and_return({ bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] }))
+
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rails", "--json"])
+      payload = JSON.parse(captured)
+
+      errors = JSONSchemer.schema(Pathname.new(schema_path)).validate(payload).to_a
+      expect(errors).to(be_empty, errors.map { |e| "#{e["data_pointer"]}: #{e["type"]} (#{e["data"].inspect})" }.join("\n"))
+      expect(payload["summary"]).to(include("total_gems" => 2, "direct" => 1, "transitive" => 1, "vulnerable_gems" => 1, "ruby_eol" => false))
+    end
+
     it("omits ruby key when ruby info is nil") do
       allow(StillActive::Workflow).to(receive(:ruby_freshness).and_return(nil))
       captured = nil

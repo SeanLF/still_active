@@ -2,6 +2,7 @@
 
 require_relative "activity_helper"
 require_relative "ansi_helper"
+require_relative "summary_helper"
 require_relative "libyear_helper"
 require_relative "version_helper"
 require_relative "vulnerability_helper"
@@ -176,29 +177,23 @@ module StillActive
       end
     end
 
+    # Reuse the same digest the JSON output emits so the human summary line can
+    # never drift from the machine one (the #63 "computed two ways" trap). The
+    # terminal keeps a coarser grouping (critical folds into stale) and adds its
+    # own yanked / total-libyear extras that the JSON digest doesn't carry.
     def summary_line(result)
-      total = result.size
-      level_counts = result.each_value.map { |d| ActivityHelper.activity_level(d) }.tally
-      version_counts = result.each_value
-        .map { |d| VersionHelper.up_to_date(version_used: d[:version_used], latest_version: d[:latest_version]) }
-        .tally
-
-      up_to_date = version_counts.fetch(true, 0)
-      outdated = version_counts.fetch(false, 0)
+      summary = SummaryHelper.summarize(result)
+      active = summary[:activity][:ok]
+      stale = summary[:activity][:stale] + summary[:activity][:critical]
+      archived = summary[:activity][:archived]
       yanked = result.each_value.count { |d| d[:version_yanked] }
-      active = level_counts.fetch(:ok, 0)
-      archived = level_counts.fetch(:archived, 0)
-      stale = level_counts.fetch(:stale, 0) + level_counts.fetch(:critical, 0)
-      vulns = result.each_value.sum { |d| d[:vulnerability_count] || 0 }
 
-      parts = [
-        "#{total} gems: #{up_to_date} up to date, #{outdated} outdated",
-      ]
+      parts = ["#{summary[:total_gems]} gems: #{summary[:up_to_date]} up to date, #{summary[:outdated]} outdated"]
       parts.last << ", #{yanked} yanked" if yanked > 0
       activity = "#{active} active, #{stale} stale"
       activity << ", #{archived} archived" if archived > 0
       parts << activity
-      parts << "#{vulns} vulnerabilities"
+      parts << "#{summary[:vulnerabilities]} vulnerabilities"
       total_libyear = LibyearHelper.total_libyear(result)
       parts << "#{total_libyear.round(1)} libyears behind" if total_libyear > 0
       parts.join(" · ")
