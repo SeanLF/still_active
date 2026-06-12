@@ -101,6 +101,11 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.no_warning_range_end).to(eq(2))
     end
 
+    it("accepts a fractional safe range end (the default ok ceiling is 1.5 years)") do
+      described_class.new.parse!(["--safe-range-end=1.5", "--gems=rails"])
+      expect(StillActive.config.no_warning_range_end).to(eq(1.5))
+    end
+
     it("sets warning range end") do
       described_class.new.parse!(["--warning-range-end=5", "--gems=rails"])
       expect(StillActive.config.warning_range_end).to(eq(5))
