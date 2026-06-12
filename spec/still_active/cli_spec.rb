@@ -304,6 +304,61 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
+  describe("granular suppressions") do
+    def suppress(entries)
+      StillActive.config.suppressions = StillActive::Suppressions.from(entries)
+    end
+
+    def vuln_gem(ids)
+      gem_data(last_commit_date: recent_date).merge(
+        vulnerability_count: ids.size,
+        vulnerabilities: ids.map { |id| { id: id, aliases: [] } },
+      )
+    end
+
+    it("does not exit when the only critical gem has its activity signal suppressed") do
+      StillActive.config.fail_if_critical = true
+      suppress([{ "gem" => "stale_gem", "signal" => "activity", "reason" => "vendored, frozen" }])
+      expect { cli.send(:check_exit_status, { "stale_gem" => gem_data(last_commit_date: ancient_date) }) }
+        .not_to(raise_error)
+    end
+
+    it("still exits when an activity suppression targets a different gem") do
+      StillActive.config.fail_if_critical = true
+      suppress([{ "gem" => "other", "signal" => "activity" }])
+      expect { cli.send(:check_exit_status, { "stale_gem" => gem_data(last_commit_date: ancient_date) }) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("suppresses one advisory but still fails on a different unaccepted one") do
+      StillActive.config.fail_if_vulnerable = true
+      suppress([{ "gem" => "vuln_gem", "advisory" => "CVE-1", "reason" => "no fix" }])
+      expect { cli.send(:check_exit_status, { "vuln_gem" => vuln_gem(["CVE-1", "CVE-2"]) }) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("does not exit when every advisory on the gem is suppressed") do
+      StillActive.config.fail_if_vulnerable = true
+      suppress([{ "gem" => "vuln_gem", "advisory" => "CVE-1" }, { "gem" => "vuln_gem", "advisory" => "CVE-2" }])
+      expect { cli.send(:check_exit_status, { "vuln_gem" => vuln_gem(["CVE-1", "CVE-2"]) }) }
+        .not_to(raise_error)
+    end
+
+    it("does not let an advisory suppression hide the same gem going critical") do
+      StillActive.config.fail_if_critical = true
+      suppress([{ "gem" => "g", "advisory" => "CVE-1" }])
+      expect { cli.send(:check_exit_status, { "g" => gem_data(last_commit_date: ancient_date) }) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("re-surfaces (exits 1) once a suppression has lapsed") do
+      StillActive.config.fail_if_critical = true
+      suppress([{ "gem" => "stale_gem", "signal" => "activity", "expires" => "2000-01-01" }])
+      expect { cli.send(:check_exit_status, { "stale_gem" => gem_data(last_commit_date: ancient_date) }) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+  end
+
   describe("archived repo with --fail-if-critical") do
     context("when a gem's repo is archived") do
       let(:workflow_result) do

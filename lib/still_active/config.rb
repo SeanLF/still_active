@@ -3,6 +3,7 @@
 require "bundler"
 require "octokit"
 require "open3"
+require_relative "suppressions"
 
 module StillActive
   class Config
@@ -25,6 +26,7 @@ module StillActive
       :no_warning_range_end,
       :sarif_path,
       :success_emoji,
+      :suppressions,
       :unsure_emoji,
       :warning_emoji,
       :warning_range_end
@@ -39,6 +41,7 @@ module StillActive
       @gemfile_path = nil
       @gems = []
       @ignored_gems = []
+      @suppressions = Suppressions.from(nil)
       @github_oauth_token = nil
       @gitlab_token = nil
       @forgejo_token = nil
