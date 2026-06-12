@@ -12,67 +12,48 @@ RSpec.describe(StillActive::GithubClient) do
     allow(StillActive.config).to(receive(:github_client).and_return(client))
   end
 
-  def commit_with(date)
-    double(commit: double(author: double(date: date)))
+  def repo(archived:, pushed_at:)
+    double(archived: archived, pushed_at: pushed_at)
   end
 
-  describe(".archived") do
-    it("returns true for an archived repo") do
-      allow(client).to(receive(:repository).with("rails/rails").and_return(double(archived: true)))
-      expect(described_class.archived(owner: owner, name: name)).to(be(true))
+  describe(".repo_signals") do
+    it("returns archived + last-activity date from a single repository call") do
+      t = Time.now
+      allow(client).to(receive(:repository).with("rails/rails").and_return(repo(archived: false, pushed_at: t)))
+      expect(described_class.repo_signals(owner: owner, name: name)).to(eq(archived: false, last_commit_date: t))
     end
 
-    it("returns false for an active repo") do
-      allow(client).to(receive(:repository).with("rails/rails").and_return(double(archived: false)))
-      expect(described_class.archived(owner: owner, name: name)).to(be(false))
+    it("reports an archived repo") do
+      allow(client).to(receive(:repository).and_return(repo(archived: true, pushed_at: Time.now)))
+      expect(described_class.repo_signals(owner: owner, name: name)[:archived]).to(be(true))
     end
 
-    it("returns nil when owner is nil, without calling the API") do
+    it("parses a string pushed_at into a Time") do
+      allow(client).to(receive(:repository).and_return(repo(archived: false, pushed_at: "2026-02-15T14:30:00Z")))
+      expect(described_class.repo_signals(owner: owner, name: name)[:last_commit_date]).to(eq(Time.parse("2026-02-15T14:30:00Z")))
+    end
+
+    it("returns {} when owner is nil, without calling the API") do
       allow(client).to(receive(:repository))
-      expect(described_class.archived(owner: nil, name: name)).to(be_nil)
+      expect(described_class.repo_signals(owner: nil, name: name)).to(eq({}))
       expect(client).not_to(have_received(:repository))
     end
 
-    it("returns nil and warns on an Octokit error") do
+    it("returns {} and warns on an Octokit error") do
       allow(client).to(receive(:repository).and_raise(Octokit::NotFound))
-      expect { expect(described_class.archived(owner: owner, name: name)).to(be_nil) }
-        .to(output(/archived check failed/).to_stderr)
-    end
-  end
-
-  describe(".last_commit_date") do
-    it("returns the commit date as a Time") do
-      t = Time.now
-      allow(client).to(receive(:commits).with("rails/rails", per_page: 1).and_return([commit_with(t)]))
-      expect(described_class.last_commit_date(owner: owner, name: name)).to(eq(t))
+      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq({})) }
+        .to(output(/repo signals failed/).to_stderr)
     end
 
-    it("parses a string commit date") do
-      allow(client).to(receive(:commits).and_return([commit_with("2026-02-15T14:30:00Z")]))
-      expect(described_class.last_commit_date(owner: owner, name: name)).to(be_a(Time))
+    it("returns {} when the repository can't be read") do
+      allow(client).to(receive(:repository).and_return(nil))
+      expect(described_class.repo_signals(owner: owner, name: name)).to(eq({}))
     end
 
-    it("returns nil when there are no commits") do
-      allow(client).to(receive(:commits).and_return([]))
-      expect(described_class.last_commit_date(owner: owner, name: name)).to(be_nil)
-    end
-
-    it("returns nil when owner is nil, without calling the API") do
-      allow(client).to(receive(:commits))
-      expect(described_class.last_commit_date(owner: nil, name: name)).to(be_nil)
-      expect(client).not_to(have_received(:commits))
-    end
-
-    it("returns nil and warns on an Octokit error") do
-      allow(client).to(receive(:commits).and_raise(Octokit::InternalServerError))
-      expect { expect(described_class.last_commit_date(owner: owner, name: name)).to(be_nil) }
-        .to(output(/last commit check failed/).to_stderr)
-    end
-
-    it("returns nil and warns on an unparseable date string") do
-      allow(client).to(receive(:commits).and_return([commit_with("not-a-date")]))
-      expect { expect(described_class.last_commit_date(owner: owner, name: name)).to(be_nil) }
-        .to(output(/could not parse commit date/).to_stderr)
+    it("warns and leaves the date nil on an unparseable pushed_at") do
+      allow(client).to(receive(:repository).and_return(repo(archived: false, pushed_at: "not-a-date")))
+      expect { expect(described_class.repo_signals(owner: owner, name: name)[:last_commit_date]).to(be_nil) }
+        .to(output(/could not parse repo date/).to_stderr)
     end
   end
 
@@ -94,10 +75,10 @@ RSpec.describe(StillActive::GithubClient) do
         calls += 1
         raise too_many(retry_after: 2) if calls == 1
 
-        double(archived: false)
+        repo(archived: false, pushed_at: Time.now)
       end
 
-      expect { expect(described_class.archived(owner: owner, name: name)).to(be(false)) }.to(output(/rate limited/).to_stderr)
+      expect { expect(described_class.repo_signals(owner: owner, name: name)[:archived]).to(be(false)) }.to(output(/rate limited/).to_stderr)
       expect(described_class).to(have_received(:sleep).with(2))
     end
 
@@ -107,22 +88,22 @@ RSpec.describe(StillActive::GithubClient) do
         calls += 1
         raise too_many(reset: Time.now.to_i + 3) if calls == 1
 
-        double(archived: true)
+        repo(archived: true, pushed_at: Time.now)
       end
 
-      expect { expect(described_class.archived(owner: owner, name: name)).to(be(true)) }.to(output.to_stderr)
+      expect { expect(described_class.repo_signals(owner: owner, name: name)[:archived]).to(be(true)) }.to(output.to_stderr)
       expect(described_class).to(have_received(:sleep))
     end
 
-    it("does not auto-wait when the reset is far away; warns with the token hint and returns nil") do
+    it("does not auto-wait when the reset is far away; warns with the token hint and returns {}") do
       allow(client).to(receive(:repository).and_raise(too_many(retry_after: 9999)))
-      expect { expect(described_class.archived(owner: owner, name: name)).to(be_nil) }.to(output(/set GITHUB_TOKEN/).to_stderr)
+      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq({})) }.to(output(/set GITHUB_TOKEN/).to_stderr)
       expect(described_class).not_to(have_received(:sleep))
     end
 
     it("retries at most once on a persistent rate limit, then gives up with the token hint") do
       allow(client).to(receive(:repository).and_raise(too_many(retry_after: 1)))
-      expect { expect(described_class.archived(owner: owner, name: name)).to(be_nil) }.to(output(/waiting 1s.*set GITHUB_TOKEN/m).to_stderr)
+      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq({})) }.to(output(/waiting 1s.*set GITHUB_TOKEN/m).to_stderr)
       expect(described_class).to(have_received(:sleep).once)
     end
   end

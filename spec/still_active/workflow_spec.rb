@@ -62,7 +62,7 @@ RSpec.describe(StillActive::Workflow) do
         # lookup makes a live HTTP call (no cassette here) that propagates out and
         # discards the gem's entry. Pin the repo-derived fields so this context
         # exercises only the advisory merge, regardless of what's been activated.
-        allow(described_class).to(receive_messages(last_commit_date: nil, repo_archived: nil))
+        allow(described_class).to(receive(:repo_signals).and_return({}))
       end
 
       it("appends advisories unique to ruby-advisory-db") do
@@ -383,7 +383,7 @@ RSpec.describe(StillActive::Workflow) do
         ]))
         allow(Gems).to(receive(:info).with("paperclip").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
         allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
-        allow(described_class).to(receive_messages(repo_archived: true, last_commit_date: nil))
+        allow(described_class).to(receive(:repo_signals).and_return({ archived: true, last_commit_date: nil }))
         allow(StillActive::CatalogIndex).to(receive(:load).and_return({ "paperclip" => ["shrine", "carrierwave"] }))
         allow(StillActive::AlternativesHelper).to(receive(:leads_for).and_return(["shrine", "carrierwave"]))
       end
@@ -402,7 +402,7 @@ RSpec.describe(StillActive::Workflow) do
         ]))
         allow(Gems).to(receive(:info).with("paperclip").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
         allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
-        allow(described_class).to(receive_messages(repo_archived: true, last_commit_date: nil))
+        allow(described_class).to(receive(:repo_signals).and_return({ archived: true, last_commit_date: nil }))
         allow(StillActive::CatalogIndex).to(receive(:load).and_return({ "paperclip" => ["shrine", "carrierwave"] }))
         allow(StillActive::AlternativesHelper).to(receive(:leads_for).and_return(["shrine", "carrierwave"]))
       end
@@ -423,7 +423,7 @@ RSpec.describe(StillActive::Workflow) do
         ]))
         allow(Gems).to(receive(:info).with("paperclip").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
         allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
-        allow(described_class).to(receive_messages(repo_archived: true, last_commit_date: nil))
+        allow(described_class).to(receive(:repo_signals).and_return({ archived: true, last_commit_date: nil }))
         allow(StillActive::CatalogIndex).to(receive(:load).and_return({}))
       end
 
@@ -441,7 +441,7 @@ RSpec.describe(StillActive::Workflow) do
         ]))
         allow(Gems).to(receive(:info).with("paperclip").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
         allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
-        allow(described_class).to(receive_messages(repo_archived: true, last_commit_date: nil))
+        allow(described_class).to(receive(:repo_signals).and_return({ archived: true, last_commit_date: nil }))
         allow(StillActive::CatalogIndex).to(receive(:load))
       end
 

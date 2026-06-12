@@ -61,7 +61,7 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `latest_pre_release_version` | string \| nil | Latest pre-release version if any. |
 | `latest_pre_release_version_release_date` | string \| nil | ISO-8601 timestamp. |
 | `repository_url` | string \| nil | Canonical GitHub/GitLab/Codeberg URL when found. |
-| `last_commit_date` | string \| nil | ISO-8601 timestamp of the latest commit. |
+| `last_commit_date` | string \| nil | ISO-8601 timestamp of the repository's last activity (GitHub `pushed_at` / GitLab `last_activity_at` / Forgejo `updated_at`), which tracks the latest commit date to the day in practice. |
 | `archived` | bool \| nil | `true` if the repo is archived; `nil` if unknown. |
 | `activity_level` | string | Derived maintenance verdict: `"ok"`, `"stale"`, `"critical"`, `"archived"`, or `"unknown"`. Driven by release recency, with the last commit used only as a fallback when a gem has no releases. |
 | `unreleased_commits` | integer \| null \| absent | Present only with `--unreleased-commits`. Commits on the default branch since the latest release's tag (GitHub-hosted gems only; `null` for non-GitHub sources or when the tag can't be resolved). Informational, never a gate. Inflated for monorepos and release-branch projects (the count covers the whole repo / the next-version trunk), so read it as a lead, not a verdict. |
