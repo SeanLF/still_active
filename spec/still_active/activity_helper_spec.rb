@@ -40,6 +40,32 @@ RSpec.describe(StillActive::ActivityHelper) do
       expect(described_class.activity_level(gem_data)).to(eq(:unknown))
     end
 
+    # The 18-month and 3-year cutoffs are Signal A's whole point, and both
+    # comparisons are inclusive (>=). Freeze now so the test's boundary date and
+    # the one activity_level recomputes internally are the same instant; a
+    # >= -> > regression flips the exactly-on-boundary cases and these catch it.
+    context("at the threshold boundaries (defaults: 18 months ok, 3 years stale)") do
+      let(:now) { Time.utc(2026, 6, 14, 12, 0, 0) }
+
+      before { allow(Time).to(receive(:now).and_return(now)) }
+
+      it("is :ok exactly at the 18-month ok boundary (inclusive)") do
+        expect(described_class.activity_level(gem_data(release: 1.5.years.ago))).to(eq(:ok))
+      end
+
+      it("is :stale one second past the 18-month boundary") do
+        expect(described_class.activity_level(gem_data(release: 1.5.years.ago - 1))).to(eq(:stale))
+      end
+
+      it("is :stale exactly at the 3-year stale boundary (inclusive)") do
+        expect(described_class.activity_level(gem_data(release: 3.years.ago))).to(eq(:stale))
+      end
+
+      it("is :critical one second past the 3-year boundary") do
+        expect(described_class.activity_level(gem_data(release: 3.years.ago - 1))).to(eq(:critical))
+      end
+    end
+
     it("uses the most recent release date, ignoring an older commit") do
       data = gem_data(last_commit: 4.years.ago, release: Time.now, pre_release: 2.years.ago)
       expect(described_class.activity_level(data)).to(eq(:ok))
