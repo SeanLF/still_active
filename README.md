@@ -355,6 +355,7 @@ fail_if_vulnerable: high       # true, or a minimum severity: low|medium|high|cr
 fail_if_outdated: 3            # libyears
 unreleased_commits: true
 output: json                   # terminal | markdown | json
+direct_only: true              # audit only declared deps, not the full transitive graph (--direct-only)
 
 # Pull bundler-audit's accepted-advisory list instead of maintaining two files
 import:

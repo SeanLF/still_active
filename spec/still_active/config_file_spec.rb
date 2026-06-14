@@ -74,6 +74,18 @@ RSpec.describe(StillActive::ConfigFile) do
       expect(config.fail_if_critical).to(be(false))
     end
 
+    it("maps direct_only so a team can commit a direct-only audit, not just pass --direct-only") do
+      warnings = described_class.apply(config, { "direct_only" => true }, base_dir: dir)
+      expect(config.direct_only).to(be(true))
+      expect(warnings.join).not_to(include("unknown setting"))
+    end
+
+    it("warns and ignores a non-boolean direct_only instead of silently flipping scope") do
+      warnings = described_class.apply(config, { "direct_only" => "yep" }, base_dir: dir)
+      expect(warnings.join).to(include("direct_only must be true or false"))
+      expect(config.direct_only).to(be(false))
+    end
+
     it("treats fail_if_outdated: false as the gate being off, without crashing") do
       expect { described_class.apply(config, { "fail_if_outdated" => false }, base_dir: dir) }.not_to(raise_error)
       expect(config.fail_if_outdated).to(be_nil)

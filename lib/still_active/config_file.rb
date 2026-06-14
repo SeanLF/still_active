@@ -7,8 +7,8 @@ require_relative "../helpers/vulnerability_helper"
 module StillActive
   # Loads a committed .still_active.yml and applies it to the config as the layer
   # below env vars and CLI flags (CLI flag > env var > config file > default).
-  # Mirrors the policy flags (gates, thresholds, output, alternatives) and the
-  # granular suppression list; deliberately NOT secrets (tokens) or
+  # Mirrors the policy flags (gates, thresholds, output, alternatives, scope)
+  # and the granular suppression list; deliberately NOT secrets (tokens) or
   # invocation-specific paths (--gemfile/--gems/--baseline/output paths), which
   # stay CLI/env-only so a committed file never carries a credential.
   module ConfigFile
@@ -50,6 +50,7 @@ module StillActive
         when "fail_if_warning" then set_boolean(config, :fail_if_warning=, value, key, warnings)
         when "alternatives" then set_boolean(config, :alternatives=, value, key, warnings)
         when "unreleased_commits" then set_boolean(config, :unreleased_commits=, value, key, warnings)
+        when "direct_only" then set_boolean(config, :direct_only=, value, key, warnings)
         when "safe_range_end" then set_number(config, :no_warning_range_end=, value, key, warnings)
         when "warning_range_end" then set_number(config, :warning_range_end=, value, key, warnings)
         when "fail_if_outdated" then apply_fail_if_outdated(config, value, warnings)
