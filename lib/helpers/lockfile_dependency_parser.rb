@@ -51,6 +51,11 @@ module StillActive
     # names from the DEPENDENCIES section; `plugin_source?` flags that a
     # PLUGIN SOURCE block was present (and skipped).
     def parse(content)
+      # A hand-edited or re-encoded lockfile can carry a leading UTF-8 BOM.
+      # Section headers anchor at column 0 (\A), so a BOM glued to "GEM" would
+      # drop the entire first block: a silent false-negative, the exact evasion
+      # this parser is written to avoid.
+      content = content.delete_prefix("﻿")
       specs = []
       direct = []
       section = nil

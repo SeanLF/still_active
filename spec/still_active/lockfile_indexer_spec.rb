@@ -36,6 +36,22 @@ RSpec.describe(StillActive::LockfileIndexer) do
       expect(described_class.gem_line_index("")).to(eq({}))
     end
 
+    it("indexes the first block when the lockfile starts with a UTF-8 BOM") do
+      # A leading BOM glued to "GEM" would otherwise fail the column-0 block
+      # header anchor, leaving every gem at the line-1 SARIF fallback.
+      bom_lock = "﻿" + <<~LOCK
+        GEM
+          remote: https://rubygems.org/
+          specs:
+            rake (13.0.6)
+
+        DEPENDENCIES
+          rake
+      LOCK
+
+      expect(described_class.gem_line_index(bom_lock)).to(eq("rake" => 4))
+    end
+
     it("handles GIT and PATH blocks alongside GEM") do
       mixed = <<~LOCK
         GIT

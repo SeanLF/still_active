@@ -24,6 +24,9 @@ module StillActive
     # top-level entry wins. Lines outside GEM/GIT/PATH/PLUGIN SOURCE blocks
     # are ignored.
     def gem_line_index(content)
+      # Strip a leading UTF-8 BOM so a "﻿GEM" first line still matches the
+      # column-0 block header; otherwise every gem falls back to line 1.
+      content = content.delete_prefix("﻿")
       index = {}
       in_block = false
       content.each_line.with_index(1) do |line, lineno|

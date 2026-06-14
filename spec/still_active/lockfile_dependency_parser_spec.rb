@@ -22,6 +22,24 @@ RSpec.describe(StillActive::LockfileDependencyParser) do
       expect(result[:direct]).to(eq(["rake"]))
     end
 
+    it("parses the first GEM block even when the lockfile starts with a UTF-8 BOM") do
+      # A hand-edited or re-encoded lockfile can carry a leading BOM (U+FEFF).
+      # The section headers anchor at column 0, so a BOM glued to "GEM" would
+      # drop the entire first block, silently vanishing a real dependency.
+      result = described_class.parse("﻿" + <<~LOCK)
+        GEM
+          remote: https://rubygems.org/
+          specs:
+            rake (13.0.6)
+
+        DEPENDENCIES
+          rake
+      LOCK
+
+      expect(result[:specs].map(&:name)).to(eq(["rake"]))
+      expect(result[:direct]).to(eq(["rake"]))
+    end
+
     it("ignores nested (transitive) dependency lines indented six spaces") do
       result = described_class.parse(<<~LOCK)
         GEM
