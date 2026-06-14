@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "tempfile"
+require "tmpdir"
 
 RSpec.describe(StillActive::CLI) do
   subject(:cli) { described_class.new }
@@ -687,6 +688,34 @@ RSpec.describe(StillActive::CLI) do
         expect { cli.run(["--gems=fresh_gem", "--json", "--fail-if-warning"]) }
           .not_to(raise_error)
       end
+    end
+  end
+
+  # The 2.0 headline is layered config (CLI flag > env > .still_active.yml >
+  # default). The apply/load units are tested in isolation; this exercises the
+  # ordering through CLI#run with a real file on disk, the contract a user sees.
+  describe("config precedence") do
+    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+
+    around do |example|
+      Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
+    end
+
+    it("lets a CLI flag override a conflicting .still_active.yml value") do
+      File.write(".still_active.yml", "safe_range_end: 5\n")
+      cli.run(["--gems=rails", "--json", "--safe-range-end=2"])
+      expect(StillActive.config.no_warning_range_end).to(eq(2.0))
+    end
+
+    it("applies a .still_active.yml value when no CLI flag overrides it") do
+      File.write(".still_active.yml", "safe_range_end: 5\n")
+      cli.run(["--gems=rails", "--json"])
+      expect(StillActive.config.no_warning_range_end).to(eq(5.0))
+    end
+
+    it("falls back to the default when neither the file nor a flag sets it") do
+      cli.run(["--gems=rails", "--json"])
+      expect(StillActive.config.no_warning_range_end).to(eq(1.5))
     end
   end
 end
