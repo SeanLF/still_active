@@ -23,6 +23,12 @@ RSpec.describe(StillActive::ArtifactoryClient) do
     it("returns false for an invalid URI") do
       expect(described_class.artifactory_uri?("not a uri")).to(be(false))
     end
+
+    it("matches the jfrog.io suffix case-insensitively") do
+      # Hostnames are case-insensitive; an uppercase host must not be misread as
+      # an unqueryable private source.
+      expect(described_class.artifactory_uri?("https://My-Org.JFROG.IO/artifactory/api/gems/my-repo/")).to(be(true))
+    end
   end
 
   describe(".versions") do

@@ -11,7 +11,9 @@ module StillActive
     extend self
 
     def artifactory_uri?(uri)
-      uri.is_a?(String) && URI(uri).host&.end_with?(".jfrog.io")
+      # Hostnames are case-insensitive, so downcase before the suffix check; an
+      # uppercase jfrog host would otherwise be misread as an unqueryable source.
+      uri.is_a?(String) && URI(uri).host&.downcase&.end_with?(".jfrog.io")
     rescue URI::InvalidURIError
       false
     end
