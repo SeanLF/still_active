@@ -718,4 +718,17 @@ RSpec.describe(StillActive::CLI) do
       expect(StillActive.config.no_warning_range_end).to(eq(1.5))
     end
   end
+
+  describe("stale suppression warnings") do
+    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+
+    around do |example|
+      Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
+    end
+
+    it("warns when a .still_active.yml suppression names a gem not in the audit") do
+      File.write(".still_active.yml", "ignore:\n  - gem: ghost_gem\n    signal: activity\n")
+      expect { cli.run(["--gems=rails", "--json"]) }.to(output(/ghost_gem/).to_stderr)
+    end
+  end
 end

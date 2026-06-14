@@ -43,6 +43,7 @@ module StillActive
       end
 
       warn_output_flag_conflicts(options)
+      warn_stale_suppressions
 
       result = if $stderr.tty?
         Workflow.call { |done, total| $stderr.print("\rChecking #{done}/#{total} gems...") }
@@ -101,6 +102,16 @@ module StillActive
       when Hash then value.transform_values { |v| iso8601_times(v) }
       when Array then value.map { |v| iso8601_times(v) }
       else value
+      end
+    end
+
+    # A suppression naming a gem that isn't in the resolved dependency set can
+    # never fire, so it's dead config worth surfacing (the presence half of
+    # suppression rot, alongside the expiry half the entries handle themselves).
+    def warn_stale_suppressions
+      present = StillActive.config.gems.map { |gem| gem[:name] }
+      StillActive.config.suppressions.stale_gem_warnings(present).each do |warning|
+        $stderr.puts("warning: #{warning}")
       end
     end
 

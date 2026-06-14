@@ -101,6 +101,30 @@ RSpec.describe(StillActive::Suppressions) do
     end
   end
 
+  describe("#stale_gem_warnings (presence-based rot)") do
+    it("flags an entry whose gem is absent from the audited dependencies") do
+      s = build([{ "gem" => "typ;o", "signal" => "activity" }])
+      warnings = s.stale_gem_warnings(["nokogiri", "rails"])
+      expect(warnings.size).to(eq(1))
+      expect(warnings.first).to(include("typ;o"))
+    end
+
+    it("does not flag an entry whose gem is present, even if currently healthy") do
+      s = build([{ "gem" => "rails", "signal" => "activity" }])
+      expect(s.stale_gem_warnings(["rails"])).to(be_empty)
+    end
+
+    it("does not flag a gem-agnostic advisory entry (no gem to be absent)") do
+      s = build([{ "advisory" => "CVE-2024-1", "reason" => "imported" }])
+      expect(s.stale_gem_warnings(["rails"])).to(be_empty)
+    end
+
+    it("does not re-report an already-expired entry (it is inert already)") do
+      s = build([{ "gem" => "ghost", "signal" => "activity", "expires" => "2020-01-01" }])
+      expect(s.stale_gem_warnings(["rails"])).to(be_empty)
+    end
+  end
+
   describe(".from with nil/empty input") do
     it("returns an empty suppressions set for nil") do
       expect(described_class.from(nil, today: today).suppressed?(gem: "g", signal: :activity)).to(be(false))

@@ -113,6 +113,21 @@ module StillActive
       !match(gem:, signal:, advisory:, aliases:).nil?
     end
 
+    # Warnings for live entries that name a gem absent from the audited set: they
+    # can never match, so they are dead config (a typo, or a gem removed since
+    # the suppression was written). This is the presence axis of suppression rot;
+    # `expired?` already covers the time axis, so an expired entry isn't
+    # re-reported here, and a gem-agnostic advisory entry (gem nil) is skipped
+    # since it applies across the whole graph.
+    def stale_gem_warnings(present_gems)
+      @entries.filter_map do |entry|
+        next if entry.expired?(@today)
+        next unless entry.gem && !present_gems.include?(entry.gem)
+
+        "suppression for #{entry.gem} never applies: it is not in the audited dependencies (typo, or removed since it was suppressed?)"
+      end
+    end
+
     # The first live entry covering this finding, or nil. Used by SARIF to carry
     # the suppression's reason as the native suppressions[] justification.
     def match(gem:, signal:, advisory: nil, aliases: [])
