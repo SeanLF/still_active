@@ -66,11 +66,11 @@
         "dependency_path": { "type": "array", "items": { "type": "string" } },
         "version_used": { "type": ["string", "null"] },
         "latest_version": { "type": ["string", "null"] },
-        "latest_version_release_date": { "type": ["string", "null"] },
+        "latest_version_release_date": { "type": ["string", "null"], "format": "date-time" },
         "latest_pre_release_version": { "type": ["string", "null"] },
-        "latest_pre_release_version_release_date": { "type": ["string", "null"] },
+        "latest_pre_release_version_release_date": { "type": ["string", "null"], "format": "date-time" },
         "repository_url": { "type": ["string", "null"] },
-        "last_commit_date": { "type": ["string", "null"] },
+        "last_commit_date": { "type": ["string", "null"], "format": "date-time" },
         "archived": { "type": ["boolean", "null"] },
         "activity_level": { "type": "string", "enum": ["ok", "stale", "critical", "archived", "unknown"] },
         "unreleased_commits": { "type": ["integer", "null"] },
@@ -80,7 +80,7 @@
         "alternatives": { "type": "array", "items": { "type": "string" } },
         "ruby_gems_url": { "type": "string" },
         "up_to_date": { "type": "boolean" },
-        "version_used_release_date": { "type": ["string", "null"] },
+        "version_used_release_date": { "type": ["string", "null"], "format": "date-time" },
         "version_yanked": { "type": "boolean" },
         "license": { "type": ["string", "null"] },
         "libyear": { "type": ["number", "null"] }
@@ -107,11 +107,11 @@
       "additionalProperties": false,
       "properties": {
         "version": { "type": "string" },
-        "release_date": { "type": ["string", "null"] },
-        "eol_date": { "type": ["string", "null"] },
+        "release_date": { "type": ["string", "null"], "format": "date-time" },
+        "eol_date": { "type": ["string", "null"], "format": "date-time" },
         "eol": { "type": "boolean" },
         "latest_version": { "type": ["string", "null"] },
-        "latest_release_date": { "type": ["string", "null"] },
+        "latest_release_date": { "type": ["string", "null"], "format": "date-time" },
         "libyear": { "type": ["number", "null"] }
       }
     },

@@ -201,6 +201,28 @@ RSpec.describe(StillActive::CLI) do
       expect(payload.dig("gems", "rails", "activity_level")).to(eq("ok"))
     end
 
+    it("serializes date fields as ISO8601 UTC strings matching generated_at, not Ruby's default Time#to_s") do
+      # Production passes real Time objects (with whatever offset the upstream
+      # API carried) into the JSON; a bare Time#to_json emits "2026-01-02
+      # 01:04:05 +0200", a different format and timezone from generated_at.
+      tz_time = Time.new(2026, 1, 2, 3, 4, 5, "+02:00")
+      result = { "rails" => gem_data(last_commit_date: tz_time).merge(latest_version_release_date: tz_time) }
+      allow(StillActive::Workflow).to(receive_messages(
+        call: result,
+        ruby_freshness: { version: "3.4.0", eol: false, release_date: tz_time },
+      ))
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--gems=rails", "--json"])
+      payload = JSON.parse(captured)
+
+      iso_utc = /\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/
+      expect(payload.dig("gems", "rails", "last_commit_date")).to(match(iso_utc))
+      # +02:00 03:04:05 normalizes to UTC 01:04:05.
+      expect(payload.dig("gems", "rails", "latest_version_release_date")).to(eq("2026-01-02T01:04:05Z"))
+      expect(payload.dig("ruby", "release_date")).to(eq("2026-01-02T01:04:05Z"))
+    end
+
     it("emits JSON that validates against the published JSON Schema and carries a summary digest") do
       require "json_schemer"
       schema_path = File.expand_path("../../docs/still_active.schema.json", __dir__)
@@ -210,7 +232,9 @@ RSpec.describe(StillActive::CLI) do
           direct: true,
           version_used: "7.0.0",
           latest_version: "7.1.0",
-          latest_version_release_date: "2026-01-01T00:00:00Z",
+          # Real Time objects, as the Workflow produces; the JSON layer must
+          # normalize them to ISO8601 UTC strings (don't pre-stringify here).
+          latest_version_release_date: Time.new(2026, 1, 1, 0, 0, 0, "+00:00"),
           latest_pre_release_version: nil,
           latest_pre_release_version_release_date: nil,
           repository_url: "https://github.com/rails/rails",
@@ -221,7 +245,7 @@ RSpec.describe(StillActive::CLI) do
           vulnerabilities: [],
           ruby_gems_url: "https://rubygems.org/gems/rails",
           up_to_date: false,
-          version_used_release_date: "2025-01-01T00:00:00Z",
+          version_used_release_date: Time.new(2025, 1, 1, 0, 0, 0, "+00:00"),
           version_yanked: false,
           license: "MIT",
           libyear: 1.2,
@@ -239,7 +263,7 @@ RSpec.describe(StillActive::CLI) do
       }
       allow(StillActive::Workflow).to(receive_messages(
         call: rich,
-        ruby_freshness: { version: "3.4.0", release_date: "2025-01-01T00:00:00Z", eol_date: "2028-01-01T00:00:00Z", eol: false, latest_version: "3.4.1", latest_release_date: "2026-01-01T00:00:00Z", libyear: 0.1 },
+        ruby_freshness: { version: "3.4.0", release_date: Time.new(2025, 1, 1, 0, 0, 0, "+00:00"), eol_date: Time.new(2028, 1, 1, 0, 0, 0, "+00:00"), eol: false, latest_version: "3.4.1", latest_release_date: Time.new(2026, 1, 1, 0, 0, 0, "+00:00"), libyear: 0.1 },
       ))
       allow(StillActive::BotContext).to(receive(:detect).and_return({ bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] }))
 

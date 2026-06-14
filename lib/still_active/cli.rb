@@ -77,7 +77,7 @@ module StillActive
           }
           output[:ruby] = ruby_info if ruby_info
           output[:pr_context] = pr_context if pr_context
-          puts output.to_json
+          puts iso8601_times(output).to_json
         when :terminal
           puts BotContext.summary(pr_context) if pr_context
           puts TerminalHelper.render(result, ruby_info: ruby_info)
@@ -90,6 +90,19 @@ module StillActive
     end
 
     private
+
+    # Dates live in the result as real Time objects (the activity/libyear math
+    # needs them), but the JSON contract is ISO8601 UTC strings, matching
+    # generated_at. Normalize at the serialization boundary only, so the
+    # terminal/markdown/SARIF paths keep their Time objects untouched.
+    def iso8601_times(value)
+      case value
+      when Time then value.utc.iso8601
+      when Hash then value.transform_values { |v| iso8601_times(v) }
+      when Array then value.map { |v| iso8601_times(v) }
+      else value
+      end
+    end
 
     # The output destinations are mutually exclusive and resolved by precedence
     # (baseline > sarif > cyclonedx > terminal/markdown/json). Warn rather than
