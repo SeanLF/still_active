@@ -47,6 +47,45 @@ RSpec.describe(StillActive::HttpHelper) do
         .with { |req| req.headers.key?("Authorization") })
     end
 
+    it("keeps the Authorization header when the redirect spells out the default port") do
+      # https://host and https://host:443 are the same origin; same_origin? must
+      # treat the implicit and explicit default port as equal.
+      stub_request(:get, "https://api.deps.dev/a")
+        .to_return(status: 302, headers: { "Location" => "https://api.deps.dev:443/b" })
+      stub_request(:get, "https://api.deps.dev:443/b")
+        .to_return(status: 200, body: "{}", headers: { "Content-Type" => "application/json" })
+
+      described_class.get_json(URI("https://api.deps.dev"), "/a", headers: auth)
+
+      expect(WebMock).to(have_requested(:get, "https://api.deps.dev:443/b")
+        .with { |req| req.headers.key?("Authorization") })
+    end
+
+    it("drops the Authorization header when a same-host redirect changes the port") do
+      # Same host, different origin: a different port is a different service and
+      # must not inherit a token issued for the original origin.
+      stub_request(:get, "https://api.deps.dev/a")
+        .to_return(status: 302, headers: { "Location" => "https://api.deps.dev:8443/b" })
+      stub_request(:get, "https://api.deps.dev:8443/b")
+        .to_return(status: 200, body: "{}", headers: { "Content-Type" => "application/json" })
+
+      described_class.get_json(URI("https://api.deps.dev"), "/a", headers: auth)
+
+      expect(WebMock).to(have_requested(:get, "https://api.deps.dev:8443/b")
+        .with { |req| !req.headers.key?("Authorization") })
+    end
+
+    it("refuses a redirect that downgrades the scheme to http and never sends the token there") do
+      stub_request(:get, "https://api.deps.dev/a")
+        .to_return(status: 302, headers: { "Location" => "http://api.deps.dev/b" })
+      downgrade = stub_request(:get, "http://api.deps.dev/b")
+
+      result = described_class.get_json(URI("https://api.deps.dev"), "/a", headers: auth)
+
+      expect(result).to(be_nil)
+      expect(downgrade).not_to(have_been_requested)
+    end
+
     it("gives up after MAX_REDIRECTS and returns nil") do
       stub_request(:get, "https://api.deps.dev/1")
         .to_return(status: 302, headers: { "Location" => "https://github.com/2" })

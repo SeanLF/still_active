@@ -38,6 +38,13 @@ module StillActive
 
     private
 
+    # Two URIs share an origin when scheme, host, and port all match. URI fills
+    # in the default port (443 for https), so the bare and explicit forms of the
+    # same origin compare equal.
+    def same_origin?(a, b)
+      a.scheme == b.scheme && a.host == b.host && a.port == b.port
+    end
+
     # Runs the request, following up to MAX_REDIRECTS trusted-host redirects,
     # and returns the parsed JSON (or nil). The block is yielded each URI and
     # returns the request object, so GET and POST share the redirect/auth/cap
@@ -70,8 +77,17 @@ module StillActive
             $stderr.puts("warning: #{uri.host}#{uri.path} redirected to untrusted host #{redirect_uri.host}, skipping")
             return
           end
+          # We dial every request over TLS (use_ssl = true). A redirect that
+          # downgrades to http is either a misconfiguration or a downgrade
+          # attempt; refuse it rather than silently dialing http-over-TLS.
+          unless redirect_uri.scheme == "https"
+            $stderr.puts("warning: #{uri.host}#{uri.path} redirected to non-https #{redirect_uri.scheme} target, skipping")
+            return
+          end
           $stderr.puts("warning: #{uri.host}#{uri.path} redirected to #{redirect_uri.host}#{redirect_uri.path} (stale metadata?)")
-          headers = {} if redirect_uri.host != uri.host
+          # Auth is scoped to an origin (scheme + host + port), not just a host:
+          # a different port is a different service and must not inherit the token.
+          headers = {} unless same_origin?(uri, redirect_uri)
           uri = redirect_uri
         end
       end
