@@ -44,7 +44,7 @@ RSpec.describe(StillActive::ActivityHelper) do
     # comparisons are inclusive (>=). Freeze now so the test's boundary date and
     # the one activity_level recomputes internally are the same instant; a
     # >= -> > regression flips the exactly-on-boundary cases and these catch it.
-    context("at the threshold boundaries (defaults: 18 months ok, 3 years stale)") do
+    context("when activity sits on a threshold boundary (defaults: 18 months ok, 3 years stale)") do
       let(:now) { Time.utc(2026, 6, 14, 12, 0, 0) }
 
       before { allow(Time).to(receive(:now).and_return(now)) }
