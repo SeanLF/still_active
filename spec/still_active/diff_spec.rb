@@ -22,6 +22,54 @@ RSpec.describe(StillActive::Diff) do
         expect { described_class.call(baseline: baseline, current: future) }
           .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /schema_version/))
       end
+
+      it("rejects a baseline that is valid JSON but not an object (e.g. a top-level array)") do
+        # A user can mis-point --baseline at any JSON file; it must fail the
+        # clean error path, not crash with TypeError on snapshot["schema_version"].
+        expect { described_class.call(baseline: [], current: current) }
+          .to(raise_error(StillActive::Diff::UnsupportedSchemaError))
+      end
+
+      it("rejects a baseline whose gems section is not an object") do
+        malformed = { "schema_version" => 1, "gems" => [] }
+        expect { described_class.call(baseline: malformed, current: current) }
+          .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /gems/))
+      end
+
+      it("rejects a baseline whose gem value is not an object, instead of crashing or silently mis-diffing") do
+        # "rails" is in both snapshots, so a null/scalar value here would reach
+        # the intersection branch: a nil crashes (before["version_used"]), a
+        # string silently produces a wrong diff. Both must be a clean rejection.
+        malformed = { "schema_version" => 1, "gems" => { "rails" => nil } }
+        expect { described_class.call(baseline: malformed, current: current) }
+          .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /rails/))
+      end
+
+      it("rejects a non-numeric numeric field instead of silently fabricating a count") do
+        # vuln_count does .to_i, so "two" would silently become 0 and feed a
+        # bogus vulnerability regression. Reject rather than fabricate.
+        malformed = { "schema_version" => 1, "gems" => { "rails" => { "vulnerability_count" => "two" } } }
+        expect { described_class.call(baseline: malformed, current: current) }
+          .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /rails/))
+      end
+
+      it("rejects a vulnerabilities field that is not an array instead of silently dropping advisory ids") do
+        malformed = { "schema_version" => 1, "gems" => { "rails" => { "vulnerabilities" => "lots" } } }
+        expect { described_class.call(baseline: malformed, current: current) }
+          .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /rails/))
+      end
+
+      it("rejects a ruby section that is not an object instead of crashing or silently ignoring it") do
+        malformed = { "schema_version" => 1, "gems" => {}, "ruby" => ["3.2.0"] }
+        expect { described_class.call(baseline: malformed, current: current) }
+          .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /ruby/))
+      end
+
+      it("rejects a non-object vulnerability entry, which advisory_ids would deref as a hash") do
+        malformed = { "schema_version" => 1, "gems" => { "rails" => { "vulnerabilities" => [42] } } }
+        expect { described_class.call(baseline: malformed, current: current) }
+          .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /rails/))
+      end
     end
 
     describe("added gems") do

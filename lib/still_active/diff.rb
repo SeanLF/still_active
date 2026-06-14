@@ -74,10 +74,67 @@ module StillActive
     end
 
     def validate_schema!(snapshot, role)
-      version = snapshot["schema_version"]
-      return if SUPPORTED_SCHEMA_VERSIONS.include?(version)
+      # A user can point --baseline at any JSON file. Reject a wrong shape here
+      # as an UnsupportedSchemaError (which emit_diff turns into a clean exit 2)
+      # rather than letting snapshot["..."] / gems.keys raise a raw stack trace.
+      unless snapshot.is_a?(Hash)
+        raise UnsupportedSchemaError, "#{role} is not a still_active JSON object (got #{snapshot.class})"
+      end
 
-      raise UnsupportedSchemaError, "#{role} has schema_version=#{version.inspect}; supported: #{SUPPORTED_SCHEMA_VERSIONS.join(", ")}"
+      version = snapshot["schema_version"]
+      unless SUPPORTED_SCHEMA_VERSIONS.include?(version)
+        raise UnsupportedSchemaError, "#{role} has schema_version=#{version.inspect}; supported: #{SUPPORTED_SCHEMA_VERSIONS.join(", ")}"
+      end
+
+      ruby = snapshot["ruby"]
+      unless ruby.nil? || ruby.is_a?(Hash)
+        raise UnsupportedSchemaError, "#{role} has a malformed ruby section (expected an object, got #{ruby.class})"
+      end
+
+      gems = snapshot["gems"]
+      return if gems.nil?
+
+      unless gems.is_a?(Hash)
+        raise UnsupportedSchemaError, "#{role} has a malformed gems section (expected an object, got #{gems.class})"
+      end
+
+      gems.each { |name, data| validate_gem!(role, name, data) }
+    end
+
+    # The diff dereferences gem fields with type-sensitive operations: a non-Hash
+    # value crashes the intersection branch, an arithmetic field that isn't
+    # numeric crashes (libyear/scorecard) or silently fabricates a count
+    # (vulnerability_count via .to_i), and a non-array vulnerabilities silently
+    # drops advisory ids. The baseline is untrusted user input, so validate the
+    # shape the diff requires here and let the rest of the code assume it.
+    NUMERIC_GEM_FIELDS = ["vulnerability_count", "scorecard_score", "libyear"].freeze
+
+    def validate_gem!(role, name, data)
+      unless data.is_a?(Hash)
+        raise UnsupportedSchemaError, "#{role} gem #{name.inspect} is malformed (expected an object, got #{data.class})"
+      end
+
+      NUMERIC_GEM_FIELDS.each do |field|
+        value = data[field]
+        next if value.nil? || value.is_a?(Numeric)
+
+        raise UnsupportedSchemaError, "#{role} gem #{name.inspect} has a non-numeric #{field} (got #{value.class})"
+      end
+
+      vulns = data["vulnerabilities"]
+      return if vulns.nil?
+
+      unless vulns.is_a?(Array)
+        raise UnsupportedSchemaError, "#{role} gem #{name.inspect} has a malformed vulnerabilities list (expected an array, got #{vulns.class})"
+      end
+
+      # advisory_ids dereferences each entry as a hash (entry["id"]); a scalar
+      # element would crash there, so reject non-object entries up front.
+      vulns.each do |entry|
+        next if entry.is_a?(Hash)
+
+        raise UnsupportedSchemaError, "#{role} gem #{name.inspect} has a malformed vulnerability entry (expected an object, got #{entry.class})"
+      end
     end
 
     # Categorises a version bump:
