@@ -12,7 +12,13 @@ module StillActive
       elsif !version_string.nil?
         versions&.find { |v| v["number"] == version_string }
       else
-        versions&.find { |v| v["prerelease"] == pre_release }
+        # The "latest" of a kind: pick the highest by version rather than trust
+        # the source's ordering. RubyGems happens to return newest-first, but
+        # GitHub Packages and other sources don't, and a wrong "latest" cascades
+        # into up_to_date and libyear.
+        versions
+          &.select { |v| v["prerelease"] == pre_release }
+          &.max_by { |v| to_gem_version(v["number"]) || Gem::Version.new("0") }
       end
     end
 

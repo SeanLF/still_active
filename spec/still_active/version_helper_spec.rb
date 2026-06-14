@@ -26,16 +26,39 @@ RSpec.describe(StillActive::VersionHelper) do
     end
 
     context("when searching for latest release") do
-      it("finds the first non-pre-release version") do
+      it("finds the highest non-pre-release version") do
         result = described_class.find_version(versions: versions, pre_release: false)
         expect(result["number"]).to(eq("1.3.4"))
+      end
+
+      it("returns the highest stable version, not whichever the source lists first") do
+        # Some sources (e.g. GitHub Packages) return versions unsorted; relying
+        # on newest-first ordering would report the wrong "latest" and cascade a
+        # bogus up_to_date / libyear off it.
+        unordered = [
+          { "number" => "1.0.0", "prerelease" => false },
+          { "number" => "2.5.0", "prerelease" => false },
+          { "number" => "2.0.0", "prerelease" => false },
+        ]
+        result = described_class.find_version(versions: unordered, pre_release: false)
+        expect(result["number"]).to(eq("2.5.0"))
       end
     end
 
     context("when searching for latest pre-release") do
-      it("finds the first pre-release version") do
+      it("finds the highest pre-release version") do
         result = described_class.find_version(versions: versions, pre_release: true)
         expect(result["number"]).to(eq("1.0.0.rc2"))
+      end
+
+      it("returns the highest pre-release, not whichever is listed first") do
+        unordered = [
+          { "number" => "1.0.0.rc1", "prerelease" => true },
+          { "number" => "1.0.0.rc3", "prerelease" => true },
+          { "number" => "1.0.0.rc2", "prerelease" => true },
+        ]
+        result = described_class.find_version(versions: unordered, pre_release: true)
+        expect(result["number"]).to(eq("1.0.0.rc3"))
       end
     end
   end
