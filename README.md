@@ -215,7 +215,7 @@ Emits **1.6 by default** — the version mainstream consumers ingest today (`cyc
 
 Emit findings as SARIF 2.1.0 — they show up in the GitHub Security tab and as inline annotations on `Gemfile.lock` in pull requests.
 
-> **See it live:** this repo audits itself on every push. Browse the live findings in the [Code Scanning Security tab](https://github.com/SeanLF/still_active/security/code-scanning?query=tool%3Astill_active+is%3Aopen) — currently 2× `SA005` (low OpenSSF Scorecard).
+> **See it live:** this repo audits itself on every push. Browse the current open findings in the [Code Scanning Security tab](https://github.com/SeanLF/still_active/security/code-scanning?query=tool%3Astill_active+is%3Aopen).
 
 ```bash
 still_active --sarif                       # writes still_active.sarif.json
