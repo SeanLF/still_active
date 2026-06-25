@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.ruby == 'head' }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -34,7 +34,7 @@ jobs:
     name: Dependency floors (min versions)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     # Resolve the minimum supported Ruby from the gemspec so this can't drift
     # from required_ruby_version (uses the runner's system Ruby).
     - name: Resolve minimum Ruby from gemspec
