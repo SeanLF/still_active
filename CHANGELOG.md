@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-14
+
 ### Upgrading to 2.0
 
 2.0 is a major bump because two changes can alter `--fail-if-*` outcomes on upgrade (the CLI flags and JSON `schema_version` are otherwise backward-compatible):
