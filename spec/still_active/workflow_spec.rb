@@ -9,16 +9,16 @@ RSpec.describe(StillActive::Workflow) do
     # tests don't depend on a local `bundle audit update` checkout. The merge is
     # exercised explicitly in its own context below.
     allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil))
+    # Pin a GitHub token so provider_for selects GithubClient (the path these
+    # integration specs and their VCR cassettes assume), independent of whether
+    # the host running the suite happens to have a `gh` token. The no-token
+    # ecosyste.ms fallback is covered explicitly in its own client + dispatch
+    # specs, which override this.
+    StillActive.config.github_oauth_token = "ghp_test_token"
   end
 
   describe("#call") do
     subject(:result) { described_class.call }
-
-    # These integration specs exercise the live-GitHub repo-signal path (their
-    # VCR cassettes hold GitHub interactions). Configure a token so provider_for
-    # selects GithubClient rather than the no-token ecosyste.ms fallback, which
-    # is covered separately in its own client + dispatch specs.
-    before { StillActive.config.github_oauth_token = "ghp_test_token" }
 
     context("when configured to use gems") do
       let(:gems) { ["rails", "nokogiri"] }
