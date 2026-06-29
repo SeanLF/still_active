@@ -53,6 +53,7 @@
         "outdated": { "type": "integer", "minimum": 0 },
         "vulnerable_gems": { "type": "integer", "minimum": 0 },
         "vulnerabilities": { "type": "integer", "minimum": 0 },
+        "status": { "type": "string", "enum": ["ok", "stale", "critical", "archived", "vulnerable", "unknown"] },
         "ruby_eol": { "type": "boolean" }
       }
     },
@@ -73,8 +74,10 @@
         "last_commit_date": { "type": ["string", "null"], "format": "date-time" },
         "archived": { "type": ["boolean", "null"] },
         "activity_level": { "type": "string", "enum": ["ok", "stale", "critical", "archived", "unknown"] },
+        "status": { "type": "string", "enum": ["ok", "stale", "critical", "archived", "vulnerable", "unknown"] },
         "unreleased_commits": { "type": ["integer", "null"] },
         "scorecard_score": { "type": ["number", "null"] },
+        "scorecard_maintained": { "type": ["number", "null"] },
         "vulnerability_count": { "type": "integer", "minimum": 0 },
         "vulnerabilities": { "type": "array", "items": { "$ref": "#/$defs/vulnerability" } },
         "alternatives": { "type": "array", "items": { "type": "string" } },

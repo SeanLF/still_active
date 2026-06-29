@@ -34,6 +34,11 @@ module StillActive
       {
         score: scorecard["overallScore"],
         date: scorecard["date"],
+        # The "Maintained" sub-check (0-10) scores recent commit and issue
+        # activity directly -- still_active's core question -- so we surface it
+        # alongside the aggregate. nil when the check is absent (never 0, which
+        # would read as "unmaintained" rather than "not measured").
+        maintained: maintained_check_score(scorecard),
       }
     end
 
@@ -57,6 +62,14 @@ module StillActive
     end
 
     private
+
+    # The OpenSSF "Maintained" check score (0-10), or nil when it's absent. A
+    # malformed (non-array) `checks` payload also yields nil rather than raising:
+    # this is a best-effort enrichment and must never crash the per-gem audit and
+    # vanish the gem from the output via the workflow's rescue.
+    def maintained_check_score(scorecard)
+      Array(scorecard["checks"]).find { |c| c.is_a?(Hash) && c["name"] == "Maintained" }&.dig("score")
+    end
 
     # Builds a deps.dev project id ("host/owner/repo", or a deeper path for
     # GitLab subgroups) from the SOURCE_REPO link URL. GitHub/Bitbucket projects

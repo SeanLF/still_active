@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Each gem now carries the OpenSSF Scorecard **`Maintained` sub-check** (`scorecard_maintained`, 0.0–10.0) alongside the aggregate `scorecard_score`. The sub-check scores recent commit and issue activity directly, the question still_active exists to answer, and it was already present in the deps.dev response still_active fetches (previously discarded). `nil` when a project has no scorecard, deliberately distinct from `0.0` ("measured: unmaintained") so absent data never reads as healthy.
+- A single categorical **`status`** per gem (`"vulnerable"`, `"archived"`, `"critical"`, `"stale"`, `"ok"`, or `"unknown"`) and a project-level `summary.status`, so a machine/LLM consumer or another tool reads one verdict instead of re-deriving it from `activity_level` + `archived` + `vulnerability_count`. Worst-concern wins (a vulnerability outranks staleness), an EOL Ruby raises the project floor to `critical`, and `"unknown"` is preserved rather than collapsed to `"ok"`. This is a display/threshold convenience layered over the raw fields, not the numeric 0–100 composite removed earlier (which let missing data read as perfect health). Documented in `docs/schema.md`. Both fields are additive, so `schema_version` stays `1`.
+
 ## [2.0.0] - 2026-06-14
 
 ### Upgrading to 2.0
