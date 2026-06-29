@@ -46,7 +46,7 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `outdated` | integer | Gems not on the latest version (`up_to_date == false`). |
 | `vulnerable_gems` | integer | Gems with at least one advisory. |
 | `vulnerabilities` | integer | Total advisories across all gems. |
-| `status` | string | The single worst per-gem `status` (see below), raised to `"critical"` when Ruby is EOL. `"unknown"` only when nothing better is known. The project-level posture in one word. |
+| `status` | string | The single worst per-gem `status` (see below), floored at `"vulnerable"` when Ruby is EOL. `"unknown"` only when nothing better is known. The project-level posture in one word. |
 | `ruby_eol` | bool \| absent | `true` if the project's Ruby has reached EOL. Absent when Ruby info isn't detectable. |
 
 ## Per-gem fields
@@ -68,7 +68,7 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `unreleased_commits` | integer \| null \| absent | Present only with `--unreleased-commits`. Commits on the default branch since the latest release's tag (GitHub-hosted gems only; `null` for non-GitHub sources or when the tag can't be resolved). Informational, never a gate. Inflated for monorepos and release-branch projects (the count covers the whole repo / the next-version trunk), so read it as a lead, not a verdict. |
 | `scorecard_score` | float \| nil | OpenSSF Scorecard score 0.0–10.0 from deps.dev. |
 | `scorecard_maintained` | float \| nil | OpenSSF Scorecard `Maintained` sub-check 0.0–10.0 (recent commit and issue activity) from deps.dev. `nil` when the project has no scorecard, distinct from `0.0` ("measured: unmaintained"). |
-| `status` | string | Single categorical verdict folding the signals together: `"vulnerable"`, `"archived"`, `"critical"`, `"stale"`, `"ok"`, or `"unknown"`. Worst-concern wins (a vulnerability outranks staleness); `"unknown"` when there's no data, never silently `"ok"`. A display/threshold convenience; the individual fields remain authoritative. |
+| `status` | string | Single categorical **lifecycle** verdict folding the signals together. Worst-first: `"dead"` (dormant/archived **and** carrying an unpatched advisory -- no one is fixing it, migrate) > `"vulnerable"` (a fixable advisory on an actively-released gem) > `"archived"` (repo archived) > `"stale"` (drifting, in the warning window) > `"legacy"` (long-dormant but **clean** -- feature-complete, low risk; the "done gem") > `"ok"` (actively maintained) > `"unknown"` (no data, never silently `"ok"`). A display/threshold convenience; the individual fields remain authoritative. |
 | `vulnerability_count` | integer | Number of advisories affecting `version_used`. |
 | `vulnerabilities` | array | One entry per advisory (see below). |
 | `alternatives` | array \| absent | Present only with `--alternatives` on an archived/critical **direct** gem: up to three maintained Ruby Toolbox leads to verify. Direct-only by design (you can't swap a gem you didn't choose). |
