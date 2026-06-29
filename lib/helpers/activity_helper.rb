@@ -42,6 +42,14 @@ module StillActive
     def activity_level(gem_data)
       return :archived if gem_data[:archived]
 
+      release_recency_level(gem_data)
+    end
+
+    # Recency verdict from release/commit dates alone, ignoring the archived
+    # flag: :ok, :stale, :critical, or :unknown. Lets the lifecycle status tell
+    # an archived-but-still-publishing gem (development moved to a monorepo) from
+    # a genuinely dormant one.
+    def release_recency_level(gem_data)
       activity = last_activity(gem_data)
       return :unknown if activity.nil?
 
