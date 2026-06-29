@@ -14,6 +14,12 @@ RSpec.describe(StillActive::Workflow) do
   describe("#call") do
     subject(:result) { described_class.call }
 
+    # These integration specs exercise the live-GitHub repo-signal path (their
+    # VCR cassettes hold GitHub interactions). Configure a token so provider_for
+    # selects GithubClient rather than the no-token ecosyste.ms fallback, which
+    # is covered separately in its own client + dispatch specs.
+    before { StillActive.config.github_oauth_token = "ghp_test_token" }
+
     context("when configured to use gems") do
       let(:gems) { ["rails", "nokogiri"] }
 
@@ -530,6 +536,23 @@ RSpec.describe(StillActive::Workflow) do
       described_class.send(:versions, gem_name: "rake", source_uri: "https://rubygems.org./")
 
       expect(Gems).to(have_received(:versions).with("rake"))
+    end
+  end
+
+  describe("#provider_for (GitHub repo-signal source selection)") do
+    it("uses the live GitHub client when a token is configured") do
+      StillActive.config.github_oauth_token = "ghp_test_token"
+      expect(described_class.send(:provider_for, :github)).to(be(StillActive::GithubClient))
+    end
+
+    it("falls back to ecosyste.ms when no GitHub token is available (avoids the 60 req/hr cap)") do
+      allow(StillActive.config).to(receive(:github_oauth_token).and_return(nil))
+      expect(described_class.send(:provider_for, :github)).to(be(StillActive::EcosystemsClient))
+    end
+
+    it("still uses the GitLab client for gitlab sources regardless of GitHub token") do
+      allow(StillActive.config).to(receive(:github_oauth_token).and_return(nil))
+      expect(described_class.send(:provider_for, :gitlab)).to(be(StillActive::GitlabClient))
     end
   end
 

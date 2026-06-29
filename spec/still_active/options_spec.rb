@@ -91,6 +91,11 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.gitlab_token).to(eq("glpat-123"))
     end
 
+    it("sets the ecosyste.ms polite-pool email") do
+      described_class.new.parse!(["--ecosystems-email=dev@example.com", "--gems=rails"])
+      expect(StillActive.config.ecosystems_email).to(eq("dev@example.com"))
+    end
+
     it("sets artifactory token") do
       described_class.new.parse!(["--artifactory-token=art-token", "--gems=rails"])
       expect(StillActive.config.artifactory_token).to(eq("art-token"))

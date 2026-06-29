@@ -7,7 +7,7 @@ require_relative "suppressions"
 
 module StillActive
   class Config
-    attr_writer :github_oauth_token, :gitlab_token, :forgejo_token, :artifactory_token, :artifactory_host, :gemfile_path
+    attr_writer :github_oauth_token, :gitlab_token, :forgejo_token, :artifactory_token, :artifactory_host, :gemfile_path, :ecosystems_email
     attr_accessor :alternatives,
       :unreleased_commits,
       :direct_only,
@@ -49,6 +49,7 @@ module StillActive
       @forgejo_token = nil
       @artifactory_token = nil
       @artifactory_host = nil
+      @ecosystems_email = nil
 
       @parallelism = 10
 
@@ -78,7 +79,21 @@ module StillActive
     end
 
     def github_oauth_token
+      # Cache the resolution including a nil result: the token can't change
+      # mid-run, and provider selection now reads this per gem, so a plain ||=
+      # (which doesn't memoize nil) would re-shell `gh auth token` for every gem
+      # in a no-token run.
+      return @github_oauth_token if @github_oauth_token_resolved
+
+      # Assign before flipping the flag: gh_cli_token shells out and yields the
+      # async reactor, so a concurrent fiber must never see resolved=true while
+      # the value is still nil (it would wrongly route a tokened gem to the
+      # ecosyste.ms fallback). Worst case under contention is a few extra `gh`
+      # calls, never a premature nil; Workflow.call also resolves this once before
+      # the fan-out so the contended path isn't normally hit.
       @github_oauth_token ||= presence(ENV["GITHUB_TOKEN"]) || presence(ENV["GH_TOKEN"]) || gh_cli_token
+      @github_oauth_token_resolved = true
+      @github_oauth_token
     end
 
     def gitlab_token
@@ -89,6 +104,13 @@ module StillActive
     # gh/glab), so it's env-var only. Anonymous works for public repos; a token
     # only raises the rate limit. CODEBERG_TOKEN is accepted as a convenience
     # alias for the codeberg.org default host.
+    # Optional contact email for ecosyste.ms's "polite pool" (sent as a mailto
+    # query param), which raises the anonymous rate limit and lets them reach
+    # out. Nil by default -- anonymous is plenty for a typical lockfile.
+    def ecosystems_email
+      @ecosystems_email ||= presence(ENV["STILL_ACTIVE_ECOSYSTEMS_EMAIL"]&.strip)
+    end
+
     def forgejo_token
       @forgejo_token ||= presence(ENV["STILL_ACTIVE_FORGEJO_TOKEN"]) || presence(ENV["CODEBERG_TOKEN"])
     end

@@ -2,6 +2,7 @@
 
 require_relative "artifactory_client"
 require_relative "deps_dev_client"
+require_relative "ecosystems_client"
 require_relative "forgejo_client"
 require_relative "github_client"
 require_relative "gitlab_client"
@@ -30,6 +31,12 @@ module StillActive
         # read-only Database is shared across fibers rather than reloaded per gem.
         advisory_db = RubyAdvisoryDb.load
         catalog = StillActive.config.alternatives ? CatalogIndex.load : nil
+        # Resolve the GitHub token once here, single-fibered, before the fan-out:
+        # provider_for reads it per gem across fibers and gh_cli_token shells out,
+        # so resolving eagerly keeps that off the concurrent path and guarantees
+        # every fiber sees one consistent value (token -> live GitHub, incl. private
+        # repos; only a genuinely absent token falls back to ecosyste.ms).
+        StillActive.config.github_oauth_token
         barrier = Async::Barrier.new
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result_object = {}
@@ -350,7 +357,11 @@ module StillActive
     # assumption that every source supports every signal.
     def provider_for(source)
       case source
-      when :github then GithubClient
+      # Without a GitHub token, the live API caps at 60 req/hr -- unusable past a
+      # handful of gems. Fall back to ecosyste.ms (5000 anonymous) so a large
+      # Gemfile still resolves. With a token, the live API stays primary (freshest,
+      # and it carries commits_since_release, which ecosyste.ms doesn't).
+      when :github then StillActive.config.github_oauth_token ? GithubClient : EcosystemsClient
       when :gitlab then GitlabClient
       when :forgejo then ForgejoClient
       end

@@ -41,6 +41,49 @@ RSpec.describe(StillActive::Config) do
       expect { expect(described_class.new.github_oauth_token).to(be_nil) }.not_to(output.to_stderr)
     end
 
+    it("memoizes a nil result so `gh auth token` is shelled out at most once") do
+      allow(Open3).to(receive(:capture3).with("gh", "auth", "token").and_raise(Errno::ENOENT))
+      config = described_class.new
+      3.times { config.github_oauth_token }
+      expect(Open3).to(have_received(:capture3).once)
+    end
+
+    it("never returns a premature nil to a concurrent fiber while gh is resolving") do
+      status = instance_double(Process::Status, success?: true)
+      # Slow shell-out so the first fiber yields the reactor mid-resolution and
+      # the others re-enter: they must not observe a half-set memo.
+      allow(Open3).to(receive(:capture3)) do
+        sleep(0.02)
+        ["ghp_real\n", "", status]
+      end
+      config = described_class.new
+      results = []
+      Async do |task|
+        10.times { task.async { results << config.github_oauth_token } }
+      end
+      expect(results).to(all(eq("ghp_real")))
+    end
+  end
+
+  describe("ecosystems_email discovery") do
+    around do |example|
+      original = ENV.to_hash
+      ENV.delete("STILL_ACTIVE_ECOSYSTEMS_EMAIL")
+      example.run
+    ensure
+      ENV.clear
+      original.each { |k, v| ENV[k] = v }
+    end
+
+    it("reads STILL_ACTIVE_ECOSYSTEMS_EMAIL from the environment") do
+      ENV["STILL_ACTIVE_ECOSYSTEMS_EMAIL"] = "ops@example.com"
+      expect(described_class.new.ecosystems_email).to(eq("ops@example.com"))
+    end
+
+    it("is nil when unset (anonymous pool)") do
+      expect(described_class.new.ecosystems_email).to(be_nil)
+    end
+
     it("warns and returns nil when gh CLI exits non-zero (auth broken)") do
       status = instance_double(Process::Status, success?: false)
       allow(Open3).to(receive(:capture3).with("gh", "auth", "token").and_return(["", "not logged in", status]))

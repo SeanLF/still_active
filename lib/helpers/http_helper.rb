@@ -5,7 +5,7 @@ require "json"
 
 module StillActive
   module HttpHelper
-    TRUSTED_HOSTS = ["github.com", "gitlab.com", "codeberg.org", "api.deps.dev", "endoflife.date", "rubygems.pkg.github.com"].freeze
+    TRUSTED_HOSTS = ["github.com", "gitlab.com", "codeberg.org", "api.deps.dev", "endoflife.date", "rubygems.pkg.github.com", "repos.ecosyste.ms"].freeze
     MAX_REDIRECTS = 3
     # Ceiling on a single response body. These are metadata endpoints (version
     # lists, scorecards, advisories); legitimate responses are well under this.
