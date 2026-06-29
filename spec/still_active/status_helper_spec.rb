@@ -3,6 +3,10 @@
 require_relative "../../lib/helpers/status_helper"
 
 RSpec.describe(StillActive::StatusHelper) do
+  # activity_level reads the global activity thresholds, so reset to defaults
+  # before each example to stay independent of any spec that tuned them.
+  before { StillActive.reset }
+
   def recent = (Time.now - (30 * 24 * 60 * 60)) # ~1 month ago -> :ok
   def ancient = (Time.now - (5 * 365 * 24 * 60 * 60)) # ~5 years ago -> :critical
 

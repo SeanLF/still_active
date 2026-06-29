@@ -94,6 +94,11 @@ module StillActive
       opts.on("--gitlab-token=TOKEN", String, "GitLab personal access token for API calls") do |value|
         StillActive.config { |config| config.gitlab_token = value }
       end
+      opts.on("--ecosystems-email=EMAIL", String, "Contact email for the ecosyste.ms polite pool (used only when falling back to ecosyste.ms without a GitHub token)") do |value|
+        email = value.strip
+        warn("warning: --ecosystems-email=#{value.inspect} doesn't look like an email (no @); ecosyste.ms will keep you in the anonymous pool") unless email.include?("@")
+        StillActive.config { |config| config.ecosystems_email = email }
+      end
       opts.on("--artifactory-token=TOKEN", String, "Artifactory token for private gem registry API calls") do |value|
         StillActive.config { |config| config.artifactory_token = value }
       end

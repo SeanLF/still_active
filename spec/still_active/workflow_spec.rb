@@ -9,6 +9,12 @@ RSpec.describe(StillActive::Workflow) do
     # tests don't depend on a local `bundle audit update` checkout. The merge is
     # exercised explicitly in its own context below.
     allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil))
+    # Pin a GitHub token so provider_for selects GithubClient (the path these
+    # integration specs and their VCR cassettes assume), independent of whether
+    # the host running the suite happens to have a `gh` token. The no-token
+    # ecosyste.ms fallback is covered explicitly in its own client + dispatch
+    # specs, which override this.
+    StillActive.config.github_oauth_token = "ghp_test_token"
   end
 
   describe("#call") do
@@ -530,6 +536,23 @@ RSpec.describe(StillActive::Workflow) do
       described_class.send(:versions, gem_name: "rake", source_uri: "https://rubygems.org./")
 
       expect(Gems).to(have_received(:versions).with("rake"))
+    end
+  end
+
+  describe("#provider_for (GitHub repo-signal source selection)") do
+    it("uses the live GitHub client when a token is configured") do
+      StillActive.config.github_oauth_token = "ghp_test_token"
+      expect(described_class.send(:provider_for, :github)).to(be(StillActive::GithubClient))
+    end
+
+    it("falls back to ecosyste.ms when no GitHub token is available (avoids the 60 req/hr cap)") do
+      allow(StillActive.config).to(receive(:github_oauth_token).and_return(nil))
+      expect(described_class.send(:provider_for, :github)).to(be(StillActive::EcosystemsClient))
+    end
+
+    it("still uses the GitLab client for gitlab sources regardless of GitHub token") do
+      allow(StillActive.config).to(receive(:github_oauth_token).and_return(nil))
+      expect(described_class.send(:provider_for, :gitlab)).to(be(StillActive::GitlabClient))
     end
   end
 

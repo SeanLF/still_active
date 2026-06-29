@@ -85,7 +85,9 @@ still_active --markdown
 3. `GH_TOKEN` environment variable (`gh` CLI convention)
 4. `gh auth token` (if `gh` is installed and authenticated)
 
-Without a token, GitHub API calls are unauthenticated and rate-limited to 60 requests/hour — you will hit the limit on anything beyond a handful of gems. With a token the limit is 5000 requests/hour. When a rate-limit response comes back with a reset that's near (within 60 seconds, typically a secondary/burst limit that the concurrent fan-out can trip even with a token), still_active waits it out and retries rather than dropping that gem's signals; a far-off reset (you've exhausted the hourly limit) isn't waited out, so add a token or run less often.
+With a token, GitHub repo signals (archived, last commit) come from the GitHub API (limit 5000 requests/hour). When a rate-limit response comes back with a reset that's near (within 60 seconds, typically a secondary/burst limit that the concurrent fan-out can trip even with a token), still_active waits it out and retries rather than dropping that gem's signals; a far-off reset (you've exhausted the hourly limit) isn't waited out, so run less often.
+
+**Without a token**, the unauthenticated GitHub API is capped at 60 requests/hour — unusable past a handful of gems. So still_active falls back to [ecosyste.ms](https://ecosyste.ms) for GitHub repo signals (5000 anonymous requests/hour), which keeps a large Gemfile working with no token at all. The fallback is GitHub-only: ecosyste.ms doesn't track commit recency for GitLab/Codeberg, so those hosts still need their own token (or report `unknown`) when unauthenticated. A token still gives the freshest data and unlocks `--unreleased-commits`, so prefer one in CI. To be a good citizen of the free ecosyste.ms service, you can join its "polite pool" (a higher rate limit, and they can reach you) by passing a contact email via `--ecosystems-email=you@example.com` or `STILL_ACTIVE_ECOSYSTEMS_EMAIL` — optional, since the anonymous limit already covers a typical lockfile.
 
 GitLab cascade mirrors GitHub: `--gitlab-token` → `GITLAB_TOKEN` → `glab auth status --show-token`. Optional for public repos, required for private ones.
 
@@ -426,7 +428,7 @@ It is **opt-in and GitHub-only**: enabling it adds one extra API call per GitHub
 ### Data sources
 
 - **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org), [GitHub Packages](https://docs.github.com/en/packages), or [JFrog Artifactory](https://jfrog.com/artifactory/) gem registries
-- **Last commit date and archived status** from the [GitHub](https://docs.github.com/en/rest), [GitLab](https://docs.gitlab.com/ee/api/), or [Forgejo/Gitea](https://forgejo.org/docs/latest/user/api-usage/) (Codeberg) API
+- **Last commit date and archived status** from the [GitHub](https://docs.github.com/en/rest), [GitLab](https://docs.gitlab.com/ee/api/), or [Forgejo/Gitea](https://forgejo.org/docs/latest/user/api-usage/) (Codeberg) API — or, for GitHub repos when no token is configured, from [ecosyste.ms](https://ecosyste.ms) ([repos API](https://repos.ecosyste.ms)). ecosyste.ms data is licensed [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 - **OpenSSF Scorecard**, **vulnerability counts**, and **CVSS severity** from Google's [deps.dev](https://deps.dev) API
 - **Additional advisories** from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db), merged in when `bundler-audit` is installed alongside (run `bundle audit update` to keep its checkout current)
 - **Ruby version freshness** from [endoflife.date](https://endoflife.date)
