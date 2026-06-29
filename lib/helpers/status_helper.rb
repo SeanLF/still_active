@@ -13,23 +13,38 @@ module StillActive
   module StatusHelper
     extend self
 
-    # Worst-first. A known vulnerability is the most actionable single concern;
-    # below it, activity_level already ranks archived > critical > stale > ok;
-    # :unknown (no data) is least severe because it is an absence, not a finding.
-    SEVERITY = [:unknown, :ok, :stale, :critical, :archived, :vulnerable].freeze
+    # Worst-first lifecycle verdict. The key distinction (from the "done gems"
+    # critique and validated against the maintenance-tooling landscape): a clean,
+    # long-dormant gem is :legacy ("done", low risk), NOT a problem -- whereas a
+    # dormant or archived gem carrying an unpatched advisory is :dead (no one is
+    # going to fix it, migrate). :unknown is least severe -- an absence, not a
+    # finding -- so missing data never reads as :ok.
+    SEVERITY = [:unknown, :ok, :legacy, :stale, :archived, :vulnerable, :dead].freeze
 
-    # Returns :vulnerable, :archived, :critical, :stale, :ok, or :unknown.
+    # Returns :dead, :vulnerable, :archived, :legacy, :stale, :ok, or :unknown.
     def gem_status(gem_data)
-      return :vulnerable if gem_data[:vulnerability_count].to_i.positive?
+      vulnerable = gem_data[:vulnerability_count].to_i.positive?
+      level = ActivityHelper.activity_level(gem_data)
 
-      ActivityHelper.activity_level(gem_data)
+      if vulnerable
+        # A vulnerability in a dormant or archived gem won't be patched -> :dead;
+        # in an actively-released gem a fix is plausible -> :vulnerable.
+        return [:critical, :archived].include?(level) ? :dead : :vulnerable
+      end
+
+      case level
+      when :archived then :archived
+      when :critical then :legacy # long-dormant but clean: feature-complete, not a fire
+      else level # :stale / :ok / :unknown
+      end
     end
 
-    # The single worst gem status across the audit, with an EOL Ruby raising the
-    # floor to :critical. :unknown only wins when nothing better is known.
+    # The single worst gem status across the audit. An EOL Ruby floors the
+    # project at :vulnerable (the runtime itself is a live, actionable risk).
+    # :unknown only wins when nothing better is known.
     def project_status(result, ruby_info: nil)
       statuses = result.each_value.map { |data| gem_status(data) }
-      statuses << :critical if ruby_info&.dig(:eol) == true
+      statuses << :vulnerable if ruby_info&.dig(:eol) == true
       return :unknown if statuses.empty?
 
       # Every value gem_status returns is in SEVERITY today; if a future status

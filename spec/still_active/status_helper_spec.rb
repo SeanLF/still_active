@@ -8,17 +8,22 @@ RSpec.describe(StillActive::StatusHelper) do
   before { StillActive.reset }
 
   def recent = (Time.now - (30 * 24 * 60 * 60)) # ~1 month ago -> :ok
-  def ancient = (Time.now - (5 * 365 * 24 * 60 * 60)) # ~5 years ago -> :critical
+  def ancient = (Time.now - (5 * 365 * 24 * 60 * 60)) # ~5 years ago -> dormant
 
   describe(".gem_status") do
-    it("is :vulnerable when the gem has any vulnerability, even if otherwise fresh") do
+    it("is :vulnerable for an actively-released gem with a vulnerability (fixable)") do
       data = { latest_version_release_date: recent, vulnerability_count: 1 }
       expect(described_class.gem_status(data)).to(eq(:vulnerable))
     end
 
-    it("is :vulnerable in preference to :archived") do
+    it("is :dead for a dormant gem with an unpatched vulnerability (no one is fixing it)") do
+      data = { latest_version_release_date: ancient, vulnerability_count: 1 }
+      expect(described_class.gem_status(data)).to(eq(:dead))
+    end
+
+    it("is :dead for an archived gem with a vulnerability") do
       data = { archived: true, vulnerability_count: 2 }
-      expect(described_class.gem_status(data)).to(eq(:vulnerable))
+      expect(described_class.gem_status(data)).to(eq(:dead))
     end
 
     it("is :archived for an archived repo with no vulnerabilities") do
@@ -26,14 +31,14 @@ RSpec.describe(StillActive::StatusHelper) do
       expect(described_class.gem_status(data)).to(eq(:archived))
     end
 
+    it("is :legacy for a clean, long-dormant gem (years old, no vulns) -- 'done', not critical") do
+      data = { latest_version_release_date: ancient, vulnerability_count: 0 }
+      expect(described_class.gem_status(data)).to(eq(:legacy))
+    end
+
     it("is :ok for a recently released, unflagged gem") do
       data = { latest_version_release_date: recent, vulnerability_count: 0 }
       expect(described_class.gem_status(data)).to(eq(:ok))
-    end
-
-    it("is :critical for a gem whose last release is years old") do
-      data = { latest_version_release_date: ancient, vulnerability_count: 0 }
-      expect(described_class.gem_status(data)).to(eq(:critical))
     end
 
     it("is :unknown when there is no activity data and vulnerabilities were not measured") do
@@ -47,26 +52,35 @@ RSpec.describe(StillActive::StatusHelper) do
   end
 
   describe(".project_status") do
-    it("is the worst status across all gems") do
+    it("is the worst status across all gems (archived outranks a legacy/done gem)") do
       result = {
         "a" => { latest_version_release_date: recent, vulnerability_count: 0 }, # ok
         "b" => { archived: true, vulnerability_count: 0 },                      # archived
-        "c" => { latest_version_release_date: ancient, vulnerability_count: 0 }, # critical
+        "c" => { latest_version_release_date: ancient, vulnerability_count: 0 }, # legacy
       }
       expect(described_class.project_status(result)).to(eq(:archived))
     end
 
-    it("is :vulnerable when any gem is vulnerable") do
+    it("is :dead when any gem is dead, outranking a vulnerable gem") do
       result = {
-        "a" => { latest_version_release_date: recent, vulnerability_count: 0 },
-        "b" => { latest_version_release_date: recent, vulnerability_count: 1 },
+        "a" => { latest_version_release_date: recent, vulnerability_count: 1 },  # vulnerable
+        "b" => { latest_version_release_date: ancient, vulnerability_count: 1 }, # dead
       }
-      expect(described_class.project_status(result)).to(eq(:vulnerable))
+      expect(described_class.project_status(result)).to(eq(:dead))
     end
 
-    it("is at least :critical when Ruby is EOL even if every gem is ok") do
+    it("ranks :legacy below :stale (a clean done gem is less concerning than a drifting one)") do
+      stale_date = Time.now - (2 * 365 * 24 * 60 * 60) # ~2 years -> :stale (18mo-3yr window)
+      result = {
+        "a" => { latest_version_release_date: ancient, vulnerability_count: 0 },     # legacy
+        "b" => { latest_version_release_date: stale_date, vulnerability_count: 0 },  # stale
+      }
+      expect(described_class.project_status(result)).to(eq(:stale))
+    end
+
+    it("floors the project at :vulnerable when Ruby is EOL even if every gem is ok") do
       result = { "a" => { latest_version_release_date: recent, vulnerability_count: 0 } }
-      expect(described_class.project_status(result, ruby_info: { eol: true })).to(eq(:critical))
+      expect(described_class.project_status(result, ruby_info: { eol: true })).to(eq(:vulnerable))
     end
 
     it("is :unknown for an empty result") do
