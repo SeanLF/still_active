@@ -26,9 +26,19 @@ RSpec.describe(StillActive::StatusHelper) do
       expect(described_class.gem_status(data)).to(eq(:dead))
     end
 
-    it("is :archived for an archived repo with no vulnerabilities") do
+    it("is :archived for an archived repo with no recent releases or vulnerabilities") do
+      data = { archived: true, latest_version_release_date: ancient, vulnerability_count: 0 }
+      expect(described_class.gem_status(data)).to(eq(:archived))
+    end
+
+    it("is :archived for an archived repo with no release data at all") do
       data = { archived: true, vulnerability_count: 0 }
       expect(described_class.gem_status(data)).to(eq(:archived))
+    end
+
+    it("is :stale (not :archived) when the repo is archived but the gem still publishes recent releases (monorepo consolidation)") do
+      data = { archived: true, latest_version_release_date: recent, vulnerability_count: 0 }
+      expect(described_class.gem_status(data)).to(eq(:stale))
     end
 
     it("is :legacy for a clean, long-dormant gem (years old, no vulns) -- 'done', not critical") do

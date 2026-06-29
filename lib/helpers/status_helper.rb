@@ -33,7 +33,11 @@ module StillActive
       end
 
       case level
-      when :archived then :archived
+      when :archived
+        # archived != EOL: a repo archived while the gem still publishes recent
+        # releases (development moved to a monorepo) isn't dead -- let the
+        # releases speak, but keep :stale so the archived repo stays a yellow flag.
+        ActivityHelper.release_recency_level(gem_data) == :ok ? :stale : :archived
       when :critical then :legacy # long-dormant but clean: feature-complete, not a fire
       else level # :stale / :ok / :unknown
       end
