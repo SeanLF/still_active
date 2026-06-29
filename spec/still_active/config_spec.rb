@@ -3,6 +3,16 @@
 RSpec.describe(StillActive::Config) do
   before { StillActive.reset }
 
+  describe("hermetic test environment") do
+    # Proves the spec_helper guard works: even on a dev machine with `gh` logged
+    # in, the suite must not pick up a real token (which would mask the
+    # token-dependent ecosyste.ms fallback path). No env-stripping here on
+    # purpose -- the global spec_helper hook is what must neutralise the host.
+    it("resolves no GitHub token by default, regardless of the host") do
+      expect(described_class.new.github_oauth_token).to(be_nil)
+    end
+  end
+
   describe("github_oauth_token discovery") do
     around do |example|
       original = ENV.to_hash
