@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "activity_helper"
+require_relative "status_helper"
 
 module StillActive
   # Builds the JSON output's summary{} digest: the headline posture of the audit
@@ -40,6 +41,9 @@ module StillActive
         outdated: outdated,
         vulnerable_gems: vulnerable_gems,
         vulnerabilities: vulnerabilities,
+        # The single worst per-gem verdict (plus EOL Ruby), so a consumer reads
+        # one project-level posture without scanning every gem's status.
+        status: StatusHelper.project_status(result, ruby_info: ruby_info),
       }
       summary[:ruby_eol] = ruby_info[:eol] == true if ruby_info
       summary

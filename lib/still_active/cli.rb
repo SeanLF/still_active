@@ -11,6 +11,7 @@ require_relative "../helpers/diff_markdown_helper"
 require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
 require_relative "../helpers/sarif_helper"
+require_relative "../helpers/status_helper"
 require_relative "../helpers/summary_helper"
 require_relative "../helpers/terminal_helper"
 require_relative "../helpers/version_helper"
@@ -74,7 +75,12 @@ module StillActive
             summary: SummaryHelper.summarize(result, ruby_info: ruby_info),
             # Surface the derived verdict so a machine/LLM consumer reads it
             # directly instead of re-deriving it from the raw dates.
-            gems: result.transform_values { |data| data.merge(activity_level: ActivityHelper.activity_level(data)) },
+            gems: result.transform_values do |data|
+              data.merge(
+                activity_level: ActivityHelper.activity_level(data),
+                status: StatusHelper.gem_status(data),
+              )
+            end,
           }
           output[:ruby] = ruby_info if ruby_info
           output[:pr_context] = pr_context if pr_context

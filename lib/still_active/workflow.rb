@@ -163,8 +163,15 @@ module StillActive
       source, owner, name = repo_info.values_at(:source, :owner, :name)
       deps_dev = gem_version ? fetch_deps_dev_info(gem_name: gem_name, version: gem_version, advisory_db: advisory_db) : {}
 
-      # Fall back to repo-derived project_id for scorecard when deps.dev doesn't have the version
-      deps_dev[:scorecard_score] ||= DepsDevClient.project_scorecard(project_id: repo_info[:project_id])&.dig(:score)
+      # Fall back to repo-derived project_id for scorecard when deps.dev doesn't
+      # have the version. Use ||= so a maintained score already found via the
+      # version's scorecard is never clobbered by a nil from the repo fallback
+      # (0.0 is truthy, so a measured "unmaintained" is preserved too).
+      if deps_dev[:scorecard_score].nil?
+        fallback = DepsDevClient.project_scorecard(project_id: repo_info[:project_id])
+        deps_dev[:scorecard_score] ||= fallback&.dig(:score)
+        deps_dev[:scorecard_maintained] ||= fallback&.dig(:maintained)
+      end
 
       signals = repo_signals(source:, repository_owner: owner, repository_name: name)
       result_object[gem_name].merge!({
@@ -198,6 +205,7 @@ module StillActive
       vulnerabilities = VulnerabilityHelper.merge_advisories(deps_dev: deps_dev_vulns, ruby_advisory_db: radb_vulns)
       {
         scorecard_score: scorecard&.dig(:score),
+        scorecard_maintained: scorecard&.dig(:maintained),
         vulnerability_count: vulnerabilities.length,
         vulnerabilities: vulnerabilities,
       }

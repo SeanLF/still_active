@@ -119,6 +119,49 @@ RSpec.describe(StillActive::DepsDevClient) do
 
       expect(described_class.project_scorecard(project_id: "github.com/sparklemotion/nokogiri")).to(be_nil)
     end
+
+    it("extracts the OpenSSF 'Maintained' sub-check score") do
+      stub_request(:get, /api\.deps\.dev/).to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          scorecard: {
+            overallScore: 7.5,
+            date: "2026-01-02",
+            checks: [
+              { name: "Code-Review", score: 8 },
+              { name: "Maintained", score: 10 },
+            ],
+          },
+        }.to_json,
+      )
+
+      result = described_class.project_scorecard(project_id: "github.com/some/repo")
+
+      expect(result).to(include(score: 7.5, maintained: 10))
+    end
+
+    it("reports a nil 'Maintained' score when the check is absent") do
+      stub_request(:get, /api\.deps\.dev/).to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: { scorecard: { overallScore: 6.0, date: "2026-01-02", checks: [] } }.to_json,
+      )
+
+      expect(described_class.project_scorecard(project_id: "github.com/some/repo")).to(include(maintained: nil))
+    end
+
+    it("degrades to a nil 'Maintained' score on a malformed checks payload (does not crash the gem)") do
+      stub_request(:get, /api\.deps\.dev/).to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        # A non-array `checks` is a contract violation; it must not raise and
+        # vanish the gem from the whole audit via the per-gem rescue.
+        body: { scorecard: { overallScore: 6.0, date: "2026-01-02", checks: { "Maintained" => 10 } } }.to_json,
+      )
+
+      expect(described_class.project_scorecard(project_id: "github.com/some/repo")).to(include(maintained: nil))
+    end
   end
 
   describe("#extract_project_id (SOURCE_REPO URL parsing)") do
