@@ -49,4 +49,28 @@ RSpec.describe(StillActive::SbomReader) do
   it("returns [] for a non-CycloneDX / malformed JSON body, without raising") do
     expect { expect(described_class.read_string("not json")).to(eq([])) }.not_to(raise_error)
   end
+
+  describe("edge cases") do
+    def sbom(*components) = { "bomFormat" => "CycloneDX", "components" => components }.to_json
+
+    it("ignores a private repository_url qualifier (untrusted lockfile-derived input) yet still extracts the package") do
+      # The lens must never call a registry URL taken from the SBOM; we key only
+      # on ecosystem/name/version and look those up on the trusted public APIs.
+      body = sbom({ "type" => "library", "purl" => "pkg:pypi/internalpkg@1.0.0?repository_url=https://pypi.internal.example.com" })
+      expect(described_class.read_string(body)).to(eq([{ ecosystem: :pypi, name: "internalpkg", version: "1.0.0" }]))
+    end
+
+    it("extracts a scoped (possibly private) npm package by its full @scope/name") do
+      body = sbom({ "type" => "library", "purl" => "pkg:npm/%40myorg/secret@2.0.0" })
+      expect(described_class.read_string(body)).to(eq([{ ecosystem: :npm, name: "@myorg/secret", version: "2.0.0" }]))
+    end
+
+    it("skips a PURL with no version (cannot be assessed)") do
+      expect(described_class.read_string(sbom({ "type" => "library", "purl" => "pkg:npm/foo" }))).to(eq([]))
+    end
+
+    it("skips an unmapped ecosystem (e.g. cocoapods/conan/swift)") do
+      expect(described_class.read_string(sbom({ "type" => "library", "purl" => "pkg:cocoapods/Alamofire@5.0.0" }))).to(eq([]))
+    end
+  end
 end
