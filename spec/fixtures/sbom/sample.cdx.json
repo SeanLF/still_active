@@ -1,0 +1,18 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "components": [
+    { "type": "library", "name": "requests", "version": "2.31.0", "purl": "pkg:pypi/requests@2.31.0?package-id=aaa111" },
+    { "type": "library", "name": "serde", "version": "1.0.0", "purl": "pkg:cargo/serde@1.0.0" },
+    { "type": "library", "name": "serde", "version": "1.0.0", "purl": "pkg:cargo/serde@1.0.0?package-id=dup999" },
+    { "type": "library", "name": "code-frame", "version": "7.29.0", "purl": "pkg:npm/%40babel/code-frame@7.29.0?package-id=bbb222" },
+    { "type": "library", "name": "guava", "version": "33.0.0", "purl": "pkg:maven/com.google.guava/guava@33.0.0" },
+    { "type": "library", "name": "rake", "version": "13.0.0", "purl": "pkg:gem/rake@13.0.0" },
+    { "type": "library", "name": "mux", "version": "v1.8.0", "purl": "pkg:golang/github.com/gorilla/mux@v1.8.0" },
+    { "type": "file", "name": "main.rs", "purl": null },
+    { "type": "application", "name": "my-app", "version": "1.0.0" },
+    { "type": "library", "name": "checkout", "version": "v4", "purl": "pkg:github/actions/checkout@v4#restore" },
+    { "type": "library", "name": "node", "version": "24.0.0", "purl": "pkg:generic/node@24.0.0" },
+    { "type": "library", "name": "nopurl", "version": "1.0.0" }
+  ]
+}
