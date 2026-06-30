@@ -57,4 +57,8 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency("faraday-retry")
   spec.add_runtime_dependency("gems")
   spec.add_runtime_dependency("octokit")
+  # Spec-compliant package-URL parsing for SBOM ingestion (decodes npm scopes,
+  # maven group:artifact, qualifiers). 0.1 is the verified floor; the official
+  # package-url org gem (vetted via still_active itself: maintained, no advisories).
+  spec.add_runtime_dependency("packageurl-ruby", ">= 0.1.0")
 end
