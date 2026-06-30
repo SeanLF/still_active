@@ -21,6 +21,90 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(described_class.version_info(gem_name: "nokogiri", version: nil)).to(be_nil)
     end
 
+    it("queries the rubygems system by default") do
+      stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/rubygems/packages/nokogiri/versions/1\.19\.1})
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: "{}")
+
+      described_class.version_info(gem_name: "nokogiri", version: "1.19.1")
+      expect(stub).to(have_been_requested)
+    end
+
+    it("queries the given ecosystem's deps.dev system path") do
+      stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/express/versions/5\.2\.1})
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: "{}")
+
+      described_class.version_info(gem_name: "express", version: "5.2.1", system: :npm)
+      expect(stub).to(have_been_requested)
+    end
+
+    it("percent-encodes a scoped npm name so the path segment stays intact") do
+      # The scope slash must stay percent-encoded (%2F) so `core` isn't read as a
+      # separate path segment. WebMock/Addressable decodes %40 back to @.
+      stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/@babel%2Fcore/versions/7\.0\.0})
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: "{}")
+
+      described_class.version_info(gem_name: "@babel/core", version: "7.0.0", system: :npm)
+      expect(stub).to(have_been_requested)
+    end
+  end
+
+  describe(".latest_release_date") do
+    def package_body(versions)
+      { "versions" => versions }.to_json
+    end
+
+    it("returns the default version's publishedAt (the package's freshness signal)") do
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/pypi/packages/requests\z}).to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: package_body([
+          { "versionKey" => { "version" => "2.31.0" }, "isDefault" => false, "publishedAt" => "2023-05-22T15:12:42Z" },
+          { "versionKey" => { "version" => "2.32.5" }, "isDefault" => true, "publishedAt" => "2025-08-18T20:46:00Z" },
+        ]),
+      )
+
+      expect(described_class.latest_release_date(name: "requests", system: :pypi)).to(eq("2025-08-18T20:46:00Z"))
+    end
+
+    it("queries the rubygems system by default") do
+      stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/rubygems/packages/nokogiri\z})
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: package_body([]))
+
+      described_class.latest_release_date(name: "nokogiri")
+      expect(stub).to(have_been_requested)
+    end
+
+    it("falls back to the newest publishedAt when no version is flagged default") do
+      stub_request(:get, /api\.deps\.dev/).to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: package_body([
+          { "versionKey" => { "version" => "0.1.0" }, "isDefault" => false, "publishedAt" => "2024-01-01T00:00:00Z" },
+          { "versionKey" => { "version" => "0.2.0-rc1" }, "isDefault" => false, "publishedAt" => "2024-06-01T00:00:00Z" },
+        ]),
+      )
+
+      expect(described_class.latest_release_date(name: "all-pre", system: :cargo)).to(eq("2024-06-01T00:00:00Z"))
+    end
+
+    it("returns nil when name is nil") do
+      expect(described_class.latest_release_date(name: nil)).to(be_nil)
+    end
+
+    it("returns nil when the package is unknown (404 -> no body)") do
+      stub_request(:get, /api\.deps\.dev/).to_return(status: 404)
+
+      expect(described_class.latest_release_date(name: "does-not-exist", system: :npm)).to(be_nil)
+    end
+
+    it("returns nil when the package has no versions") do
+      stub_request(:get, /api\.deps\.dev/).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" }, body: package_body([]),
+      )
+
+      expect(described_class.latest_release_date(name: "empty", system: :npm)).to(be_nil)
+    end
+
     it("returns nil on timeout") do
       stub_request(:get, /api\.deps\.dev/).to_timeout
 
