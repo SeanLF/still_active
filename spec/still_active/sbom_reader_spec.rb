@@ -50,6 +50,28 @@ RSpec.describe(StillActive::SbomReader) do
     expect { expect(described_class.read_string("not json")).to(eq([])) }.not_to(raise_error)
   end
 
+  describe(".parse — surfacing unassessable components (never silently drop a real dep)") do
+    subject(:result) { described_class.parse(fixture) }
+
+    it("exposes the same assessable dependencies as .read") do
+      expect(result.dependencies).to(eq(described_class.read(fixture)))
+    end
+
+    it("surfaces a real dependency in an unsupported ecosystem rather than dropping it") do
+      cocoapods = result.unassessable.find { |u| u[:name] == "Alamofire" }
+      expect(cocoapods).to(include(reason: :unsupported_ecosystem, ecosystem: "cocoapods"))
+    end
+
+    it("surfaces a library component that has no PURL (potential git/path/local dep)") do
+      expect(result.unassessable.find { |u| u[:name] == "nopurl" }).to(include(reason: :no_purl))
+    end
+
+    it("does NOT surface genuine non-package noise (GitHub Actions, generic binaries) as unassessable") do
+      surfaced = result.unassessable.map { |u| u[:name] }
+      expect(surfaced).not_to(include("checkout", "node"))
+    end
+  end
+
   describe("edge cases") do
     def sbom(*components) = { "bomFormat" => "CycloneDX", "components" => components }.to_json
 
