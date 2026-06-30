@@ -4,6 +4,7 @@ require_relative "still_active/version"
 require_relative "still_active/errors"
 require_relative "still_active/config"
 require_relative "still_active/sbom_reader"
+require_relative "still_active/ecosystem_lens"
 require_relative "still_active/cli"
 
 # Octokit depends on Faraday and emits a deprecation warning at load time

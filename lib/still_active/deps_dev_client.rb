@@ -25,13 +25,13 @@ module StillActive
       }
     end
 
-    # The package's most recent release date (ISO8601 string), or nil. This is
-    # the cross-ecosystem freshness signal: deps.dev's default version is the
-    # latest stable, and its publishedAt is more reliable than ecosyste.ms's
-    # latest_release_published_at, which can lag badly (mpmath: 2023 vs 2026).
-    # When no version is flagged default (all pre-release), fall back to the
-    # newest publishedAt so a still-active package isn't mis-read as dormant.
-    def latest_release_date(name:, system: :rubygems)
+    # The package's default version and its release date: { version:,
+    # published_at: }, or nil. deps.dev's default version is the latest stable;
+    # when none is flagged (all pre-release), the newest publishedAt stands in so
+    # a still-active package isn't mis-read as dormant. The version is exposed (not
+    # just the date) so a caller can recover the package's repo link from it when
+    # an exact locked version isn't indexed (yanked/normalization mismatch).
+    def default_version_info(name:, system: :rubygems)
       return if name.nil?
 
       path = "/v3alpha/systems/#{encode(system)}/packages/#{encode(name)}"
@@ -41,8 +41,18 @@ module StillActive
       versions = body["versions"]
       return unless versions.is_a?(Array) && !versions.empty?
 
-      default = versions.find { |v| v.is_a?(Hash) && v["isDefault"] }
-      (default || newest_version(versions))&.dig("publishedAt")
+      entry = versions.find { |v| v.is_a?(Hash) && v["isDefault"] } || newest_version(versions)
+      return if entry.nil?
+
+      { version: entry.dig("versionKey", "version"), published_at: entry["publishedAt"] }
+    end
+
+    # The package's most recent release date (ISO8601 string), or nil. This is
+    # the cross-ecosystem freshness signal, and deps.dev's publishedAt is more
+    # reliable than ecosyste.ms's latest_release_published_at, which can lag badly
+    # (mpmath: 2023 vs 2026).
+    def latest_release_date(name:, system: :rubygems)
+      default_version_info(name: name, system: system)&.dig(:published_at)
     end
 
     def project_scorecard(project_id:)
