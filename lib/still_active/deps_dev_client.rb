@@ -8,10 +8,14 @@ module StillActive
 
     BASE_URI = URI("https://api.deps.dev/")
 
-    def version_info(gem_name:, version:)
+    # `system` is the deps.dev package system, lowercased: rubygems, npm, pypi,
+    # cargo, go, maven, nuget. It matches the ecosystem symbol SbomReader emits,
+    # so a cross-ecosystem caller threads it straight through. An unknown system
+    # 404s and degrades to nil (HttpHelper swallows 404), never raising.
+    def version_info(gem_name:, version:, system: :rubygems)
       return if gem_name.nil? || version.nil?
 
-      path = "/v3alpha/systems/rubygems/packages/#{encode(gem_name)}/versions/#{encode(version)}"
+      path = "/v3alpha/systems/#{encode(system)}/packages/#{encode(gem_name)}/versions/#{encode(version)}"
       body = HttpHelper.get_json(BASE_URI, path)
       return if body.nil?
 
@@ -19,6 +23,26 @@ module StillActive
         advisory_keys: body.dig("advisoryKeys")&.map { |a| a["id"] } || [],
         project_id: extract_project_id(body),
       }
+    end
+
+    # The package's most recent release date (ISO8601 string), or nil. This is
+    # the cross-ecosystem freshness signal: deps.dev's default version is the
+    # latest stable, and its publishedAt is more reliable than ecosyste.ms's
+    # latest_release_published_at, which can lag badly (mpmath: 2023 vs 2026).
+    # When no version is flagged default (all pre-release), fall back to the
+    # newest publishedAt so a still-active package isn't mis-read as dormant.
+    def latest_release_date(name:, system: :rubygems)
+      return if name.nil?
+
+      path = "/v3alpha/systems/#{encode(system)}/packages/#{encode(name)}"
+      body = HttpHelper.get_json(BASE_URI, path)
+      return if body.nil?
+
+      versions = body["versions"]
+      return unless versions.is_a?(Array) && !versions.empty?
+
+      default = versions.find { |v| v.is_a?(Hash) && v["isDefault"] }
+      (default || newest_version(versions))&.dig("publishedAt")
     end
 
     def project_scorecard(project_id:)
@@ -103,8 +127,18 @@ module StillActive
       segments
     end
 
+    # The version with the newest publishedAt, used only when no version is
+    # flagged default. Versions without a publishedAt are dropped; the rest
+    # compare lexicographically (deps.dev returns RFC3339 UTC, so string order
+    # is chronological), and a dated release always wins over an undated one.
+    def newest_version(versions)
+      versions
+        .select { |v| v.is_a?(Hash) && v["publishedAt"] }
+        .max_by { |v| v["publishedAt"].to_s }
+    end
+
     def encode(value)
-      URI.encode_www_form_component(value)
+      URI.encode_www_form_component(value.to_s)
     end
   end
 end
