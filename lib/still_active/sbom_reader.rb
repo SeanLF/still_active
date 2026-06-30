@@ -68,7 +68,7 @@ module StillActive
 
     # [:dependency, {...}] | [:unassessable, {...}] | nil (non-package noise).
     def classify(component)
-      return nil unless component.is_a?(Hash) && component["type"] == "library"
+      return unless component.is_a?(Hash) && component["type"] == "library"
 
       name = component["name"]
       purl = component["purl"]
