@@ -1,6 +1,13 @@
 # frozen_string_literal: true
 
 RSpec.describe(StillActive::EcosystemLens) do
+  # Reset the shared config singleton: repo_provider reads github_oauth_token to
+  # choose GithubClient vs EcosystemsClient, and a prior spec (e.g. workflow_spec)
+  # leaves a test token on the singleton. Without this, run order decides whether
+  # the lens hits the (stubbed) ecosyste.ms path or the live GitHub API. Matches
+  # the convention in config_spec/forgejo_client_spec.
+  before { StillActive.reset }
+
   # Stub the deps.dev version endpoint (advisory keys + SOURCE_REPO link).
   def stub_version(advisory_keys: [], source_repo: nil)
     links = source_repo ? [{ "label" => "SOURCE_REPO", "url" => source_repo }] : []
