@@ -15,6 +15,7 @@ module StillActive
         add_tail_options(opts)
         add_gemfile_option(opts)
         add_gems_option(opts)
+        add_sbom_option(opts)
         add_ignore_option(opts)
         add_output_options(opts)
         add_token_options(opts)
@@ -34,7 +35,11 @@ module StillActive
     private
 
     def validate_options
-      raise ArgumentError, "provide gemfile or gems, not both" if options[:provided_gemfile] && options[:provided_gems]
+      inputs = [options[:provided_gemfile], options[:provided_gems], options[:provided_sbom]].compact
+      raise ArgumentError, "provide only one of --gemfile, --gems, --sbom" if inputs.size > 1
+      if options[:provided_sbom] && !File.exist?(StillActive.config.sbom_path)
+        raise ArgumentError, "SBOM file not found: #{StillActive.config.sbom_path}"
+      end
       if options[:provided_baseline] && !File.exist?(StillActive.config.baseline_path)
         raise ArgumentError, "baseline file not found: #{StillActive.config.baseline_path}"
       end
@@ -52,6 +57,13 @@ module StillActive
         options[:provided_gems] = true
         # Explicitly named gems are direct by definition (the user chose them).
         StillActive.config { |config| config.gems = value.map { |g| { name: g, direct: true } } }
+      end
+    end
+
+    def add_sbom_option(opts)
+      opts.on("--sbom=PATH", String, "audit a CycloneDX SBOM cross-ecosystem (npm/pypi/cargo/go/maven/nuget) instead of a Gemfile; JSON output") do |value|
+        options[:provided_sbom] = true
+        StillActive.config { |config| config.sbom_path = value }
       end
     end
 

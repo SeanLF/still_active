@@ -731,4 +731,142 @@ RSpec.describe(StillActive::CLI) do
       expect { cli.run(["--gems=rails", "--json"]) }.to(output(/ghost_gem/).to_stderr)
     end
   end
+
+  describe("SBOM audit (--sbom)") do
+    # A CycloneDX doc with one assessable dep (pypi) and one the reader refuses
+    # to silently drop (an unmapped ecosystem). The real reader runs; only the
+    # network fan-out (SbomWorkflow) is stubbed.
+    let(:sbom_body) do
+      {
+        components: [
+          { type: "library", name: "flask", purl: "pkg:pypi/flask@2.0.0" },
+          { type: "library", name: "Alamofire", purl: "pkg:cocoapods/Alamofire@5.0.0" },
+        ],
+      }.to_json
+    end
+
+    def lens_data(vulnerable: false)
+      {
+        ecosystem: :pypi,
+        name: "flask",
+        version_used: "2.0.0",
+        latest_version_release_date: recent_date,
+        last_commit_date: recent_date,
+        archived: false,
+        vulnerability_count: vulnerable ? 1 : 0,
+        vulnerabilities: vulnerable ? [{ id: "CVE-2026-0001", severity: "high" }] : [],
+      }
+    end
+
+    def outcome(assessed, failures: [])
+      StillActive::SbomWorkflow::Outcome.new(assessed: assessed, failures: failures)
+    end
+
+    # The around chdir's into a tmpdir, so tests reference the SBOM by this bare
+    # relative path without threading an instance variable through.
+    around do |example|
+      Dir.mktmpdir do |dir|
+        Dir.chdir(dir) do
+          File.write("sbom.json", sbom_body)
+          example.run
+        end
+      end
+    end
+
+    before do
+      allow($stdout).to(receive(:tty?).and_return(false))
+      allow($stderr).to(receive(:tty?).and_return(false))
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({ "pypi/flask@2.0.0" => lens_data })))
+    end
+
+    it("dispatches on --sbom without a Gemfile, emitting an SBOM-shaped JSON report") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--sbom=sbom.json"])
+      payload = JSON.parse(captured)
+      expect(payload).to(include("schema_version" => 1))
+      # A different shape from the Ruby audit: no $schema contract, no `gems` block.
+      expect(payload).not_to(include("$schema"))
+      expect(payload).not_to(include("gems"))
+      expect(payload.dig("tool", "name")).to(eq("still_active"))
+      # Keyed "ecosystem/name@version" so same-name packages can't collide.
+      expect(payload.dig("dependencies", "pypi/flask@2.0.0", "status")).to(eq("ok"))
+      expect(payload.dig("dependencies", "pypi/flask@2.0.0", "activity_level")).to(eq("ok"))
+    end
+
+    it("summarizes assessed vs unassessable and the worst status") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--sbom=sbom.json"])
+      summary = JSON.parse(captured).fetch("summary")
+      expect(summary).to(include("total_assessed" => 1, "unassessable_count" => 1, "status" => "ok"))
+      expect(summary.dig("status_counts", "ok")).to(eq(1))
+    end
+
+    it("surfaces the deps it could not assess in the JSON and warns on stderr, never silently dropping them") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      expect { cli.run(["--sbom=sbom.json"]) }.to(output(/1 dependency could not be assessed/).to_stderr)
+      unassessable = JSON.parse(captured).fetch("unassessable")
+      expect(unassessable).to(contain_exactly(
+        include("name" => "Alamofire", "ecosystem" => "cocoapods", "reason" => "unsupported_ecosystem"),
+      ))
+    end
+
+    it("applies the vulnerability gate to lens data, exiting 1 on a vulnerable dependency") do
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({ "pypi/flask@2.0.0" => lens_data(vulnerable: true) })))
+      allow($stdout).to(receive(:puts))
+      expect { cli.run(["--sbom=sbom.json", "--fail-if-vulnerable"]) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("surfaces an assessment-time failure (a raised lens call) in the JSON and the stderr count, never silently dropping it") do
+      # A rate-limited/flaky deps.dev raises mid-assess; the dep must still reach
+      # the report, or a transient hiccup shrinks the audit scope invisibly.
+      failure = { ecosystem: :pypi, name: "flask", version: "2.0.0", reason: :assessment_error, error: "Net::ReadTimeout: timed out" }
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({}, failures: [failure])))
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      # 1 reader-level (cocoapods) + 1 assessment failure = 2 unassessable.
+      expect { cli.run(["--sbom=sbom.json"]) }.to(output(/2 dependencies could not be assessed/).to_stderr)
+      payload = JSON.parse(captured)
+      expect(payload.dig("summary", "total_assessed")).to(eq(0))
+      expect(payload.dig("summary", "unassessable_count")).to(eq(2))
+      expect(payload.fetch("unassessable")).to(include(
+        include("name" => "flask", "reason" => "assessment_error", "error" => /ReadTimeout/),
+      ))
+    end
+
+    it("rejects combining --sbom with --gems") do
+      expect { cli.run(["--sbom=sbom.json", "--gems=rails"]) }
+        .to(raise_error(ArgumentError, /only one of/))
+    end
+
+    it("errors when the SBOM file does not exist") do
+      expect { cli.run(["--sbom=/no/such/sbom.json"]) }
+        .to(raise_error(ArgumentError, /SBOM file not found/))
+    end
+
+    it("exits 2 on a present-but-unparseable SBOM instead of reporting a silent empty audit") do
+      File.write("broken.json", "{ this is not json")
+      allow($stderr).to(receive(:puts))
+      expect { cli.run(["--sbom=broken.json"]) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
+    end
+
+    it("exits 2 when the SBOM is valid JSON but not CycloneDX (no components array)") do
+      File.write("wrong.json", '{"spdxVersion":"SPDX-2.3","packages":[]}')
+      allow($stderr).to(receive(:puts))
+      expect { cli.run(["--sbom=wrong.json"]) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
+    end
+
+    it("exits 2 (not a stacktrace) when the --sbom path exists but can't be read as a file") do
+      Dir.mkdir("a_directory")
+      allow($stderr).to(receive(:puts))
+      # A directory passes Options' File.exist? check but File.read raises EISDIR.
+      expect { cli.run(["--sbom=a_directory"]) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
+    end
+  end
 end

@@ -8,6 +8,7 @@ require_relative "suppressions"
 module StillActive
   class Config
     attr_writer :github_oauth_token, :gitlab_token, :forgejo_token, :artifactory_token, :artifactory_host, :gemfile_path, :ecosystems_email
+    attr_accessor :sbom_path
     attr_accessor :alternatives,
       :unreleased_commits,
       :direct_only,

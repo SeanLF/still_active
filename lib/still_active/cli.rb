@@ -16,6 +16,8 @@ require_relative "../helpers/summary_helper"
 require_relative "../helpers/terminal_helper"
 require_relative "../helpers/version_helper"
 require_relative "../helpers/vulnerability_helper"
+require_relative "sbom_reader"
+require_relative "sbom_workflow"
 require_relative "workflow"
 
 module StillActive
@@ -34,6 +36,11 @@ module StillActive
       # bundler-audit ignore list when the vulnerability gate is on.
       hint = ConfigFile.import_hint(config_data)
       $stderr.puts("hint: #{hint}") if hint
+      # An SBOM audit is cross-ecosystem: it runs the deps.dev/ecosyste.ms lens
+      # over the SBOM's packages, not Bundler over a lockfile. Dispatch before the
+      # Bundler resolution below so a Gemfile is never required (or read).
+      return run_sbom if options[:provided_sbom]
+
       unless options[:provided_gems]
         begin
           StillActive.config.gems = BundlerHelper.gemfile_dependencies
@@ -97,6 +104,96 @@ module StillActive
     end
 
     private
+
+    # The --sbom path: assess a CycloneDX SBOM's packages cross-ecosystem via
+    # EcosystemLens, then emit a JSON report shaped like the native audit's but
+    # keyed "ecosystem/name@version" and carrying an `unassessable` list of every
+    # dep we couldn't assess (reader-level: unsupported ecosystem, no version/PURL;
+    # or assessment-level: the lens call raised) rather than silently dropping it.
+    def run_sbom
+      path = StillActive.config.sbom_path
+      require_parseable_sbom(path)
+      sbom = SbomReader.parse(path)
+      outcome = if $stderr.tty?
+        SbomWorkflow.call(sbom) { |done, total| $stderr.print("\rAssessing #{done}/#{total} dependencies...") }
+      else
+        SbomWorkflow.call(sbom)
+      end
+      $stderr.print("\r\e[K") if $stderr.tty?
+
+      # A reader-level gap (unsupported ecosystem, no version/PURL) and an
+      # assessment-time failure (a raised lens call) both mean "not assessed":
+      # surface them together so neither is a silent hole in the reported coverage.
+      unassessable = sbom.unassessable + outcome.failures
+      emit_sbom_json(outcome.assessed, unassessable)
+      warn_unassessable(unassessable)
+      check_exit_status(outcome.assessed)
+    end
+
+    # SbomReader never raises (a malformed file degrades to an empty result), which
+    # is right for the library entrypoint but wrong for the explicit --sbom flag:
+    # the user pointed at a file to audit, so a truncated/wrong-format one must
+    # error, not flow through to an empty "all clear" report with exit 0.
+    def require_parseable_sbom(path)
+      doc = JSON.parse(File.read(path))
+      return if doc.is_a?(Hash) && doc["components"].is_a?(Array)
+
+      # Matches SbomReader's own parse contract (a `components` array is what it
+      # reads). A metadata-only CycloneDX has nothing to audit, so the message
+      # names the missing array rather than over-claiming "not CycloneDX".
+      $stderr.puts("error: #{path} has no CycloneDX `components` array to audit")
+      exit(2)
+    rescue JSON::ParserError
+      $stderr.puts("error: #{path} is not valid JSON")
+      exit(2)
+    rescue SystemCallError => e
+      # Options checked the path exists, not that it's readable (a permission
+      # denial, or a directory). Exit cleanly instead of crashing with a trace.
+      $stderr.puts("error: cannot read SBOM file #{path}: #{e.message}")
+      exit(2)
+    end
+
+    # SBOM output deliberately omits the Ruby audit's `$schema`: the shape differs
+    # (composite keys, an unassessable list, no Ruby/PR-context blocks), so it
+    # would be a false claim to point at that contract. schema_version stays 1.
+    def emit_sbom_json(result, unassessable)
+      output = {
+        schema_version: 1,
+        tool: { name: "still_active", version: StillActive::VERSION },
+        generated_at: Time.now.utc.iso8601,
+        summary: sbom_summary(result, unassessable),
+        dependencies: result.transform_values do |data|
+          data.merge(
+            activity_level: ActivityHelper.activity_level(data),
+            status: StatusHelper.gem_status(data),
+          )
+        end,
+        unassessable:,
+      }
+      puts iso8601_times(output).to_json
+    end
+
+    def sbom_summary(result, unassessable)
+      statuses = result.each_value.map { |data| StatusHelper.gem_status(data) }
+      {
+        total_assessed: result.size,
+        unassessable_count: unassessable.size,
+        # The single worst per-dependency verdict, so a consumer reads one
+        # project-level posture without scanning every dependency.
+        status: StatusHelper.project_status(result),
+        status_counts: statuses.tally,
+      }
+    end
+
+    # Unassessable deps are already in the JSON; echo a one-line count to stderr so
+    # a human running interactively sees the coverage gap without parsing stdout.
+    def warn_unassessable(unassessable)
+      return if unassessable.empty?
+
+      noun = unassessable.size == 1 ? "dependency" : "dependencies"
+      $stderr.puts("warning: #{unassessable.size} #{noun} could not be assessed " \
+        "(unsupported ecosystem, missing version, no package URL, or a lookup failure); see \"unassessable\" in the JSON output")
+    end
 
     # Dates live in the result as real Time objects (the activity/libyear math
     # needs them), but the JSON contract is ISO8601 UTC strings, matching

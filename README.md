@@ -106,6 +106,7 @@ Usage: still_active [options]
 
         --gemfile=GEMFILE            path to gemfile
         --gems=GEM,GEM2,...          Gem(s)
+        --sbom=PATH                  audit a CycloneDX SBOM cross-ecosystem (npm/pypi/cargo/go/maven/nuget); JSON output
         --terminal                   Coloured terminal output (default in TTY)
         --markdown                   Markdown table output
         --json                       JSON output (default when piped)
@@ -212,6 +213,21 @@ still_active --cyclonedx --cyclonedx-version=1.7
 ```
 
 Emits **1.6 by default** — the version mainstream consumers ingest today (`cyclonedx-core-java`/Dependency-Track and `cyclonedx-go`/Trivy both cap at 1.6 as of 2026); `--cyclonedx-version=1.7` opts into the latest. Gem name/version/`purl`/licenses and vulnerabilities map to native CycloneDX fields; maintenance signals with no native home (archived, OpenSSF score, libyear, last commit, yanked) ride in `still_active:`-namespaced `properties`. The `serialNumber` is content-derived, so two SBOMs of the same lockfile differ only by their generation timestamp.
+
+### Cross-ecosystem SBOM audit (`--sbom`)
+
+still_active is Ruby-first, but the maintenance lens isn't Ruby-only. Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft), Trivy, or any producer) and it assesses `npm`, `pypi`, `cargo`, `go`, `maven`, and `nuget` packages the same way it does gems, sourcing signals from [deps.dev](https://deps.dev) and ecosyste.ms instead of Bundler:
+
+```bash
+syft dir:. -o cyclonedx-json > sbom.json
+still_active --sbom=sbom.json            # JSON report, keyed "ecosystem/name@version"
+```
+
+Each dependency carries the same `activity_level` and lifecycle `status` as the Ruby path, and the `summary` reports the worst status across the SBOM. `--sbom` is mutually exclusive with `--gemfile`/`--gems` and always emits JSON (its shape differs from the Ruby audit, so it omits the `$schema` contract).
+
+The SBOM is **untrusted input**: only ecosystem/name/version are read from it, the repository is resolved from deps.dev (never a URL the SBOM supplies, so a hostile SBOM can't redirect a lookup), and anything deps.dev doesn't index degrades to `unknown` rather than a fabricated `ok`. Packages it can't assess (unsupported ecosystems, a component with no version or PURL, or one whose lookup failed against a rate-limited/flaky deps.dev) are surfaced in an `unassessable` list plus a stderr count, never silently dropped, so an audit can't read "all clear" while ignoring what it skipped; a present-but-unreadable SBOM errors rather than reporting a clean empty audit. OS packages land in `unassessable` too: the differentiated play is **maintenance**, not vulnerability scanning, so compose Trivy/Grype for CVEs.
+
+The activity (`--fail-if-critical`/`--fail-if-warning`) and vulnerability (`--fail-if-vulnerable`) gates apply to SBOM dependencies. The Ruby-shaped policy features do not travel to the SBOM path yet: `.still_active.yml` suppressions and `--ignore` key on the gem name (SBOM results key on `ecosystem/name@version`), and `--fail-if-outdated` needs a libyear the cross-ecosystem lens doesn't compute.
 
 ### SARIF output (GitHub Code Scanning)
 
