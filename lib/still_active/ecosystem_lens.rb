@@ -35,6 +35,17 @@ module StillActive
       cargo: "crates.io",
     }.freeze
 
+    # A transitive cap only holds the WHOLE tree hostage where the ecosystem
+    # forces one version per package. Ruby/Bundler and pip do (flat resolution);
+    # npm nests multiple versions and cargo coexists majors, so a below-latest cap
+    # there pins a duplicate copy in one subtree -- not a tree-wide block. The one
+    # npm case that DOES block (peerDependencies / de-facto singletons) isn't
+    # visible in ecosyste.ms data (its parser drops peerDependencies), so emitting
+    # poison for npm/cargo would over-claim on the non-blocking cases and miss the
+    # blocking ones. Suppress it there until peer requirements are sourced from
+    # deps.dev; silence beats a false "holds your tree hostage".
+    FLAT_RESOLUTION_ECOSYSTEMS = [:rubygems, :pypi].freeze
+
     def assess(ecosystem:, name:, version:, constraint_cache: {})
       info = DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)
       default = DepsDevClient.default_version_info(name: name, system: ecosystem)
@@ -75,6 +86,7 @@ module StillActive
     def attach_constraints(gem_data, ecosystem:, name:, version:, cache:)
       registry = ECOSYSTEM_REGISTRIES[ecosystem]
       return if registry.nil?
+      return unless FLAT_RESOLUTION_ECOSYSTEMS.include?(ecosystem)
       return unless [:critical, :archived].include?(ActivityHelper.activity_level(gem_data))
 
       declared = EcosystemsClient.declared_dependencies(name: name, version: version, registry: registry)
