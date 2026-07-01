@@ -94,6 +94,15 @@ module StillActive
       end
     end
 
+    # Select the worst `limit` findings for a display receipt, plus the full count
+    # so a renderer can say "+N more" / "N total". Worst-first by majors_behind,
+    # ties broken by dependency name so the output is stable and diffable. Shared
+    # by the terminal and markdown renderers so the selection can't drift.
+    def top_findings(findings, limit: 3)
+      ranked = findings.sort_by { |f| [-f[:majors_behind], f[:dependency].to_s] }
+      { shown: ranked.first(limit), total: findings.length }
+    end
+
     private
 
     # Split one OR-branch into its AND clauses: comma-separated (Ruby/pip) or

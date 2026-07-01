@@ -332,6 +332,55 @@ RSpec.describe(StillActive::MarkdownHelper) do
     end
   end
 
+  describe(".poison_section") do
+    def poison_gem(constraints, extra = {})
+      { source_type: :rubygems, poison: true, constraints: constraints }.merge(extra)
+    end
+
+    it("lists a poison gem's worst caps with requirement and latest major") do
+      result = {
+        "protected_attributes" => poison_gem([
+          { dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling },
+        ]),
+      }
+      out = described_class.poison_section(result)
+      expect(out).to(include("**Poison-pill findings**"))
+      expect(out).to(include("`protected_attributes` caps `activemodel` `< 5.0` (4 majors behind, latest 8.x)"))
+    end
+
+    it("shows the worst 3 caps + total for a many-cap gem, worst-first with name tie-break") do
+      caps = [
+        { dependency: "chalk", requirement: "^1", dep_latest: "5.0.0", majors_behind: 4, kind: :ceiling },
+        { dependency: "through2", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
+        { dependency: "vinyl", requirement: "^0.5", dep_latest: "3.0.0", majors_behind: 3, kind: :ceiling },
+        { dependency: "dateformat", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
+      ]
+      out = described_class.poison_section({ "gulp-util" => poison_gem(caps) })
+      expect(out).to(include("`chalk` `^1` (4 majors behind, latest 5.x), `dateformat` `^2` (3), `through2` `^2` (3) — 4 total"))
+    end
+
+    it("names the direct parent for a transitive poison gem") do
+      result = {
+        "terrapin" => poison_gem(
+          [{ dependency: "climate_control", requirement: "< 1.0", dep_latest: "1.2.0", majors_behind: 1, kind: :ceiling }],
+          { direct: false, dependency_path: ["paperclip", "terrapin"] },
+        ),
+      }
+      expect(described_class.poison_section(result))
+        .to(include("`terrapin` via `paperclip` caps `climate_control` `< 1.0` (1 major behind, latest 1.x)"))
+    end
+
+    it("returns empty string when no gem is poison") do
+      result = { "kaminari" => { source_type: :rubygems, poison: false } }
+      expect(described_class.poison_section(result)).to(eq(""))
+    end
+
+    it("skips a poison gem with no constraints rather than emitting a dangling bullet") do
+      result = { "odd" => { source_type: :rubygems, poison: true, constraints: [] } }
+      expect(described_class.poison_section(result)).to(eq(""))
+    end
+  end
+
   describe(".ruby_line") do
     it("shows latest Ruby with success emoji") do
       info = { version: "3.4.0", latest_version: "3.4.0", libyear: nil, eol: false, eol_date: nil }

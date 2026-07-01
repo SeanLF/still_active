@@ -142,6 +142,39 @@ RSpec.describe(StillActive::ConstraintHelper) do
     end
   end
 
+  describe(".top_findings") do
+    def finding(dep, behind)
+      { dependency: dep, requirement: "< x", dep_latest: "9.0.0", majors_behind: behind, kind: :ceiling }
+    end
+
+    it("returns the worst `limit` findings (majors_behind desc) plus the full total") do
+      findings = [finding("a", 1), finding("b", 4), finding("c", 2), finding("d", 3)]
+
+      result = described_class.top_findings(findings, limit: 3)
+
+      expect(result[:total]).to(eq(4))
+      expect(result[:shown].map { |f| f[:dependency] }).to(eq(["b", "d", "c"])) # 4, 3, 2
+    end
+
+    it("breaks majors_behind ties by dependency name ascending, for a stable/diffable order") do
+      findings = [finding("vinyl", 3), finding("array-differ", 3), finding("through2", 3)]
+
+      result = described_class.top_findings(findings, limit: 3)
+
+      expect(result[:shown].map { |f| f[:dependency] }).to(eq(["array-differ", "through2", "vinyl"]))
+    end
+
+    it("returns all findings when there are fewer than the limit") do
+      findings = [finding("a", 2), finding("b", 1)]
+      result = described_class.top_findings(findings, limit: 3)
+      expect(result).to(eq(shown: [finding("a", 2), finding("b", 1)], total: 2))
+    end
+
+    it("handles an empty list") do
+      expect(described_class.top_findings([], limit: 3)).to(eq(shown: [], total: 0))
+    end
+  end
+
   describe(".poison_ceiling?") do
     it("is true only for a below-latest ceiling or exact pin") do
       expect(described_class.poison_ceiling?(requirement: "~> 4.2", dep_latest: "8.0.0")).to(be(true))

@@ -3,6 +3,7 @@
 require_relative "markdown_escape"
 require_relative "vulnerability_helper"
 require_relative "activity_helper"
+require_relative "constraint_helper"
 
 module StillActive
   module MarkdownHelper
@@ -112,7 +113,53 @@ module StillActive
       lines.join("\n")
     end
 
+    # A dormant dep that caps your tree below its latest major (the poison-pill
+    # signal). Consistent with the other finding sections: worst caps + total, the
+    # direct parent named for a transitive pill. The full cap list is in the JSON.
+    def poison_section(result)
+      # Require constraints present, not just the poison flag, so an unexpected
+      # empty set can't emit a dangling "- `gem` caps" bullet (symmetric with the
+      # terminal's poison_line guard).
+      flagged = result.select { |_name, data| data[:poison] && !Array(data[:constraints]).empty? }
+      return "" if flagged.empty?
+
+      lines = ["", "**Poison-pill findings** (dormant deps capping your tree below its latest major):"]
+      flagged.each do |name, data|
+        lines << "- #{poison_gem_ref(name, data)} caps #{poison_caps(data[:constraints])}"
+      end
+      lines.join("\n")
+    end
+
     private
+
+    def poison_gem_ref(name, data)
+      ref = MarkdownEscape.code_span(name)
+      path = data[:dependency_path]
+      # Transitive pill: name the direct parent the user can actually act on (#60).
+      return ref unless data[:direct] == false && Array(path).length >= 2
+
+      "#{ref} via #{MarkdownEscape.code_span(path.first)}"
+    end
+
+    # The worst 3 caps; the first carries the full receipt (requirement + latest
+    # major), the rest just the gap, and "— N total" when there are more.
+    def poison_caps(constraints)
+      top = ConstraintHelper.top_findings(Array(constraints), limit: 3)
+      parts = top[:shown].each_with_index.map do |finding, i|
+        dep = MarkdownEscape.code_span(finding[:dependency])
+        req = MarkdownEscape.code_span(finding[:requirement])
+        behind = finding[:majors_behind]
+        i.zero? ? "#{dep} #{req} (#{behind} major#{"s" unless behind == 1} behind, latest #{poison_major(finding[:dep_latest])})" : "#{dep} #{req} (#{behind})"
+      end
+      joined = parts.join(", ")
+      top[:total] > 1 ? "#{joined} — #{top[:total]} total" : joined
+    end
+
+    # "8.0.1" -> "8.x": the cap is a major-level gap.
+    def poison_major(version)
+      major = version.to_s[/\d+/]
+      major ? "#{major}.x" : version
+    end
 
     def transitive_flagged?(data)
       [:archived, :critical].include?(ActivityHelper.activity_level(data)) || data[:vulnerability_count].to_i.positive?
