@@ -222,6 +222,31 @@ RSpec.describe(StillActive::MarkdownHelper) do
         expect(line).to(include("GHSA-abc"))
       end
     end
+
+    context("when an advisory has no fixed version") do
+      let(:data) do
+        {
+          last_activity_warning_emoji: "",
+          up_to_date_emoji: "✅",
+          version_used: "1.0.0",
+          latest_version: "1.0.0",
+          version_used_release_date: Time.now,
+          latest_version_release_date: Time.now,
+          latest_pre_release_version: nil,
+          latest_pre_release_version_release_date: nil,
+          repository_url: nil,
+          ruby_gems_url: nil,
+          last_commit_date: nil,
+          scorecard_score: nil,
+          vulnerability_count: 1,
+          vulnerabilities: [{ id: "CVE-1", aliases: [], cvss3_score: 7.5, no_fix_available: true }],
+        }
+      end
+
+      it("marks 'no fix' alongside the severity") do
+        expect(line).to(include("1 (high, no fix)"))
+      end
+    end
   end
 
   describe(".markdown_table_body_line with hostile metadata") do

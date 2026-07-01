@@ -270,6 +270,21 @@ RSpec.describe(StillActive::TerminalHelper) do
       end
     end
 
+    context("with an unpatchable vulnerability") do
+      it("marks 'no fix' in the vulns column when an advisory has no fixed version") do
+        result = {
+          "leftpad" => {
+            version_used: "1.0.0",
+            latest_version: "1.0.0",
+            scorecard_score: nil,
+            vulnerability_count: 1,
+            vulnerabilities: [{ id: "CVE-1", cvss3_score: 7.5, no_fix_available: true }],
+          },
+        }
+        expect(described_class.render(result)).to(include("1 (high, no fix)"))
+      end
+    end
+
     context("with a poison-pill sub-line") do
       def poison_gem(constraints, extra = {})
         {

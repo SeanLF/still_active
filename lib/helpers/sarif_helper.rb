@@ -190,11 +190,14 @@ module StillActive
       aliases = Array(vuln[:aliases]).first(3).join(", ")
       alias_suffix = aliases.empty? ? "" : " [#{aliases}]"
       title = vuln[:title] ? ": #{vuln[:title]}" : ""
+      # ruby-advisory-db records no safe version: upgrading can't clear it, which
+      # is the actionable distinction from an ordinary (patchable) advisory.
+      no_fix = vuln[:no_fix_available] ? " (no fixed version available)" : ""
 
       base = result(
         "SA003",
         name,
-        "#{name} #{version}: #{advisory_id}#{title}#{alias_suffix}#{transitive_suffix(data)}.",
+        "#{name} #{version}: #{advisory_id}#{title}#{alias_suffix}#{no_fix}#{transitive_suffix(data)}.",
         location,
         level: level,
         fp_extra: advisory_id,

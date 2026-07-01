@@ -208,7 +208,8 @@ module StillActive
       severity = VulnerabilityHelper.highest_severity(vulnerabilities)
       ids = vulnerabilities.flat_map { |v| [v[:id], *v[:aliases]] }.compact.uniq.first(3)
 
-      parts = [severity ? "#{count} (#{severity})" : count.to_s]
+      notes = [severity, ("no fix" if VulnerabilityHelper.no_fix_available?(vulnerabilities))].compact
+      parts = [notes.empty? ? count.to_s : "#{count} (#{notes.join(", ")})"]
       parts << MarkdownEscape.cell(ids.join(", ")) unless ids.empty?
       parts.join(" ")
     end
