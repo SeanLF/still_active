@@ -32,9 +32,9 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(driver["informationUri"]).to(include("github.com/SeanLF/still_active"))
     end
 
-    it("emits all 7 rules in tool.driver.rules with required fields") do
+    it("emits all 8 rules in tool.driver.rules with required fields") do
       rules = doc.dig("runs", 0, "tool", "driver", "rules")
-      expect(rules.size).to(eq(7))
+      expect(rules.size).to(eq(8))
       rules.each do |r|
         expect(r).to(include("id", "name", "shortDescription", "fullDescription", "help", "helpUri", "defaultConfiguration", "properties"))
         expect(r["help"]).to(include("text", "markdown"))
@@ -49,7 +49,7 @@ RSpec.describe(StillActive::SarifHelper) do
       ["SA001", "SA003", "SA006", "SA007"].each do |id|
         expect(by_id[id]["properties"]["security-severity"]).to(match(/\A\d+\.\d+\z/))
       end
-      ["SA002", "SA004", "SA005"].each do |id|
+      ["SA002", "SA004", "SA005", "SA008"].each do |id|
         expect(by_id[id]["properties"]).not_to(have_key("security-severity"))
       end
     end
@@ -205,6 +205,69 @@ RSpec.describe(StillActive::SarifHelper) do
       results = render(result: report).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA002" }).to(be(false))
       expect(results.any? { |r| r["ruleId"] == "SA001" }).to(be(true))
+    end
+  end
+
+  describe("SA008 PoisonPill") do
+    def poison(constraints, extra = {})
+      { "gem" => { version_used: "1.1.4", poison: true, constraints: constraints }.merge(extra) }
+    end
+
+    let(:cap) { { dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling } }
+
+    it("fires a warning-level SA008 with the receipt (requirement + exact latest version)") do
+      results = render(result: poison([cap])).dig("runs", 0, "results")
+      sa008 = results.select { |r| r["ruleId"] == "SA008" }
+      expect(sa008.size).to(eq(1))
+      expect(sa008[0]["level"]).to(eq("warning"))
+      expect(sa008[0].dig("message", "text")).to(include("caps activemodel < 5.0 (4 majors behind, latest 8.0.1)"))
+    end
+
+    it("carries no security-severity (maintenance finding, not a CVE)") do
+      sa008 = render(result: poison([cap])).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
+      expect(sa008).not_to(have_key("properties"))
+    end
+
+    it("fingerprints on gem identity, NOT on majors_behind, so a growing cap is not re-alerted every run") do
+      fp = lambda do |behind|
+        r = render(result: poison([cap.merge(majors_behind: behind)])).dig("runs", 0, "results").find { |x| x["ruleId"] == "SA008" }
+        r.dig("partialFingerprints", "stillActiveFinding/v1")
+      end
+      expect(fp.call(4)).to(eq(fp.call(5)))
+    end
+
+    it("shows the worst 3 caps + more for a many-cap gem") do
+      caps = [
+        { dependency: "chalk", requirement: "^1", dep_latest: "5.0.0", majors_behind: 4, kind: :ceiling },
+        { dependency: "through2", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
+        { dependency: "vinyl", requirement: "^0.5", dep_latest: "3.0.0", majors_behind: 3, kind: :ceiling },
+        { dependency: "dateformat", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
+      ]
+      msg = render(result: poison(caps)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }.dig("message", "text")
+      expect(msg).to(include("+1 more"))
+      expect(msg).to(include("chalk ^1 (4 majors behind, latest 5.0.0)"))
+    end
+
+    it("names the direct parent for a transitive pill") do
+      data = poison([cap], { direct: false, dependency_path: ["rails", "gem"] })
+      msg = render(result: data).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }.dig("message", "text")
+      expect(msg).to(include("transitive, pulled in by rails"))
+    end
+
+    it("does not fire for a non-poison gem or a poison gem with empty constraints") do
+      results = render(result: {
+        "clean" => { version_used: "1.0.0", poison: false },
+        "empty" => { version_used: "1.0.0", poison: true, constraints: [] },
+      }).dig("runs", 0, "results")
+      expect(results.any? { |r| r["ruleId"] == "SA008" }).to(be(false))
+    end
+
+    it("is suppressible via the :poison signal") do
+      StillActive.config.suppressions = StillActive::Suppressions.from(
+        [{ "gem" => "gem", "signal" => "poison", "reason" => "vendored" }],
+      )
+      sa008 = render(result: poison([cap])).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
+      expect(sa008["suppressions"]).to(eq([{ "kind" => "external", "justification" => "vendored" }]))
     end
 
     it("does NOT fire on a recent release") do

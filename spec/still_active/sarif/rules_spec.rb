@@ -6,8 +6,8 @@ RSpec.describe(StillActive::Sarif::Rules) do
   describe(".all") do
     subject(:rules) { described_class.all }
 
-    it("returns the SA001..SA007 catalog") do
-      expect(rules.map { |r| r[:id] }).to(eq(["SA001", "SA002", "SA003", "SA004", "SA005", "SA006", "SA007"]))
+    it("returns the SA001..SA008 catalog") do
+      expect(rules.map { |r| r[:id] }).to(eq(["SA001", "SA002", "SA003", "SA004", "SA005", "SA006", "SA007", "SA008"]))
     end
 
     it("every rule has required fields") do

@@ -26,3 +26,6 @@ scratch/
 
 # floor-test lockfile (resolved fresh, never committed)
 Gemfile.floors.lock
+
+# default output paths when a user runs still_active in-repo (--sarif/--cyclonedx)
+/still_active.sarif.json

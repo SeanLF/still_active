@@ -276,7 +276,7 @@ jobs:
         with: { sarif_file: still_active.sarif.json }
 ```
 
-Rule reference (SA001–SA007) and how to suppress: see [`docs/rules.md`](docs/rules.md).
+Rule reference (SA001–SA008) and how to suppress: see [`docs/rules.md`](docs/rules.md).
 
 ### Baseline diff (PR review)
 

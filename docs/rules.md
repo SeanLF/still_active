@@ -1,6 +1,6 @@
 # still_active SARIF Rules
 
-Each finding `still_active --sarif` emits maps to one of the rules below. Rule IDs (`SA001`–`SA007`) are stable across versions; renames or removals are breaking changes.
+Each finding `still_active --sarif` emits maps to one of the rules below. Rule IDs (`SA001`–`SA008`) are stable across versions; renames or removals are breaking changes.
 
 When uploaded via `github/codeql-action/upload-sarif`, findings appear in the GitHub Code Scanning UI and as inline annotations on `Gemfile.lock` in pull requests.
 
@@ -114,8 +114,22 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 ---
 
+## SA008 — Poison Pill {#sa008}
+
+**Triggers when:** a dormant gem (abandoned or archived) declares a runtime constraint that caps one of its dependencies below that dependency's current latest major.
+
+**Why it matters:** because nobody is shipping the gem, the cap will never lift, and it grows more constraining over time as the capped dependency releases new majors — the tree is held below a ceiling no upstream release will raise. This is the compatibility math across the whole tree a careful dev can't do by hand; the capped dependency is often several levels deep and transitive.
+
+**SARIF level:** `warning` · **security-severity:** none (a maintenance/resolvability finding, not a vulnerability) · **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html)
+
+**How to fix:** replace or fork the dormant gem, or vendor a version that relaxes the constraint. For a transitive pill, the finding names the direct dependency that pulls it in — that's the gem you can actually act on.
+
+**When to suppress:** when the cap is deliberate and accepted (e.g. a vendored, intentionally frozen gem). Suppress the `poison` signal for the specific gem in `.still_active.yml`, ideally with an `expires:` date so the acceptance is revisited.
+
+---
+
 ## Stability
 
-- Rule IDs are stable. New rules (SA008+) are additive. Existing rule renames/removals would be breaking changes.
+- Rule IDs are stable. New rules (SA009+) are additive. Existing rule renames/removals would be breaking changes.
 - `partialFingerprints` hash `(rule_id, gem_name, advisory_id?)` — version is **not** included, so a `bundle update` that doesn't change which gems are flagged keeps the same alert IDs (no churn in the GitHub Security UI).
 - Rule thresholds (libyear ≥ 1.0, scorecard < 4.0, abandonment ≥ 2 years) are tracked in `lib/helpers/sarif_helper.rb`.
