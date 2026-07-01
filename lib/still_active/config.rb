@@ -18,6 +18,7 @@ module StillActive
       :cyclonedx_version,
       :fail_if_critical,
       :fail_if_poison,
+      :fail_if_ruby_ceiling,
       :fail_if_warning,
       :futurist_emoji,
       :gems,
@@ -40,6 +41,7 @@ module StillActive
       @direct_only = false
       @fail_if_critical = false
       @fail_if_poison = false
+      @fail_if_ruby_ceiling = false
       @fail_if_outdated = nil
       @fail_if_vulnerable = nil
       @fail_if_warning = false

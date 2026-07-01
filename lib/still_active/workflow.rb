@@ -15,6 +15,7 @@ require_relative "../helpers/http_helper"
 require_relative "../helpers/libyear_helper"
 require_relative "../helpers/ruby_advisory_db"
 require_relative "../helpers/ruby_helper"
+require_relative "../helpers/runtime_ceiling_helper"
 require_relative "../helpers/version_helper"
 require_relative "../helpers/vulnerability_helper"
 require "async"
@@ -33,6 +34,19 @@ module StillActive
         # read-only Database is shared across fibers rather than reloaded per gem.
         advisory_db = RubyAdvisoryDb.load
         catalog = StillActive.config.alternatives ? CatalogIndex.load : nil
+        # The Ruby support window (oldest-supported / latest-stable / EOL cycles)
+        # is a per-run constant, so fetch it once here rather than per gem. nil when
+        # the endoflife feed is unavailable -> the language-ceiling signal quietly
+        # sits out, exactly like a missing advisory_db. This runs OUTSIDE the
+        # per-gem rescue, so a defensive rescue keeps a best-effort enrichment from
+        # ever aborting the whole audit (the "never crash the core" contract).
+        ruby_range =
+          begin
+            RubyHelper.supported_ruby_range
+          rescue StandardError => e
+            $stderr.puts("warning: Ruby support window lookup failed: #{e.class} (#{e.message}); skipping language-ceiling checks")
+            nil
+          end
         # Resolve the GitHub token once here, single-fibered, before the fan-out:
         # provider_for reads it per gem across fibers and gh_cli_token shells out,
         # so resolving eagerly keeps that off the concurrent path and guarantees
@@ -62,6 +76,7 @@ module StillActive
               advisory_db: advisory_db,
               catalog: catalog,
               constraint_cache: constraint_cache,
+              ruby_range: ruby_range,
             )
           rescue Octokit::TooManyRequests
             $stderr.print("\r\e[K") if on_progress
@@ -89,7 +104,7 @@ module StillActive
 
     private
 
-    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, direct: true, dependency_path: nil, advisory_db: nil, catalog: nil, constraint_cache: {})
+    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, direct: true, dependency_path: nil, advisory_db: nil, catalog: nil, constraint_cache: {}, ruby_range: nil)
       result_object[gem_name] = { source_type: source_type, direct: direct }
       result_object[gem_name][:dependency_path] = dependency_path if dependency_path
       result_object[gem_name][:version_used] = gem_version if gem_version
@@ -104,6 +119,7 @@ module StillActive
           result_object: result_object,
           source_uri: source_uri,
           advisory_db: advisory_db,
+          ruby_range: ruby_range,
         )
       end
 
@@ -116,7 +132,7 @@ module StillActive
       end
     end
 
-    def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:, advisory_db: nil)
+    def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:, advisory_db: nil, ruby_range: nil)
       vs = versions(gem_name: gem_name, source_uri: source_uri)
       repo_info = repository_info(gem_name: gem_name, versions: vs, source_uri: source_uri)
       signals = repo_signals(
@@ -159,8 +175,8 @@ module StillActive
         )
       end
 
+      version_used = gem_version ? VersionHelper.find_version(versions: vs, version_string: gem_version) : nil
       if gem_version
-        version_used = VersionHelper.find_version(versions: vs, version_string: gem_version)
         result_object[gem_name].merge!({
           up_to_date: VersionHelper.up_to_date(
             version_used: version_used,
@@ -177,6 +193,47 @@ module StillActive
           ),
         })
       end
+
+      attach_ruby_ceiling(
+        gem_data: result_object[gem_name],
+        used_version_hash: version_used,
+        latest_version_hash: last_release,
+        ruby_range: ruby_range,
+      )
+    end
+
+    # Language-runtime ceiling: the sibling of poison. A gem's resolved version
+    # declares a `ruby_version` that caps the runtime -- either onto an end-of-life
+    # Ruby (critical: no patched runtime is reachable) or below the latest stable
+    # (note: a compatibility ceiling to plan around / a place to contribute Ruby-N
+    # support). Unlike poison this is NOT gated on dormancy: a cap is a fact of the
+    # resolved version whether or not the gem is maintained. Best-effort: a nil
+    # range (endoflife feed down) or absent ruby_version yields no finding.
+    def attach_ruby_ceiling(gem_data:, used_version_hash:, latest_version_hash:, ruby_range:)
+      return if ruby_range.nil?
+
+      used_req = VersionHelper.ruby_requirement(version_hash: used_version_hash)
+      latest_req = VersionHelper.ruby_requirement(version_hash: latest_version_hash)
+      # Analyze the version actually in the tree. Fall back to latest ONLY when
+      # there's no pinned version (a latest-only audit), never when the pinned
+      # version merely declares no ruby_version: an absent cap runs on any Ruby, so
+      # projecting a newer release's cap back onto it would mint a false ceiling.
+      requirement = used_version_hash ? used_req : latest_req
+      finding = RuntimeCeilingHelper.analyze(requirement: requirement, support_window: ruby_range)
+      return if finding.nil?
+
+      finding[:fixed_by_upgrade] = ruby_ceiling_lifted_by_upgrade?(used_req: used_req, latest_req: latest_req, ruby_range: ruby_range)
+      gem_data[:ruby_ceiling] = finding
+    end
+
+    # Does bumping the gem to its latest lift the ceiling? True only when the cap
+    # is on the resolved (older) version and the latest version declares no ceiling
+    # of its own -- the actionable "upgrade the gem" case (e.g. CFPropertyList
+    # 3.0.9's `< 3.2` cap, gone by 4.0.0). False when already on latest.
+    def ruby_ceiling_lifted_by_upgrade?(used_req:, latest_req:, ruby_range:)
+      return false if used_req.nil? || used_req == latest_req
+
+      RuntimeCeilingHelper.analyze(requirement: latest_req, support_window: ruby_range).nil?
     end
 
     def gem_info_non_rubygems(gem_name:, gem_version:, result_object:, source_uri: nil, advisory_db: nil)

@@ -180,6 +180,16 @@ RSpec.describe(StillActive::ConstraintHelper) do
       { dependency: "d", requirement: "< x", dep_latest: "9.0.0", majors_behind: behind, kind: :ceiling }
     end
 
+    it("short-circuits an EOL-forced runtime ceiling to critical, regardless of magnitude") do
+      # The language-runtime ceiling reuses this tierer. A cap that strands you on
+      # an end-of-life Ruby is act-now no matter that it carries no majors_behind.
+      expect(described_class.constraint_severity({ eol_forced: true })).to(eq(:critical))
+    end
+
+    it("tiers a magnitude-less finding (e.g. latest-not-yet runtime ceiling) as a note") do
+      expect(described_class.constraint_severity({ eol_forced: false })).to(eq(:note))
+    end
+
     it("tiers a ceiling by magnitude: 1 behind = note, 2 = warning, 3+ = critical") do
       expect(described_class.constraint_severity(ceiling(1))).to(eq(:note))
       expect(described_class.constraint_severity(ceiling(2))).to(eq(:warning))

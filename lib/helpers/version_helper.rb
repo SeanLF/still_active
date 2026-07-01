@@ -44,6 +44,15 @@ module StillActive
       Time.parse(release_date) unless release_date.nil?
     end
 
+    # The version's declared Ruby requirement (the `ruby_version` field in the
+    # RubyGems versions payload, e.g. ">= 3.2", "< 3.2"), or nil when absent. This
+    # is the language-runtime ceiling's raw input; note it is `ruby_version`, not
+    # the gemspec's `required_ruby_version`.
+    def ruby_requirement(version_hash:)
+      requirement = version_hash&.dig("ruby_version")
+      requirement unless requirement.nil? || requirement.empty?
+    end
+
     # SPDX license identifier(s) from the RubyGems versions payload.
     # Comma-joined when a gem declares more than one. nil when unknown.
     def license(version_hash:)

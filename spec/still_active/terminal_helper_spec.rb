@@ -353,5 +353,69 @@ RSpec.describe(StillActive::TerminalHelper) do
         expect(described_class.render(result)).not_to(include("poison:"))
       end
     end
+
+    context("with a language-runtime ceiling sub-line") do
+      def ceiling_gem(ceiling, extra = {})
+        {
+          version_used: "3.0.9",
+          latest_version: "4.0.0",
+          vulnerability_count: 0,
+          scorecard_score: nil,
+          ruby_ceiling: ceiling,
+        }.merge(extra)
+      end
+
+      it("prints a red critical receipt for an EOL-forcing cap, naming the stranded Ruby and its EOL date") do
+        result = {
+          "cfpropertylist" => ceiling_gem({
+            requirement: "< 3.2",
+            eol_forced: true,
+            severity: :critical,
+            ceiling_version: "3.1",
+            ceiling_eol_date: Time.new(2025, 3, 31),
+            oldest_supported: "3.3",
+            latest_stable: "4.0.5",
+            fixed_by_upgrade: true,
+          }),
+        }
+        out = described_class.render(result)
+        expect(out).to(match(/\e\[31m  ↳ ruby ceiling: requires Ruby < 3.2/)) # red = critical
+        expect(out).to(include("end-of-life Ruby 3.1 (EOL 2025-03-31)"))
+        expect(out).to(include("upgrade to 4.0.0 to lift it"))
+      end
+
+      it("prints a dim note receipt for a latest-not-yet cap") do
+        result = {
+          "somegem" => ceiling_gem(
+            {
+              requirement: "~> 3.3",
+              eol_forced: false,
+              severity: :note,
+              oldest_supported: "3.3",
+              latest_stable: "4.0.5",
+              fixed_by_upgrade: false,
+            },
+            { version_used: "1.0.0", latest_version: "1.0.0" },
+          ),
+        }
+        out = described_class.render(result)
+        expect(out).to(match(/\e\[2m  ↳ ruby ceiling: requires Ruby ~> 3.3/)) # dim = note
+        expect(out).to(include("no Ruby 4.0.5 support yet"))
+        expect(out).not_to(include("upgrade to"))
+      end
+
+      it("counts ruby ceilings in the summary line, worst-first by tier") do
+        result = {
+          "a" => ceiling_gem({ requirement: "< 3.2", eol_forced: true, severity: :critical, ceiling_version: "3.1", ceiling_eol_date: nil, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }),
+          "b" => ceiling_gem({ requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }, { version_used: "1.0.0", latest_version: "1.0.0" }),
+        }
+        expect(described_class.render(result)).to(include("2 Ruby ceilings (1 critical, 1 note)"))
+      end
+
+      it("prints no ceiling line for a gem without one") do
+        result = { "rails" => { version_used: "7", latest_version: "7", vulnerability_count: 0, scorecard_score: nil } }
+        expect(described_class.render(result)).not_to(include("ruby ceiling:"))
+      end
+    end
   end
 end

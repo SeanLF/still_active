@@ -136,6 +136,21 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.fail_if_outdated).to(eq(3.0))
     end
 
+    it("sets fail-if-ruby-ceiling to true when bare") do
+      described_class.new.parse!(["--fail-if-ruby-ceiling", "--gems=rails"])
+      expect(StillActive.config.fail_if_ruby_ceiling).to(be(true))
+    end
+
+    it("sets fail-if-ruby-ceiling to a tier symbol when given one") do
+      described_class.new.parse!(["--fail-if-ruby-ceiling=note", "--gems=rails"])
+      expect(StillActive.config.fail_if_ruby_ceiling).to(eq(:note))
+    end
+
+    it("raises when the fail-if-ruby-ceiling tier is invalid") do
+      expect { described_class.new.parse!(["--fail-if-ruby-ceiling=banana", "--gems=rails"]) }
+        .to(raise_error(ArgumentError, /tier must be one of/))
+    end
+
     it("sets ignored gems from comma-separated list") do
       described_class.new.parse!(["--ignore=nokogiri,puma", "--gems=rails"])
       expect(StillActive.config.ignored_gems).to(eq(["nokogiri", "puma"]))

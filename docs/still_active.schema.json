@@ -86,7 +86,38 @@
         "version_used_release_date": { "type": ["string", "null"], "format": "date-time" },
         "version_yanked": { "type": "boolean" },
         "license": { "type": ["string", "null"] },
-        "libyear": { "type": ["number", "null"] }
+        "libyear": { "type": ["number", "null"] },
+        "poison": { "type": "boolean" },
+        "poison_severity": { "type": "string", "enum": ["note", "warning", "critical"] },
+        "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
+        "ruby_ceiling": { "$ref": "#/$defs/ruby_ceiling" }
+      }
+    },
+    "constraint": {
+      "type": "object",
+      "required": ["dependency", "requirement", "dep_latest", "majors_behind", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "dependency": { "type": "string" },
+        "requirement": { "type": "string" },
+        "dep_latest": { "type": ["string", "null"] },
+        "majors_behind": { "type": "integer", "minimum": 0 },
+        "kind": { "type": "string", "enum": ["ceiling", "exact_pin", "permissive"] }
+      }
+    },
+    "ruby_ceiling": {
+      "type": "object",
+      "required": ["requirement", "eol_forced", "severity", "oldest_supported", "latest_stable"],
+      "additionalProperties": false,
+      "properties": {
+        "requirement": { "type": "string" },
+        "eol_forced": { "type": "boolean" },
+        "severity": { "type": "string", "enum": ["note", "warning", "critical"] },
+        "ceiling_version": { "type": ["string", "null"] },
+        "ceiling_eol_date": { "type": ["string", "null"], "format": "date-time" },
+        "oldest_supported": { "type": "string" },
+        "latest_stable": { "type": "string" },
+        "fixed_by_upgrade": { "type": "boolean" }
       }
     },
     "vulnerability": {

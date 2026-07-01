@@ -148,4 +148,45 @@ RSpec.describe(StillActive::RubyHelper) do
       end
     end
   end
+
+  describe(".supported_ruby_range") do
+    # eol_reached? compares each cycle's eol date against the real clock, so with
+    # the fixture (3.4/3.3 future EOL, 3.2/3.1 past) the supported set is 3.3+ and
+    # the newest release is 3.4.2. These runtime facts feed the per-gem ceiling.
+    it("reports the oldest still-supported cycle and the latest stable release") do
+      range = described_class.supported_ruby_range
+      expect(range[:oldest_supported]).to(eq(Gem::Version.new("3.3")))
+      expect(range[:latest_stable]).to(eq(Gem::Version.new("3.4.2")))
+    end
+
+    it("exposes normalized cycles (version, eol flag, eol date) for ceiling enrichment") do
+      cycles = described_class.supported_ruby_range[:cycles]
+      eol_31 = cycles.find { |c| c[:version] == Gem::Version.new("3.1") }
+      expect(eol_31[:eol]).to(be(true))
+      expect(eol_31[:eol_date]).to(eq(Time.parse("2025-03-31")))
+      live_34 = cycles.find { |c| c[:version] == Gem::Version.new("3.4") }
+      expect(live_34[:eol]).to(be(false))
+    end
+
+    it("returns nil when the endoflife API is unavailable") do
+      allow(StillActive::HttpHelper).to(receive(:get_json).and_return(nil))
+      expect(described_class.supported_ruby_range).to(be_nil)
+    end
+
+    it("returns nil when every known cycle is already EOL") do
+      past = cycles.map { |c| c.merge("eol" => "2000-01-01") }
+      allow(StillActive::HttpHelper).to(receive(:get_json).and_return(past))
+      expect(described_class.supported_ruby_range).to(be_nil)
+    end
+
+    it("returns nil rather than raising when the newest cycle's `latest` is malformed") do
+      # endoflife.date is best-effort third-party data; a garbled/preview `latest`
+      # must never crash the run (supported_ruby_range is fetched outside the
+      # per-gem rescue, so a raise here would abort the whole audit).
+      garbled = [cycles.first.merge("latest" => "unknown-preview"), *cycles[1..]]
+      allow(StillActive::HttpHelper).to(receive(:get_json).and_return(garbled))
+      expect { described_class.supported_ruby_range }.not_to(raise_error)
+      expect(described_class.supported_ruby_range).to(be_nil)
+    end
+  end
 end

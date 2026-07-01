@@ -138,11 +138,47 @@ module StillActive
     # alternatives line. A non-poison gem keeps the prior behaviour: transitive
     # gems point at the parent (#60), direct ones offer alternatives.
     def sub_lines(data)
-      if data[:poison]
-        [poison_line(data), (data[:direct] == false ? nil : alternatives_line(data))].compact
+      lines = if data[:poison]
+        [poison_line(data), (data[:direct] == false ? nil : alternatives_line(data))]
       else
-        [data[:direct] == false ? dependency_path_line(data) : alternatives_line(data)].compact
+        [data[:direct] == false ? dependency_path_line(data) : alternatives_line(data)]
       end
+      # A language-runtime ceiling is orthogonal to poison/alternatives (a gem can
+      # be maintained yet still cap your Ruby), so it always gets its own line.
+      lines << ruby_ceiling_line(data)
+      lines.compact
+    end
+
+    # "  ↳ ruby ceiling: <receipt>", coloured by tier (red = strands you on an EOL
+    # Ruby, dim = an FYI cap below the latest stable). Reuses poison_colour.
+    def ruby_ceiling_line(data)
+      ceiling = data[:ruby_ceiling]
+      return if ceiling.nil?
+
+      AnsiHelper.public_send(poison_colour(ceiling[:severity]), "  ↳ ruby ceiling: #{ruby_ceiling_receipt(ceiling, data)}")
+    end
+
+    def ruby_ceiling_receipt(ceiling, data)
+      base =
+        if ceiling[:eol_forced]
+          "requires Ruby #{ceiling[:requirement]}, stranding you on end-of-life Ruby #{ceiling[:ceiling_version]}#{eol_suffix(ceiling[:ceiling_eol_date])}"
+        else
+          "requires Ruby #{ceiling[:requirement]}, no Ruby #{ceiling[:latest_stable]} support yet"
+        end
+      "#{base}#{ruby_ceiling_fix_hint(ceiling, data)}"
+    end
+
+    def eol_suffix(eol_date)
+      eol_date ? " (EOL #{eol_date.strftime("%Y-%m-%d")})" : ""
+    end
+
+    # Name the actionable fix when a newer release of the gem lifts the cap; the
+    # gem's own name sits on the row directly above, so "upgrade to <latest>" reads
+    # unambiguously without repeating it.
+    def ruby_ceiling_fix_hint(ceiling, data)
+      return "" unless ceiling[:fixed_by_upgrade] && data[:latest_version]
+
+      "; upgrade to #{data[:latest_version]} to lift it"
     end
 
     # "  ↳ poison: caps <receipt>", coloured by severity tier (see poison_colour).
@@ -162,6 +198,18 @@ module StillActive
 
     def poison_colour(severity)
       { critical: :red, warning: :yellow, note: :dim }.fetch(severity, :yellow)
+    end
+
+    # A worst-first "N label (X critical, Y note)" summary fragment, coloured by
+    # the worst tier present, or nil when there are none. Shared by the poison and
+    # Ruby-ceiling counts (both roll a set of tiered findings up the same way).
+    def tier_summary_part(severities, label)
+      return if severities.empty?
+
+      by_tier = severities.group_by { |severity| severity || :note }
+      present = ConstraintHelper::SEVERITY.reverse.select { |tier| by_tier[tier] } # worst-first
+      breakdown = present.map { |tier| "#{by_tier[tier].size} #{tier}" }.join(", ")
+      AnsiHelper.public_send(poison_colour(present.first), "#{label} (#{breakdown})")
     end
 
     # Single cap: the full receipt (requirement + latest major), since there's
@@ -253,13 +301,12 @@ module StillActive
       activity << ", #{archived} archived" if archived > 0
       parts << activity
       parts << "#{summary[:vulnerabilities]} vulnerabilities"
-      poison = result.each_value.select { |data| data[:poison] }
-      unless poison.empty?
-        by_tier = poison.group_by { |data| data[:poison_severity] || :note }
-        present = ConstraintHelper::SEVERITY.reverse.select { |t| by_tier[t] } # worst-first
-        breakdown = present.map { |t| "#{by_tier[t].size} #{t}" }.join(", ")
-        parts << AnsiHelper.public_send(poison_colour(present.first), "#{poison.size} poison-#{poison.size == 1 ? "pill" : "pills"} (#{breakdown})")
-      end
+      poison_tiers = result.each_value.select { |data| data[:poison] }.map { |data| data[:poison_severity] }
+      poison_part = tier_summary_part(poison_tiers, "#{poison_tiers.size} poison-#{poison_tiers.size == 1 ? "pill" : "pills"}")
+      parts << poison_part if poison_part
+      ceilings = result.each_value.filter_map { |data| data[:ruby_ceiling] }
+      ceiling_part = tier_summary_part(ceilings.map { |ceiling| ceiling[:severity] }, "#{ceilings.size} Ruby ceiling#{"s" unless ceilings.size == 1}")
+      parts << ceiling_part if ceiling_part
       total_libyear = LibyearHelper.total_libyear(result)
       parts << "#{total_libyear.round(1)} libyears behind" if total_libyear > 0
       parts.join(" · ")
