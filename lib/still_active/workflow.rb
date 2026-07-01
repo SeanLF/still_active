@@ -196,10 +196,29 @@ module StillActive
 
       attach_ruby_ceiling(
         gem_data: result_object[gem_name],
-        used_version_hash: version_used,
-        latest_version_hash: last_release,
+        used_ruby_requirement: canonical_ruby_requirement(vs, version_used),
+        latest_ruby_requirement: canonical_ruby_requirement(vs, last_release),
+        pinned: !version_used.nil?,
         ruby_range: ruby_range,
       )
+    end
+
+    # The ruby_version to judge a language ceiling against, read from the canonical
+    # `ruby` (source) platform entry of a version rather than whichever variant the
+    # registry happens to list first. Native gems ship a permissive `ruby` platform
+    # plus precompiled per-platform variants that cap ruby_version to the ABIs they
+    # were built for; the source platform is the gem's true Ruby support (it can be
+    # compiled on a newer Ruby), so a precompiled variant's tighter cap must not be
+    # read as the gem's ceiling. (Flagging that a project's LOCKED precompiled
+    # variant lacks a newer-Ruby build is a distinct, narrower signal, and needs the
+    # locked platform, which isn't threaded here yet.)
+    def canonical_ruby_requirement(versions, version_hash)
+      number = version_hash && version_hash["number"]
+      return if number.nil?
+
+      entries = versions.select { |version| version["number"] == number }
+      chosen = entries.find { |version| version["platform"] == "ruby" || version["platform"].nil? } || entries.first
+      VersionHelper.ruby_requirement(version_hash: chosen)
     end
 
     # Language-runtime ceiling: the sibling of poison. A gem's resolved version
@@ -209,20 +228,18 @@ module StillActive
     # support). Unlike poison this is NOT gated on dormancy: a cap is a fact of the
     # resolved version whether or not the gem is maintained. Best-effort: a nil
     # range (endoflife feed down) or absent ruby_version yields no finding.
-    def attach_ruby_ceiling(gem_data:, used_version_hash:, latest_version_hash:, ruby_range:)
+    def attach_ruby_ceiling(gem_data:, used_ruby_requirement:, latest_ruby_requirement:, pinned:, ruby_range:)
       return if ruby_range.nil?
 
-      used_req = VersionHelper.ruby_requirement(version_hash: used_version_hash)
-      latest_req = VersionHelper.ruby_requirement(version_hash: latest_version_hash)
       # Analyze the version actually in the tree. Fall back to latest ONLY when
       # there's no pinned version (a latest-only audit), never when the pinned
       # version merely declares no ruby_version: an absent cap runs on any Ruby, so
       # projecting a newer release's cap back onto it would mint a false ceiling.
-      requirement = used_version_hash ? used_req : latest_req
+      requirement = pinned ? used_ruby_requirement : latest_ruby_requirement
       finding = RuntimeCeilingHelper.analyze(requirement: requirement, support_window: ruby_range)
       return if finding.nil?
 
-      finding[:fixed_by_upgrade] = ruby_ceiling_lifted_by_upgrade?(used_req: used_req, latest_req: latest_req, ruby_range: ruby_range)
+      finding[:fixed_by_upgrade] = ruby_ceiling_lifted_by_upgrade?(used_req: used_ruby_requirement, latest_req: latest_ruby_requirement, ruby_range: ruby_range)
       gem_data[:ruby_ceiling] = finding
     end
 

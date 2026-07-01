@@ -642,6 +642,21 @@ RSpec.describe(StillActive::Workflow) do
         expect(ceiling[:fixed_by_upgrade]).to(be(false))
       end
 
+      it("reads the canonical `ruby`-platform ruby_version, not a precompiled native variant's tighter cap") do
+        # Native gems ship a permissive `ruby` (source) platform plus precompiled
+        # per-platform variants that cap ruby_version to the ABIs they were built
+        # for. The source platform is the gem's true Ruby support, so a permissive
+        # `ruby` entry must win even when a capped native entry is listed first.
+        StillActive.config.gems = [{ name: "sqlite3", version: "2.8.1" }]
+        allow(Gems).to(receive(:versions).with("sqlite3").and_return([
+          { "number" => "2.8.1", "platform" => "x86_64-linux", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => ">= 3.1, < 3.5.dev" },
+          { "number" => "2.8.1", "platform" => "ruby", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => ">= 3.1" },
+        ]))
+        allow(Gems).to(receive(:info).with("sqlite3").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+
+        expect(result["sqlite3"]).not_to(have_key(:ruby_ceiling))
+      end
+
       it("does NOT flag a pinned version that declares no ruby_version, even if the latest version caps") do
         # Absent ruby_version means "runs on any Ruby" -> no ceiling. The cap on a
         # newer release must not be projected back onto the version in the tree.
