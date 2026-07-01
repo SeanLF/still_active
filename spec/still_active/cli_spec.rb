@@ -514,6 +514,35 @@ RSpec.describe(StillActive::CLI) do
           .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
       end
     end
+
+    context("with a confirmed advisory of unknown (unscored) severity") do
+      let(:workflow_result) do
+        {
+          "fresh_cve_gem" => gem_data(last_commit_date: recent_date).merge(
+            vulnerability_count: 1,
+            vulnerabilities: [{ id: "CVE-fresh", cvss3_score: nil, cvss2_score: nil }],
+          ),
+        }
+      end
+
+      it("fails a =high gate closed rather than silently passing an unscored advisory, and says why on stderr") do
+        allow($stdout).to(receive(:puts))
+        expect { cli.run(["--gems=fresh_cve_gem", "--json", "--fail-if-vulnerable=high"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) }
+            .and(output(/fresh_cve_gem has an advisory of unknown severity \(CVE-fresh\)/).to_stderr))
+      end
+
+      it("still lets a granular suppression accept the specific advisory (fail-closed has an escape hatch)") do
+        Dir.mktmpdir do |dir|
+          Dir.chdir(dir) do
+            File.write(".still_active.yml", "ignore:\n  - gem: fresh_cve_gem\n    advisory: CVE-fresh\n")
+            allow($stdout).to(receive(:puts))
+            allow($stderr).to(receive(:puts))
+            expect { cli.run(["--gems=fresh_cve_gem", "--json", "--fail-if-vulnerable=high"]) }.not_to(raise_error)
+          end
+        end
+      end
+    end
   end
 
   describe("--fail-if-outdated") do
@@ -817,6 +846,17 @@ RSpec.describe(StillActive::CLI) do
       allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({ "pypi/flask@2.0.0" => lens_data(vulnerable: true) })))
       allow($stdout).to(receive(:puts))
       expect { cli.run(["--sbom=sbom.json", "--fail-if-vulnerable"]) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("fails a =high severity gate closed on an unscored advisory, same as the native path") do
+      # The cross-ecosystem lens emits a minimal advisory (no CVSS) when detail
+      # fetch fails; a severity gate must not silently pass it.
+      vuln = lens_data.merge(vulnerability_count: 1, vulnerabilities: [{ id: "CVE-unscored", cvss3_score: nil, cvss2_score: nil }])
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({ "pypi/flask@2.0.0" => vuln })))
+      allow($stdout).to(receive(:puts))
+      allow($stderr).to(receive(:puts))
+      expect { cli.run(["--sbom=sbom.json", "--fail-if-vulnerable=high"]) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 

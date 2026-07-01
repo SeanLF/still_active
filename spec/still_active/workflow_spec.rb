@@ -90,6 +90,19 @@ RSpec.describe(StillActive::Workflow) do
         expect(data[:vulnerability_count]).to(eq(1))
         expect(data[:vulnerabilities].first).to(include(source: "merged", title: "from deps.dev", cvss3_score: 7.5))
       end
+
+      it("keeps a confirmed advisory as a minimal entry when its deps.dev detail fetch fails, rather than dropping it and reading the gem as clean") do
+        # A 429/timeout on the per-advisory detail call returns nil; the key is
+        # still evidence the version is vulnerable, so it must survive.
+        allow(StillActive::DepsDevClient).to(receive(:advisory_detail).and_return(nil))
+        allow(StillActive::RubyAdvisoryDb).to(receive(:advisories_for).and_return([]))
+
+        data = result["rack"]
+        expect(data[:vulnerability_count]).to(eq(1))
+        expect(data[:vulnerabilities].first).to(include(id: "GHSA-deps", source: "deps.dev"))
+        # Unscored, so a severity gate fails closed on it.
+        expect(StillActive::VulnerabilityHelper.severity_at_or_above?(data[:vulnerabilities], "high")).to(be(true))
+      end
     end
 
     context("when a gem version is yanked") do
