@@ -139,7 +139,10 @@ module StillActive
       end
 
       if data[:poison] && !Array(data[:constraints]).empty?
-        out << mark_suppressed(result("SA008", name, poison_message(name, version, data), location), name, :poison)
+        # Level tracks the poison tier: critical -> error, warning -> warning,
+        # note -> note. The fingerprint stays (rule_id, gem_name) so a tier change
+        # as the capped dep ships majors doesn't re-alert.
+        out << mark_suppressed(result("SA008", name, poison_message(name, version, data), location, level: poison_level(data)), name, :poison)
       end
 
       out
@@ -151,6 +154,10 @@ module StillActive
     # precise version, not the "8.x" the terminal abbreviates to), plus "+N more"
     # and the transitive parent. Note result() fingerprints on (rule_id, gem_name)
     # only, so this volatile detail never re-alerts a finding the user triaged.
+    def poison_level(data)
+      { critical: "error", warning: "warning", note: "note" }.fetch(data[:poison_severity], "warning")
+    end
+
     def poison_message(name, version, data)
       top = ConstraintHelper.top_findings(Array(data[:constraints]), limit: 3)
       caps = top[:shown].map do |finding|

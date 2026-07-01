@@ -97,6 +97,7 @@ module StillActive
 
       gem_data[:constraints] = findings
       gem_data[:poison] = findings.any? { |finding| finding[:kind] == :ceiling }
+      gem_data[:poison_severity] = ConstraintHelper.worst_severity(findings) if gem_data[:poison]
     end
 
     # A capped dep's current latest version in `ecosystem`, via deps.dev's default

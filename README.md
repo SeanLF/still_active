@@ -129,7 +129,7 @@ Usage: still_active [options]
         --fail-if-vulnerable[=SEVERITY]
                                      Exit 1 if any gem has vulnerabilities (optionally at or above SEVERITY)
         --fail-if-outdated=LIBYEARS  Exit 1 if any gem exceeds LIBYEARS behind latest
-        --fail-if-poison             Exit 1 if any dormant gem caps a dependency below its latest major (poison-pill)
+        --fail-if-poison[=TIER]      Exit 1 on a poison-pill at or above TIER (note|warning|critical; default warning)
         --ignore=GEM,GEM2,...        Exclude gems from pass/fail checks (still shown in output)
         --critical-warning-emoji=EMOJI
         --futurist-emoji=EMOJI
@@ -372,7 +372,7 @@ still_active --fail-if-warning --fail-if-vulnerable --ignore=legacy_gem --json
 fail_if_critical: true
 fail_if_vulnerable: high       # true, or a minimum severity: low|medium|high|critical
 fail_if_outdated: 3            # libyears
-fail_if_poison: true           # fail on a dormant gem that caps a dep below its latest major
+fail_if_poison: warning        # true (=warning), or a tier: note|warning|critical (severity scales with majors-behind)
 unreleased_commits: true
 output: json                   # terminal | markdown | json
 direct_only: true              # audit only declared deps, not the full transitive graph (--direct-only)

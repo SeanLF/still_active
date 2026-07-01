@@ -63,6 +63,39 @@ module StillActive
       { kind: kind, majors_behind: behind }
     end
 
+    # Severity tiers for a compatibility ceiling, worst-last (mirrors
+    # StatusHelper::SEVERITY -- an ordinal set compared by index, never a numeric
+    # composite). :note is FYI, :warning is review-and-plan, :critical is act-now.
+    SEVERITY = [:note, :warning, :critical].freeze
+
+    # Tier one ceiling finding. Magnitude-driven: the real-project dogfood showed
+    # Ruby findings are bimodal -- 1 major behind is trivial (a done gem pinning an
+    # old minor), 3+ is a genuine upgrade wall (e.g. capping actionmailer below
+    # Rails 6). Popularity was rejected as an input (it ranks the framework blocker
+    # below a utility) and a vulnerable-gem escalator was rejected (that is the
+    # vulnerability finding's job, not the cap's).
+    def constraint_severity(finding)
+      case finding[:majors_behind]
+      when 2 then :warning
+      when 3.. then :critical
+      else :note
+      end
+    end
+
+    # The worst tier across a gem's CEILING findings (exact-pins are a milder
+    # hazard, not poison, and don't carry a tier), or nil when there are none.
+    def worst_severity(findings)
+      tiers = findings.filter_map { constraint_severity(_1) if _1[:kind] == :ceiling }
+      tiers.max_by { SEVERITY.index(_1) }
+    end
+
+    # For the --fail-if-poison[=TIER] gate: is `severity` at or above `threshold`?
+    def severity_at_or_above?(severity, threshold)
+      return false if severity.nil?
+
+      SEVERITY.index(severity) >= SEVERITY.index(threshold)
+    end
+
     # The poison condition: a below-latest ceiling or exact pin. A permissive
     # constraint, or a cap at/above the dep's latest major, is not a pill.
     def poison_ceiling?(requirement:, dep_latest:)

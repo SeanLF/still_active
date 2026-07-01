@@ -124,8 +124,17 @@ module StillActive
       return "" if flagged.empty?
 
       lines = ["", "**Poison-pill findings** (dormant deps capping your tree below its latest major):"]
-      flagged.each do |name, data|
-        lines << "- #{poison_gem_ref(name, data)} caps #{poison_caps(data[:constraints])}"
+      # Worst-first so the act-now findings lead, then by magnitude for a stable,
+      # triage-friendly order.
+      ranked = flagged.sort_by do |name, data|
+        [
+          -ConstraintHelper::SEVERITY.index(data[:poison_severity] || :note),
+          -Array(data[:constraints]).map { |c| c[:majors_behind].to_i }.max,
+          name.to_s,
+        ]
+      end
+      ranked.each do |name, data|
+        lines << "- **#{data[:poison_severity] || :note}** #{poison_gem_ref(name, data)} caps #{poison_caps(data[:constraints])}"
       end
       lines.join("\n")
     end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "optparse"
+require_relative "../helpers/constraint_helper"
 require_relative "../helpers/cyclonedx_helper"
 require_relative "../helpers/vulnerability_helper"
 
@@ -162,8 +163,15 @@ module StillActive
       opts.on("--fail-if-outdated=LIBYEARS", Float, "Exit 1 if any gem exceeds LIBYEARS behind latest") do |value|
         StillActive.config { |config| config.fail_if_outdated = value }
       end
-      opts.on("--fail-if-poison", "Exit 1 if any dormant gem caps a dependency below its latest major (poison-pill)") do
-        StillActive.config { |config| config.fail_if_poison = true }
+      opts.on("--fail-if-poison[=TIER]", "Exit 1 on a poison-pill at or above TIER (note|warning|critical; default warning)") do |value|
+        if value
+          valid = StillActive::ConstraintHelper::SEVERITY.map(&:to_s)
+          raise ArgumentError, "--fail-if-poison tier must be one of: #{valid.join(", ")} (got #{value})" unless valid.include?(value)
+
+          StillActive.config { |config| config.fail_if_poison = value.to_sym }
+        else
+          StillActive.config { |config| config.fail_if_poison = true }
+        end
       end
     end
 

@@ -395,6 +395,17 @@ RSpec.describe(StillActive::MarkdownHelper) do
         .to(include("`terrapin` via `paperclip` caps `climate_control` `< 1.0` (1 major behind, latest 1.x)"))
     end
 
+    it("ranks poison findings worst-first with a tier label per bullet") do
+      result = {
+        "minor" => poison_gem([{ dependency: "a", requirement: "~> 2", dep_latest: "3.0.0", majors_behind: 1, kind: :ceiling }], { poison_severity: :note }),
+        "blocker" => poison_gem([{ dependency: "b", requirement: "< 6", dep_latest: "9.0.0", majors_behind: 3, kind: :ceiling }], { poison_severity: :critical }),
+      }
+      out = described_class.poison_section(result)
+      expect(out).to(include("**critical** `blocker`"))
+      expect(out).to(include("**note** `minor`"))
+      expect(out.index("blocker")).to(be < out.index("minor")) # worst-first
+    end
+
     it("returns empty string when no gem is poison") do
       result = { "kaminari" => { source_type: :rubygems, poison: false } }
       expect(described_class.poison_section(result)).to(eq(""))

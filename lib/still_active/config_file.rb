@@ -2,6 +2,7 @@
 
 require "yaml"
 require_relative "suppressions"
+require_relative "../helpers/constraint_helper"
 require_relative "../helpers/vulnerability_helper"
 
 module StillActive
@@ -48,7 +49,7 @@ module StillActive
         case key
         when "fail_if_critical" then set_boolean(config, :fail_if_critical=, value, key, warnings)
         when "fail_if_warning" then set_boolean(config, :fail_if_warning=, value, key, warnings)
-        when "fail_if_poison" then set_boolean(config, :fail_if_poison=, value, key, warnings)
+        when "fail_if_poison" then apply_fail_if_poison(config, value, warnings)
         when "alternatives" then set_boolean(config, :alternatives=, value, key, warnings)
         when "unreleased_commits" then set_boolean(config, :unreleased_commits=, value, key, warnings)
         when "direct_only" then set_boolean(config, :direct_only=, value, key, warnings)
@@ -132,6 +133,18 @@ module StillActive
         config.parallelism = value
       else
         warnings << "#{FILENAME}: parallelism must be a positive integer (got #{value.inspect}), ignoring it"
+      end
+    end
+
+    # true/false, or a severity tier (note|warning|critical). Mirrors the CLI
+    # flag: bare `true` fails at :warning, a tier sets an explicit threshold.
+    def apply_fail_if_poison(config, value, warnings)
+      if value == true || value == false
+        config.fail_if_poison = value
+      elsif ConstraintHelper::SEVERITY.map(&:to_s).include?(value.to_s)
+        config.fail_if_poison = value.to_sym
+      else
+        warnings << "#{FILENAME}: fail_if_poison must be true/false or one of #{ConstraintHelper::SEVERITY.join(", ")} (got #{value.inspect}), ignoring it"
       end
     end
 

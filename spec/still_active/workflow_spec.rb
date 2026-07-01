@@ -502,6 +502,7 @@ RSpec.describe(StillActive::Workflow) do
 
         data = result["protected_attributes"]
         expect(data[:poison]).to(be(true))
+        expect(data[:poison_severity]).to(eq(:critical)) # 4 majors behind
         expect(data[:constraints]).to(eq([
           { dependency: "activemodel", requirement: "< 5.0, >= 4.0.1", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling },
         ]))
