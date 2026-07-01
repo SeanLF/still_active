@@ -146,9 +146,9 @@ RSpec.describe(StillActive::Options) do
         .to(raise_error(ArgumentError, /severity must be one of/))
     end
 
-    it("raises when both gemfile and gems are provided") do
+    it("raises when more than one of gemfile/gems/sbom are provided") do
       expect { described_class.new.parse!(["--gemfile=Gemfile", "--gems=rails"]) }
-        .to(raise_error(ArgumentError, /provide gemfile or gems, not both/))
+        .to(raise_error(ArgumentError, /provide only one of/))
     end
 
     it("enables alternatives with --alternatives") do
@@ -174,6 +174,19 @@ RSpec.describe(StillActive::Options) do
     it("returns provided_gemfile flag when gemfile is given") do
       result = described_class.new.parse!(["--gemfile=Gemfile"])
       expect(result[:provided_gemfile]).to(be(true))
+    end
+
+    it("sets sbom_path and the provided_sbom flag when the SBOM file exists") do
+      Tempfile.create(["sbom", ".json"]) do |file|
+        result = described_class.new.parse!(["--sbom=#{file.path}"])
+        expect(result[:provided_sbom]).to(be(true))
+        expect(StillActive.config.sbom_path).to(eq(file.path))
+      end
+    end
+
+    it("raises when the --sbom path does not exist") do
+      expect { described_class.new.parse!(["--sbom=/no/such/sbom.json"]) }
+        .to(raise_error(ArgumentError, /SBOM file not found/))
     end
   end
 end
