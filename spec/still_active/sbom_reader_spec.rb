@@ -75,11 +75,41 @@ RSpec.describe(StillActive::SbomReader) do
   describe("edge cases") do
     def sbom(*components) = { "bomFormat" => "CycloneDX", "components" => components }.to_json
 
-    it("ignores a private repository_url qualifier (untrusted lockfile-derived input) yet still extracts the package") do
-      # The lens must never call a registry URL taken from the SBOM; we key only
-      # on ecosystem/name/version and look those up on the trusted public APIs.
+    it("classifies a package from a non-public repository_url as private (never substitutes public-registry data)") do
+      # A repository_url qualifier means a non-default (private/alternative)
+      # registry per the purl spec. We still never dial the URL -- we use its
+      # presence to refuse a public-by-name lookup, which would report a
+      # same-named PUBLIC package's data as if it were this private one
+      # (dependency confusion; the #43 principle, cross-ecosystem).
       body = sbom({ "type" => "library", "purl" => "pkg:pypi/internalpkg@1.0.0?repository_url=https://pypi.internal.example.com" })
-      expect(described_class.read_string(body)).to(eq([{ ecosystem: :pypi, name: "internalpkg", version: "1.0.0" }]))
+      result = described_class.parse_string(body)
+      expect(result.dependencies).to(eq([]))
+      expect(result.unassessable).to(eq([{
+        ecosystem: :pypi,
+        name: "internalpkg",
+        version: "1.0.0",
+        reason: :private_registry,
+        repository_url: "https://pypi.internal.example.com",
+      }]))
+    end
+
+    it("classifies a GitHub Packages npm package as private") do
+      body = sbom({ "type" => "library", "purl" => "pkg:npm/%40acme/utils@2.0.0?repository_url=https://npm.pkg.github.com" })
+      result = described_class.parse_string(body)
+      expect(result.dependencies).to(eq([]))
+      expect(result.unassessable.first).to(include(ecosystem: :npm, name: "@acme/utils", reason: :private_registry))
+    end
+
+    it("treats a userinfo-spoofed repository_url as private (the dependency-confusion payload)") do
+      # `pypi.org@evil.com` parses with host evil.com, not pypi.org -- the guard
+      # must not be fooled into a public lookup.
+      body = sbom({ "type" => "library", "purl" => "pkg:pypi/internalpkg@1.0.0?repository_url=https://pypi.org@evil.com" })
+      expect(described_class.parse_string(body).unassessable.first).to(include(reason: :private_registry))
+    end
+
+    it("still assesses a package whose repository_url redundantly names the PUBLIC registry") do
+      body = sbom({ "type" => "library", "purl" => "pkg:pypi/requests@2.0.0?repository_url=https://pypi.org" })
+      expect(described_class.read_string(body)).to(eq([{ ecosystem: :pypi, name: "requests", version: "2.0.0" }]))
     end
 
     it("extracts a scoped (possibly private) npm package by its full @scope/name") do

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "uri"
 require "package_url"
 
 module StillActive
@@ -77,6 +78,25 @@ module StillActive
       classify_purl(purl, name)
     end
 
+    # Public registry hosts per ecosystem. A purl `repository_url` qualifier means
+    # a non-default (private/alternative) registry per the purl spec, EXCEPT when a
+    # generator redundantly names the public one -- so we still assess those.
+    PUBLIC_REGISTRY_HOSTS = [
+      "rubygems.org",
+      "registry.npmjs.org",
+      "npmjs.org",
+      "registry.yarnpkg.com",
+      "pypi.org",
+      "files.pythonhosted.org",
+      "crates.io",
+      "static.crates.io",
+      "index.crates.io",
+      "repo1.maven.org",
+      "repo.maven.apache.org",
+      "api.nuget.org",
+      "proxy.golang.org",
+    ].freeze
+
     def classify_purl(purl, name)
       parsed = PackageURL.parse(purl)
       type = parsed.type&.downcase
@@ -85,7 +105,21 @@ module StillActive
       if ecosystem
         return [:unassessable, { ecosystem: type, name: name, reason: :no_version }] if parsed.version.to_s.empty?
 
-        [:dependency, { ecosystem: ecosystem, name: build_name(ecosystem, parsed.namespace, parsed.name), version: parsed.version }]
+        full_name = build_name(ecosystem, parsed.namespace, parsed.name)
+        repository_url = parsed.qualifiers&.dig("repository_url")
+        # A private/alternative registry: never look the name up on the public
+        # registry (a same-named public package's data is not this one's -- the #43
+        # dependency-confusion guard, cross-ecosystem). We never dial the URL; its
+        # presence alone is the signal. Limit: this can only fire when the SBOM
+        # carries repository_url; a generator that omits it (Syft often can't
+        # determine the source registry) leaves a private package indistinguishable
+        # from a public one, so it is still assessed by name. Best-effort, not a
+        # guarantee that every private package is caught.
+        if repository_url && !public_registry?(repository_url)
+          return [:unassessable, { ecosystem: ecosystem, name: full_name, version: parsed.version, reason: :private_registry, repository_url: repository_url }]
+        end
+
+        [:dependency, { ecosystem: ecosystem, name: full_name, version: parsed.version }]
       elsif NOISE_TYPES.include?(type)
         nil # CI actions / opaque binaries: not a package dependency
       else
@@ -93,6 +127,20 @@ module StillActive
       end
     rescue PackageURL::InvalidPackageURL
       [:unassessable, { ecosystem: nil, name: name, reason: :malformed_purl }]
+    end
+
+    # Whether a repository_url points at a known public registry. We only read the
+    # host; we never connect to it (a lockfile/SBOM-derived URL is untrusted). An
+    # unparseable or non-public host reads as private, failing safe.
+    def public_registry?(repository_url)
+      host = registry_host(repository_url)
+      !host.nil? && PUBLIC_REGISTRY_HOSTS.include?(host)
+    end
+
+    def registry_host(url)
+      URI.parse(url.include?("//") ? url : "//#{url}").host&.downcase
+    rescue URI::InvalidURIError
+      nil
     end
 
     # Reconstruct the lookup name from the PURL's namespace + name: npm
