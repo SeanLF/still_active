@@ -219,13 +219,13 @@ RSpec.describe(StillActive::EcosystemLens) do
       ]))
     end
 
-    it("surfaces a dormant npm package's below-latest exact-pin as a hazard, not poison (celery-style vine ==)") do
-      stub_latest("oldpkg" => "2017-01-01T00:00:00Z", "vine" => { version: "5.1.0" })
+    it("surfaces a dormant pypi package's below-latest exact-pin as a hazard, not poison (celery-style vine ==)") do
+      stub_latest("celery" => "2017-01-01T00:00:00Z", "vine" => { version: "5.1.0" })
       allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies)).and_return([
         { package_name: "vine", requirements: "==1.3.0" },
       ])
 
-      result = described_class.assess(ecosystem: :npm, name: "oldpkg", version: "1.0.0")
+      result = described_class.assess(ecosystem: :pypi, name: "celery", version: "4.0.0")
 
       expect(result[:poison]).to(be(false))
       expect(result[:constraints]).to(eq([
@@ -233,11 +233,26 @@ RSpec.describe(StillActive::EcosystemLens) do
       ]))
     end
 
-    it("does NOT flag a maintained package's cap, and never asks for its constraints") do
+    it("suppresses poison on subtree-local ecosystems (npm/cargo): a transitive cap pins a duplicate copy, it does not hold the tree hostage") do
+      # npm nests versions and cargo coexists majors, so a below-latest cap is
+      # subtree-local, not a tree-wide block; the blocking case (peerDependencies)
+      # isn't visible in ecosyste.ms data. Suppress rather than over-claim.
+      stub_latest("oldpkg" => "2017-01-01T00:00:00Z")
+      allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
+
+      [:npm, :cargo].each do |eco|
+        result = described_class.assess(ecosystem: eco, name: "oldpkg", version: "1.0.0")
+        expect(result).not_to(have_key(:poison))
+        expect(result).not_to(have_key(:constraints))
+      end
+      expect(StillActive::EcosystemsClient).not_to(have_received(:declared_dependencies))
+    end
+
+    it("does NOT flag a maintained (flat-ecosystem) package's cap, and never asks for its constraints") do
       stub_latest("fresh" => "2026-05-01T00:00:00Z")
       allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
 
-      result = described_class.assess(ecosystem: :cargo, name: "fresh", version: "1.0.0")
+      result = described_class.assess(ecosystem: :pypi, name: "fresh", version: "1.0.0")
 
       expect(result).not_to(have_key(:poison))
       expect(StillActive::EcosystemsClient).not_to(have_received(:declared_dependencies))
