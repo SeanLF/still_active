@@ -351,7 +351,31 @@ module StillActive
       config = StillActive.config
       return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated
 
+      warn_unknown_severity_gate(result, config)
       exit(1) if result.any? { |name, data| gate_failed?(name, data, config) }
+    end
+
+    # --fail-if-vulnerable=<threshold> fails closed on an advisory with no CVSS
+    # score (it could exceed the threshold; fresh CVEs often lack a score). Say so
+    # per gem, so failing a =high gate on an "unknown" severity reads as a
+    # deliberate conservative call the user can review and fix or suppress, not a
+    # mystery. Only for the thresholded form; bare --fail-if-vulnerable fails on
+    # every advisory regardless of severity, so there's nothing to explain.
+    def warn_unknown_severity_gate(result, config)
+      threshold = config.fail_if_vulnerable
+      return unless threshold.is_a?(String)
+
+      suppressions = config.suppressions
+      result.each do |name, data|
+        next if config.ignored_gems.include?(name)
+
+        unknown = live_advisories(name, data, suppressions).select { |vuln| VulnerabilityHelper.unknown_severity?(vuln) }
+        next if unknown.empty?
+
+        ids = unknown.filter_map { |vuln| vuln[:id] }.join(", ")
+        labelled = ids.empty? ? "" : " (#{ids})"
+        $stderr.puts("warning: #{name} has an advisory of unknown severity#{labelled}; failing --fail-if-vulnerable=#{threshold} because it can't be ruled out below the threshold (review, then fix or suppress it in .still_active.yml)")
+      end
     end
 
     # A gem fails the run when it trips an enabled gate that is neither
@@ -379,14 +403,23 @@ module StillActive
     def failed_vulnerability?(name, data, config, suppressions)
       setting = config.fail_if_vulnerable
       return false unless setting
-      return false unless data[:vulnerability_count]&.positive?
 
-      live = Array(data[:vulnerabilities]).reject do |vuln|
-        suppressions.suppressed?(gem: name, signal: :vulnerability, advisory: vuln[:id], aliases: Array(vuln[:aliases]))
-      end
+      # Reason over the live advisory array (not vulnerability_count) so the gate
+      # and warn_unknown_severity_gate share one source of truth: a warning that
+      # says "failing" can never disagree with whether exit(1) actually fires.
+      live = live_advisories(name, data, suppressions)
       return false if live.empty?
 
       setting == true || VulnerabilityHelper.severity_at_or_above?(live, setting)
+    end
+
+    # The gem's advisories minus those an explicit .still_active.yml suppression
+    # accepts (by advisory id or alias). Shared by the vulnerability gate and the
+    # unknown-severity warning so both reason over the same live set.
+    def live_advisories(name, data, suppressions)
+      Array(data[:vulnerabilities]).reject do |vuln|
+        suppressions.suppressed?(gem: name, signal: :vulnerability, advisory: vuln[:id], aliases: Array(vuln[:aliases]))
+      end
     end
 
     def failed_outdated?(name, data, config, suppressions)

@@ -207,7 +207,12 @@ module StillActive
       info = DepsDevClient.version_info(gem_name: gem_name, version: version)
       scorecard = DepsDevClient.project_scorecard(project_id: info&.dig(:project_id))
       advisory_keys = info&.dig(:advisory_keys) || []
-      deps_dev_vulns = advisory_keys.filter_map { |id| DepsDevClient.advisory_detail(advisory_id: id) }
+      # The keys ARE the evidence the version is vulnerable; the detail fetch only
+      # enriches CVSS/title. A failed enrichment (429/timeout/5xx -> nil) must not
+      # drop the advisory and read a known-vulnerable gem as clean, so an
+      # un-enriched key still contributes a minimal advisory (mirrors EcosystemLens;
+      # ruby-advisory-db then fills the score on merge when it also carries it).
+      deps_dev_vulns = advisory_keys.map { |id| DepsDevClient.advisory_detail(advisory_id: id) || { id: id, source: "deps.dev" } }
       radb_vulns = RubyAdvisoryDb.advisories_for(database: advisory_db, gem_name: gem_name, version: version)
       vulnerabilities = VulnerabilityHelper.merge_advisories(deps_dev: deps_dev_vulns, ruby_advisory_db: radb_vulns)
       {
