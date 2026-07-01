@@ -711,6 +711,48 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
+  describe("--fail-if-poison") do
+    def poison_gem
+      gem_data(last_commit_date: ancient_date).merge(
+        poison: true,
+        constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling }],
+      )
+    end
+
+    it("exits 1 when a gem is a poison-pill") do
+      StillActive.config.fail_if_poison = true
+      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem }) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("does not exit when no gem is a poison-pill") do
+      StillActive.config.fail_if_poison = true
+      expect { cli.send(:check_exit_status, { "rails" => gem_data(last_commit_date: recent_date) }) }
+        .not_to(raise_error)
+    end
+
+    it("does not exit when the flag is off, even with a poison gem") do
+      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem }) }
+        .not_to(raise_error)
+    end
+
+    it("does not exit when the poison gem is --ignore'd") do
+      StillActive.config.fail_if_poison = true
+      StillActive.config.ignored_gems = ["protected_attributes"]
+      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem }) }
+        .not_to(raise_error)
+    end
+
+    it("does not exit when the gem's poison signal is suppressed in .still_active.yml") do
+      StillActive.config.fail_if_poison = true
+      StillActive.config.suppressions = StillActive::Suppressions.from(
+        [{ "gem" => "protected_attributes", "signal" => "poison", "reason" => "vendored, accepted" }],
+      )
+      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem }) }
+        .not_to(raise_error)
+    end
+  end
+
   describe("--fail-if-warning") do
     context("when a gem has warning activity") do
       let(:workflow_result) { { "aging_gem" => gem_data(last_commit_date: old_date) } }

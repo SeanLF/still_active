@@ -129,6 +129,7 @@ Usage: still_active [options]
         --fail-if-vulnerable[=SEVERITY]
                                      Exit 1 if any gem has vulnerabilities (optionally at or above SEVERITY)
         --fail-if-outdated=LIBYEARS  Exit 1 if any gem exceeds LIBYEARS behind latest
+        --fail-if-poison             Exit 1 if any dormant gem caps a dependency below its latest major (poison-pill)
         --ignore=GEM,GEM2,...        Exclude gems from pass/fail checks (still shown in output)
         --critical-warning-emoji=EMOJI
         --futurist-emoji=EMOJI
@@ -227,7 +228,7 @@ Each dependency carries the same `activity_level` and lifecycle `status` as the 
 
 The SBOM is **untrusted input**: only ecosystem/name/version are read from it, the repository is resolved from deps.dev (never a URL the SBOM supplies, so a hostile SBOM can't redirect a lookup), and anything deps.dev doesn't index degrades to `unknown` rather than a fabricated `ok`. Packages it can't assess (unsupported ecosystems, a component with no version or PURL, or one whose lookup failed against a rate-limited/flaky deps.dev) are surfaced in an `unassessable` list plus a stderr count, never silently dropped, so an audit can't read "all clear" while ignoring what it skipped; a present-but-unreadable SBOM errors rather than reporting a clean empty audit. OS packages land in `unassessable` too: the differentiated play is **maintenance**, not vulnerability scanning, so compose Trivy/Grype for CVEs.
 
-The activity (`--fail-if-critical`/`--fail-if-warning`) and vulnerability (`--fail-if-vulnerable`) gates apply to SBOM dependencies. The Ruby-shaped policy features do not travel to the SBOM path yet: `.still_active.yml` suppressions and `--ignore` key on the gem name (SBOM results key on `ecosystem/name@version`), and `--fail-if-outdated` needs a libyear the cross-ecosystem lens doesn't compute.
+The activity (`--fail-if-critical`/`--fail-if-warning`), vulnerability (`--fail-if-vulnerable`), and poison-pill (`--fail-if-poison`) gates apply to SBOM dependencies. The Ruby-shaped policy features do not travel to the SBOM path yet: `.still_active.yml` suppressions and `--ignore` key on the gem name (SBOM results key on `ecosystem/name@version`), and `--fail-if-outdated` needs a libyear the cross-ecosystem lens doesn't compute.
 
 ### SARIF output (GitHub Code Scanning)
 
@@ -371,6 +372,7 @@ still_active --fail-if-warning --fail-if-vulnerable --ignore=legacy_gem --json
 fail_if_critical: true
 fail_if_vulnerable: high       # true, or a minimum severity: low|medium|high|critical
 fail_if_outdated: 3            # libyears
+fail_if_poison: true           # fail on a dormant gem that caps a dep below its latest major
 unreleased_commits: true
 output: json                   # terminal | markdown | json
 direct_only: true              # audit only declared deps, not the full transitive graph (--direct-only)
@@ -388,7 +390,7 @@ ignore:
 
   # Accept staleness on a vendored gem, but still fail if it gets a CVE
   - gem: legacy_thing
-    signal: activity            # activity | vulnerability | libyear
+    signal: activity            # activity | vulnerability | libyear | poison
     reason: "vendored, intentionally frozen"
 
   # A bare gem name keeps the old whole-gem behaviour (mutes every signal)
@@ -397,7 +399,7 @@ ignore:
 
 Design:
 
-- **Granularity.** Key by `advisory:` (one CVE) and/or `signal:` (`activity` / `vulnerability` / `libyear`), not the whole gem. A vulnerability suppression **must** name an advisory id, so a newly disclosed CVE on the same gem is never pre-silenced. `--ignore=GEM` (and a bare gem-name entry) still mute everything, by design.
+- **Granularity.** Key by `advisory:` (one CVE) and/or `signal:` (`activity` / `vulnerability` / `libyear` / `poison`), not the whole gem. A vulnerability suppression **must** name an advisory id, so a newly disclosed CVE on the same gem is never pre-silenced. `--ignore=GEM` (and a bare gem-name entry) still mute everything, by design.
 - **Precedence.** CLI flag > env var > config file > default. A CLI flag always wins; `--ignore` unions with the file's suppressions rather than replacing them. Secrets (tokens) and invocation-specific paths (`--gemfile`, `--gems`, `--baseline`, output paths) are intentionally **not** read from the file, so a committed config never carries a credential.
 - **Expiry.** An `expires:` date makes accepted risk visible: once it passes, the entry stops applying and the finding fails the gate again (Trivy-style), so a suppression can't rot silently. `reason:` is optional but recommended. A suppression naming a gem that isn't in your dependency graph (a typo, or a gem you've since removed) is also surfaced as a warning, so dead entries don't accumulate.
 - **bundler-audit, suggested not absorbed.** still_active never silently inherits another tool's ignore list: auto-importing `.bundler-audit.yml` would suppress vulnerabilities you only accepted in bundler-audit's context, with no reason or expiry here. Instead, when `--fail-if-vulnerable` is on and an un-imported `.bundler-audit.yml` is present, it prints a one-line hint suggesting the `import:` line, leaving the opt-in to you.

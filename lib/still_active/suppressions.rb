@@ -5,8 +5,9 @@ require "date"
 module StillActive
   # Granular, auditable suppression of individual findings, loaded from the
   # `ignore:` block of a committed .still_active.yml. Each entry silences one
-  # signal (activity / libyear) or one advisory for one gem, optionally until an
-  # expiry date, replacing the all-or-nothing whole-gem --ignore. A bare gem
+  # signal (activity / vulnerability / libyear / poison) or one advisory for one
+  # gem, optionally until an expiry date, replacing the all-or-nothing whole-gem
+  # --ignore. A bare gem
   # name (or a gem-only mapping) keeps the old whole-gem behaviour so --ignore
   # can union into the same list.
   #
@@ -15,7 +16,7 @@ module StillActive
   # name an explicit advisory id, so a newly disclosed CVE on the same gem is
   # never pre-silenced.
   class Suppressions
-    GATEABLE_SIGNALS = [:activity, :vulnerability, :libyear].freeze
+    GATEABLE_SIGNALS = [:activity, :vulnerability, :libyear, :poison].freeze
 
     Entry = Struct.new(:gem, :advisory, :signal, :reason, :expires, keyword_init: true) do
       def whole_gem?
@@ -75,14 +76,14 @@ module StillActive
           return false
         end
         if signal && !GATEABLE_SIGNALS.include?(signal)
-          warnings << "ignoring suppression for #{label}: unknown signal #{signal.inspect} (expected activity, vulnerability, or libyear)"
+          warnings << "ignoring suppression for #{label}: unknown signal #{signal.inspect} (expected activity, vulnerability, libyear, or poison)"
           return false
         end
         if signal == :vulnerability && advisory.nil?
           warnings << "ignoring vulnerability suppression for #{label}: must name an advisory id so newly disclosed advisories still surface"
           return false
         end
-        if [:activity, :libyear].include?(signal) && gem.nil?
+        if [:activity, :libyear, :poison].include?(signal) && gem.nil?
           warnings << "ignoring #{signal} suppression: must name a gem"
           return false
         end

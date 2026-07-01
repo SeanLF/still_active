@@ -48,6 +48,7 @@ module StillActive
         case key
         when "fail_if_critical" then set_boolean(config, :fail_if_critical=, value, key, warnings)
         when "fail_if_warning" then set_boolean(config, :fail_if_warning=, value, key, warnings)
+        when "fail_if_poison" then set_boolean(config, :fail_if_poison=, value, key, warnings)
         when "alternatives" then set_boolean(config, :alternatives=, value, key, warnings)
         when "unreleased_commits" then set_boolean(config, :unreleased_commits=, value, key, warnings)
         when "direct_only" then set_boolean(config, :direct_only=, value, key, warnings)

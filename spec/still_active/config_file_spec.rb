@@ -45,6 +45,7 @@ RSpec.describe(StillActive::ConfigFile) do
       data = {
         "fail_if_critical" => true,
         "fail_if_warning" => true,
+        "fail_if_poison" => true,
         "fail_if_vulnerable" => "high",
         "fail_if_outdated" => 2.5,
         "alternatives" => true,
@@ -58,6 +59,7 @@ RSpec.describe(StillActive::ConfigFile) do
 
       expect(config.fail_if_critical).to(be(true))
       expect(config.fail_if_warning).to(be(true))
+      expect(config.fail_if_poison).to(be(true))
       expect(config.fail_if_vulnerable).to(eq("high"))
       expect(config.fail_if_outdated).to(eq(2.5))
       expect(config.alternatives).to(be(true))

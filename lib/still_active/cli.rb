@@ -352,7 +352,7 @@ module StillActive
 
     def check_exit_status(result)
       config = StillActive.config
-      return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated
+      return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated || config.fail_if_poison
 
       warn_unknown_severity_gate(result, config)
       exit(1) if result.any? { |name, data| gate_failed?(name, data, config) }
@@ -391,7 +391,15 @@ module StillActive
       suppressions = config.suppressions
       failed_activity?(name, data, config, suppressions) ||
         failed_vulnerability?(name, data, config, suppressions) ||
-        failed_outdated?(name, data, config, suppressions)
+        failed_outdated?(name, data, config, suppressions) ||
+        failed_poison?(name, data, config, suppressions)
+    end
+
+    def failed_poison?(name, data, config, suppressions)
+      return false unless config.fail_if_poison
+      return false if suppressions.suppressed?(gem: name, signal: :poison)
+
+      data[:poison] == true
     end
 
     def failed_activity?(name, data, config, suppressions)
