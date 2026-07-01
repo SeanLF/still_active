@@ -2,7 +2,7 @@
 
 module StillActive
   module Sarif
-    # Catalog of SARIF rules emitted by still_active. Rule IDs (SA001-SA007)
+    # Catalog of SARIF rules emitted by still_active. Rule IDs (SA001-SA008)
     # are stable across versions; renames or removals are breaking changes.
     #
     # Each rule maps a still_active finding into a SARIF result. Security
@@ -104,6 +104,16 @@ module StillActive
           level: "error",
           security_severity: "8.0",
           tags: ["security", "supply-chain", "external/cwe/cwe-1104"],
+        },
+        {
+          id: "SA008",
+          name: "PoisonPill",
+          short: "Dormant gem caps a dependency below its latest major",
+          full: "A dormant (abandoned or archived) gem declares a runtime constraint that caps one of its dependencies below that dependency's current latest major. Because nobody is shipping the gem, the cap will never lift, and it grows more constraining as the capped dependency releases new majors: the tree is held below a ceiling no upstream release will raise.",
+          help_text: "Replace or fork the dormant gem, or vendor a version that relaxes the constraint. For a transitive pill, target the direct dependency that pulls it in.",
+          level: "warning",
+          security_severity: nil, # maintenance/resolvability, not a CVE (as SA002/SA004/SA005)
+          tags: ["maintenance", "supply-chain", "external/cwe/cwe-1104"],
         },
       ].freeze
 

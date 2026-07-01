@@ -6,6 +6,7 @@ require "time"
 require_relative "../still_active/sarif/rules"
 require_relative "lockfile_indexer"
 require_relative "activity_helper"
+require_relative "constraint_helper"
 
 module StillActive
   # Renders a still_active workflow result as a SARIF 2.1.0 document.
@@ -137,7 +138,28 @@ module StillActive
         out << mark_suppressed(result("SA007", name, "#{name} #{version}: this version has been yanked from RubyGems.", location), name, :yanked)
       end
 
+      if data[:poison] && !Array(data[:constraints]).empty?
+        out << mark_suppressed(result("SA008", name, poison_message(name, version, data), location), name, :poison)
+      end
+
       out
+    end
+
+    # The poison receipt for a Code Scanning alert: the worst 3 caps (shared
+    # ranking via ConstraintHelper.top_findings so it can't drift from the other
+    # renderers) with the exact latest version (a machine-read alert wants the
+    # precise version, not the "8.x" the terminal abbreviates to), plus "+N more"
+    # and the transitive parent. Note result() fingerprints on (rule_id, gem_name)
+    # only, so this volatile detail never re-alerts a finding the user triaged.
+    def poison_message(name, version, data)
+      top = ConstraintHelper.top_findings(Array(data[:constraints]), limit: 3)
+      caps = top[:shown].map do |finding|
+        behind = finding[:majors_behind]
+        "#{finding[:dependency]} #{finding[:requirement]} (#{behind} major#{"s" unless behind == 1} behind, latest #{finding[:dep_latest]})"
+      end
+      remaining = top[:total] - top[:shown].length
+      caps << "+#{remaining} more" if remaining.positive?
+      "#{name} #{version}: caps #{caps.join("; ")}#{transitive_suffix(data)}."
     end
 
     # Attaches a SARIF native suppressions[] entry when this finding is covered
