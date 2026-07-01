@@ -193,7 +193,8 @@ module StillActive
 
       noun = unassessable.size == 1 ? "dependency" : "dependencies"
       $stderr.puts("warning: #{unassessable.size} #{noun} could not be assessed " \
-        "(unsupported ecosystem, missing version, no package URL, or a lookup failure); see \"unassessable\" in the JSON output")
+        "(a private/alternative registry, unsupported ecosystem, missing version, no package URL, or a lookup failure); " \
+        "see \"unassessable\" in the JSON output")
     end
 
     # Dates live in the result as real Time objects (the activity/libyear math
