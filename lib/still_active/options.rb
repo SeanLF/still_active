@@ -162,6 +162,9 @@ module StillActive
       opts.on("--fail-if-outdated=LIBYEARS", Float, "Exit 1 if any gem exceeds LIBYEARS behind latest") do |value|
         StillActive.config { |config| config.fail_if_outdated = value }
       end
+      opts.on("--fail-if-poison", "Exit 1 if any dormant gem caps a dependency below its latest major (poison-pill)") do
+        StillActive.config { |config| config.fail_if_poison = true }
+      end
     end
 
     def add_emoji_options(opts)

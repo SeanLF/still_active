@@ -99,6 +99,18 @@ RSpec.describe(StillActive::Suppressions) do
       expect(s.warnings).to(be_empty)
       expect(s.suppressed?(gem: "g", signal: :activity)).to(be(true))
     end
+
+    it("accepts a poison signal suppression for a named gem") do
+      s = build([{ "gem" => "protected_attributes", "signal" => "poison", "reason" => "vendored" }])
+      expect(s.warnings).to(be_empty)
+      expect(s.suppressed?(gem: "protected_attributes", signal: :poison)).to(be(true))
+      expect(s.suppressed?(gem: "other", signal: :poison)).to(be(false))
+    end
+
+    it("rejects a poison suppression that names no gem (must target a specific gem)") do
+      s = build([{ "signal" => "poison" }])
+      expect(s.warnings.join).to(match(/gem/i))
+    end
   end
 
   describe("#stale_gem_warnings (presence-based rot)") do
