@@ -147,9 +147,14 @@ module StillActive
 
       if data[:ruby_ceiling]
         # Level tracks the ceiling tier: critical (EOL-forced) -> error, note
-        # (latest-not-yet) -> note. Fingerprint stays (rule_id, gem_name) so a
-        # shifting Ruby support window doesn't re-alert a triaged finding.
-        out << mark_suppressed(result("SA009", name, ruby_ceiling_message(name, version, data), location, level: ruby_ceiling_level(data)), name, :ruby_ceiling)
+        # (latest-not-yet) -> note. Fingerprint is (rule_id, gem_name, state) where
+        # state is the eol_forced boolean: cosmetic churn (which patch, which
+        # latest) doesn't re-alert, but a note -> EOL-forced escalation (a supported
+        # Ruby went EOL) mints a NEW alert so a past dismissal of the note can't
+        # silently mute the critical -- that transition is exactly the one a human
+        # must see.
+        state = data[:ruby_ceiling][:eol_forced] ? "eol_forced" : "latest_not_yet"
+        out << mark_suppressed(result("SA009", name, ruby_ceiling_message(name, version, data), location, level: ruby_ceiling_level(data), fp_extra: state), name, :ruby_ceiling)
       end
 
       out

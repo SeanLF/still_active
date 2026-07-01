@@ -579,6 +579,25 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    describe(".reconcile_ceiling_with_poison") do
+      it("drops a ceiling's fixed_by_upgrade when the same tree poisons that gem below the fix") do
+        result = {
+          "foo" => { ruby_ceiling: { requirement: "< 3.3", eol_forced: true, severity: :critical, fixed_by_upgrade: true } },
+          "bar" => { constraints: [{ dependency: "foo", requirement: "< 2.0", dep_latest: "2.0.0", majors_behind: 1, kind: :ceiling }] },
+        }
+        described_class.send(:reconcile_ceiling_with_poison, result)
+        expect(result["foo"][:ruby_ceiling][:fixed_by_upgrade]).to(be(false))
+        expect(result["foo"][:ruby_ceiling][:upgrade_blocked]).to(be(true))
+      end
+
+      it("leaves fixed_by_upgrade true when nothing caps that gem") do
+        result = { "foo" => { ruby_ceiling: { fixed_by_upgrade: true } } }
+        described_class.send(:reconcile_ceiling_with_poison, result)
+        expect(result["foo"][:ruby_ceiling][:fixed_by_upgrade]).to(be(true))
+        expect(result["foo"][:ruby_ceiling]).not_to(have_key(:upgrade_blocked))
+      end
+    end
+
     context("with a language-runtime ceiling") do
       let(:range) do
         {

@@ -179,6 +179,29 @@ RSpec.describe(StillActive::RubyHelper) do
       expect(described_class.supported_ruby_range).to(be_nil)
     end
 
+    it("marks the latest stable fresh when the newest cycle shipped inside the grace window") do
+      recent = cycles.map.with_index { |c, i| i.zero? ? c.merge("releaseDate" => (Time.now - (10 * 86_400)).strftime("%Y-%m-%d")) : c }
+      allow(StillActive::HttpHelper).to(receive(:get_json).and_return(recent))
+      expect(described_class.supported_ruby_range[:latest_stable_fresh]).to(be(true))
+    end
+
+    it("marks the latest stable not-fresh once the newest cycle is older than the grace window") do
+      old = cycles.map.with_index { |c, i| i.zero? ? c.merge("releaseDate" => (Time.now - (400 * 86_400)).strftime("%Y-%m-%d")) : c }
+      allow(StillActive::HttpHelper).to(receive(:get_json).and_return(old))
+      expect(described_class.supported_ruby_range[:latest_stable_fresh]).to(be(false))
+    end
+
+    it("degrades freshness to false (does not raise or disable the window) on a malformed releaseDate") do
+      # A malformed-but-present releaseDate must not raise out of supported_ruby_range:
+      # that would null the whole range and silently disable EOL-forced criticals.
+      bad = cycles.map.with_index { |c, i| i.zero? ? c.merge("releaseDate" => "2023-13-99") : c }
+      allow(StillActive::HttpHelper).to(receive(:get_json).and_return(bad))
+      range = nil
+      expect { range = described_class.supported_ruby_range }.not_to(raise_error)
+      expect(range).not_to(be_nil)
+      expect(range[:latest_stable_fresh]).to(be(false))
+    end
+
     it("returns nil rather than raising when the newest cycle's `latest` is malformed") do
       # endoflife.date is best-effort third-party data; a garbled/preview `latest`
       # must never crash the run (supported_ruby_range is fetched outside the

@@ -136,7 +136,9 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 **SARIF level:** `note` by default, raised to `error` per result for an EOL-forcing cap · **security-severity:** none (a maintenance/compatibility finding, not a vulnerability) · **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html)
 
-**How to fix:** if a newer release of the gem lifts the cap, upgrade it (the finding says so when it does). Otherwise replace or fork the gem, or contribute Ruby-N support upstream.
+**How to fix:** if a newer release of the gem lifts the cap, upgrade it (the finding says so when it does, unless a poison-pill on the same gem blocks that upgrade). Otherwise replace or fork the gem, or contribute Ruby-N support upstream.
+
+**Reading the negative space:** a declared `ruby_version` cap is a maintainer being honest about tested compatibility, not a defect. Equally, **no SA009 findings does not mean "safe to bump Ruby"**: the signal only sees gems that *declare* a cap. The most common real upgrade blockers (native extensions that fail to compile, removed stdlib, deprecated C-API) declare nothing and are invisible here. A latest-not-yet cap is also suppressed for a grace period after a new Ruby ships, since "doesn't support it yet" three days in is about the release calendar, not the gem.
 
 **When to suppress:** when the pinned version is deliberate and the runtime ceiling is accepted. Suppress the `ruby_ceiling` signal for the specific gem in `.still_active.yml`, ideally with an `expires:` date so the acceptance is revisited.
 

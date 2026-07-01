@@ -45,7 +45,11 @@ module StillActive
 
       if supported_allowed.empty?
         eol_forced_finding(req, requirement, support_window)
-      elsif !req.satisfied_by?(support_window[:latest_stable])
+      elsif !req.satisfied_by?(support_window[:latest_stable]) && !support_window[:latest_stable_fresh]
+        # Runs on a supported runtime but not the latest stable. Suppressed while
+        # the latest stable is still within its grace window (see supported_ruby_
+        # range): right after a runtime ships, "doesn't support it yet" indicts the
+        # release calendar, not the gem. After the window it is a real note.
         latest_not_yet_finding(requirement, support_window)
       end
     end

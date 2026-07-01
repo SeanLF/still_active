@@ -151,6 +151,12 @@ RSpec.describe(StillActive::Options) do
         .to(raise_error(ArgumentError, /tier must be one of/))
     end
 
+    it("warns that fail-if-ruby-ceiling=warning is a no-op tier but still accepts it") do
+      expect { described_class.new.parse!(["--fail-if-ruby-ceiling=warning", "--gems=rails"]) }
+        .to(output(/no effect.*behaves as =critical/).to_stderr)
+      expect(StillActive.config.fail_if_ruby_ceiling).to(eq(:warning))
+    end
+
     it("sets ignored gems from comma-separated list") do
       described_class.new.parse!(["--ignore=nokogiri,puma", "--gems=rails"])
       expect(StillActive.config.ignored_gems).to(eq(["nokogiri", "puma"]))

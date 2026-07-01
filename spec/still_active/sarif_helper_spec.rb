@@ -310,12 +310,20 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(sa009).not_to(have_key("properties"))
     end
 
-    it("fingerprints on gem identity only, so a shifting Ruby window doesn't re-alert") do
+    it("fingerprints stably within a tier, so a shifting Ruby window doesn't re-alert cosmetic churn") do
       fp = lambda do |ceiling_ver|
         f = eol_finding.merge(ceiling_version: ceiling_ver)
         render(result: ceiling(f)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }.dig("partialFingerprints", "stillActiveFinding/v1")
       end
       expect(fp.call("3.1")).to(eq(fp.call("3.0")))
+    end
+
+    it("mints a DIFFERENT fingerprint when a note escalates to EOL-forced, so a past dismissal can't mute the critical") do
+      note = { requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }
+      fp = lambda do |finding|
+        render(result: ceiling(finding)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }.dig("partialFingerprints", "stillActiveFinding/v1")
+      end
+      expect(fp.call(note)).not_to(eq(fp.call(eol_finding)))
     end
 
     it("does not fire for a gem without a ceiling") do

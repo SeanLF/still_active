@@ -90,6 +90,10 @@ module StillActive
           end
         end
         barrier.wait
+        # Whole-tree correlation, once every gem's signals are in: a ceiling's
+        # "upgrade to lift it" must not contradict a poison finding that caps the
+        # same gem below that upgrade.
+        reconcile_ceiling_with_poison(result_object)
         # Gems are inserted as their async tasks finish, so the natural order is
         # nondeterministic completion order. Sort by name once here so every
         # consumer (JSON, SARIF, the baseline diff) gets a stable, diffable order.
@@ -103,6 +107,26 @@ module StillActive
     end
 
     private
+
+    # A ceiling that says "upgrade <gem> to lift it" is wrong if the same tree
+    # poisons <gem> below that upgrade (a dormant dep caps it). Correlate the two
+    # signals so the report never advises an upgrade its own poison finding says is
+    # impossible: clear fixed_by_upgrade and mark the block. All data is already in
+    # the assembled result, so this is one whole-tree pass, no extra fetches.
+    def reconcile_ceiling_with_poison(result_object)
+      capped = result_object.each_value
+        .flat_map { |data| Array(data[:constraints]) }
+        .select { |constraint| constraint[:majors_behind].to_i.positive? }
+        .map { |constraint| constraint[:dependency] }
+        .uniq
+      result_object.each do |name, data|
+        ceiling = data[:ruby_ceiling]
+        next unless ceiling && ceiling[:fixed_by_upgrade] && capped.include?(name)
+
+        ceiling[:fixed_by_upgrade] = false
+        ceiling[:upgrade_blocked] = true
+      end
+    end
 
     def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, direct: true, dependency_path: nil, advisory_db: nil, catalog: nil, constraint_cache: {}, ruby_range: nil)
       result_object[gem_name] = { source_type: source_type, direct: direct }

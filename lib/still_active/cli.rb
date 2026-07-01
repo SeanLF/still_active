@@ -413,10 +413,12 @@ module StillActive
       return false unless config.fail_if_ruby_ceiling
       return false if suppressions.suppressed?(gem: name, signal: :ruby_ceiling)
 
-      # Same threshold semantics as poison: bare flag fails at :warning+ (a
-      # latest-not-yet :note is an FYI/contribution lead, not a build breaker); an
-      # EOL-forcing ceiling is :critical and always trips the default.
-      threshold = config.fail_if_ruby_ceiling == true ? :warning : config.fail_if_ruby_ceiling
+      # Ceiling findings are only ever :critical (EOL-forced) or :note
+      # (latest-not-yet) -- there is no :warning tier for this signal -- so the
+      # bare flag defaults to :critical (the genuine blocker: no supported Ruby is
+      # reachable). A latest-not-yet :note is an FYI/contribution lead that gates
+      # only when the user explicitly opts in with =note.
+      threshold = config.fail_if_ruby_ceiling == true ? :critical : config.fail_if_ruby_ceiling
       ConstraintHelper.severity_at_or_above?(data.dig(:ruby_ceiling, :severity), threshold)
     end
 

@@ -797,13 +797,16 @@ RSpec.describe(StillActive::CLI) do
       )
     end
 
-    it("exits 1 when an EOL-forcing (critical) ceiling meets the default (warning) threshold") do
+    # Ceiling findings only ever carry :critical (EOL-forced) or :note
+    # (latest-not-yet) -- there is no :warning tier -- so the bare gate defaults to
+    # :critical (the real blocker), not the :warning poison uses.
+    it("exits 1 when an EOL-forcing (critical) ceiling meets the default (critical) threshold") do
       StillActive.config.fail_if_ruby_ceiling = true
       expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem(:critical) }) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 
-    it("does NOT exit on a note-level ceiling under the default (warning) threshold") do
+    it("does NOT exit on a note-level ceiling under the default (critical) threshold") do
       StillActive.config.fail_if_ruby_ceiling = true
       expect { cli.send(:check_exit_status, { "somegem" => ceiling_gem(:note) }) }.not_to(raise_error)
     end

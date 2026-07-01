@@ -65,6 +65,23 @@ RSpec.describe(StillActive::RuntimeCeilingHelper) do
         expect(finding[:eol_forced]).to(be(false))
         expect(finding[:severity]).to(eq(:note))
       end
+
+      # Grace window: the week a new Ruby ships, every gem with any upper bound
+      # below it would fire a latest-not-yet note simultaneously, indicting the
+      # maintainers who were honest about untested compatibility. While the latest
+      # stable is still fresh, suppress the note entirely (it is about Ruby's
+      # release calendar, not the gem). EOL-forced is unaffected.
+      it("suppresses a latest-not-yet note while the latest stable is within its grace window") do
+        window = support_window.merge(latest_stable_fresh: true)
+        expect(described_class.analyze(requirement: "~> 3.3", support_window: window)).to(be_nil)
+      end
+
+      it("still flags an EOL-forced ceiling even while the latest stable is fresh (grace is note-only)") do
+        window = support_window.merge(latest_stable_fresh: true)
+        finding = described_class.analyze(requirement: "< 3.2", support_window: window)
+        expect(finding[:eol_forced]).to(be(true))
+        expect(finding[:severity]).to(eq(:critical))
+      end
     end
 
     context("with no ceiling") do

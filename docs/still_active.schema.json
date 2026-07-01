@@ -117,7 +117,8 @@
         "ceiling_eol_date": { "type": ["string", "null"], "format": "date-time" },
         "oldest_supported": { "type": "string" },
         "latest_stable": { "type": "string" },
-        "fixed_by_upgrade": { "type": "boolean" }
+        "fixed_by_upgrade": { "type": "boolean" },
+        "upgrade_blocked": { "type": "boolean" }
       }
     },
     "vulnerability": {
