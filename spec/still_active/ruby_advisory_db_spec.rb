@@ -6,7 +6,7 @@ require "bundler/audit/database"
 RSpec.describe(StillActive::RubyAdvisoryDb) do
   # A stand-in for a bundler-audit Advisory: the CVSS scores live in #to_h,
   # while ids are exposed as methods (matches bundler-audit 0.9.3).
-  def fake_advisory(ghsa_id:, cve_id:, id:, identifiers:, to_h:)
+  def fake_advisory(ghsa_id:, cve_id:, id:, identifiers:, to_h:, patched_versions: [Gem::Requirement.new(">= 1.0")], unaffected_versions: [])
     instance_double(
       Bundler::Audit::Advisory,
       ghsa_id: ghsa_id,
@@ -14,6 +14,8 @@ RSpec.describe(StillActive::RubyAdvisoryDb) do
       id: id,
       identifiers: identifiers,
       to_h: to_h,
+      patched_versions: patched_versions,
+      unaffected_versions: unaffected_versions,
     )
   end
 
@@ -60,6 +62,38 @@ RSpec.describe(StillActive::RubyAdvisoryDb) do
 
     it("tags the source as ruby-advisory-db") do
       expect(vulnerability[:source]).to(eq("ruby-advisory-db"))
+    end
+
+    def unpatched(unaffected: [])
+      fake_advisory(
+        ghsa_id: "GHSA-x",
+        cve_id: "CVE-x",
+        id: "CVE-x",
+        identifiers: ["CVE-x"],
+        to_h: {},
+        patched_versions: [],
+        unaffected_versions: unaffected,
+      )
+    end
+
+    it("marks no_fix_available when the advisory declares no patched or forward-safe version") do
+      expect(described_class.to_vulnerability(unpatched)[:no_fix_available]).to(be(true))
+    end
+
+    it("marks no_fix_available when the only safe versions are older than the flaw (< X)") do
+      advisory = unpatched(unaffected: [Gem::Requirement.new("< 1.0.6")])
+      expect(described_class.to_vulnerability(advisory)[:no_fix_available]).to(be(true))
+    end
+
+    it("does NOT mark no_fix when a later clean release exists in unaffected_versions (backdoor/yank pattern)") do
+      # CVE-2019-15224 shape: version X was backdoored, "> X" is a clean forward fix
+      # recorded in unaffected_versions rather than patched_versions.
+      advisory = unpatched(unaffected: [Gem::Requirement.new("< 1.18.0"), Gem::Requirement.new("> 1.18.0")])
+      expect(described_class.to_vulnerability(advisory)[:no_fix_available]).to(be(false))
+    end
+
+    it("marks no_fix_available false when a patched version exists") do
+      expect(vulnerability[:no_fix_available]).to(be(false))
     end
 
     it("falls back to the CVE id when there is no GHSA id") do

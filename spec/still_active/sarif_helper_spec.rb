@@ -303,6 +303,19 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(sa003.size).to(eq(2))
     end
 
+    it("notes when an advisory has no fixed version available") do
+      report = {
+        "stuck" => {
+          version_used: "1.0.0",
+          vulnerabilities: [
+            { id: "CVE-2026-9", title: "RCE", cvss3_score: 9.0, no_fix_available: true },
+          ],
+        },
+      }
+      msg = render(result: report).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA003" }.dig("message", "text")
+      expect(msg).to(include("no fixed version available"))
+    end
+
     it("maps CVSS to level (>= 7 -> error, 4-6.9 -> warning)") do
       sa003 = results.select { |r| r["ruleId"] == "SA003" }
       by_message = sa003.to_h { |r| [r["message"]["text"][/CVE-\d{4}-\d+/], r["level"]] }

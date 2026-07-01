@@ -102,7 +102,8 @@ module StillActive
       return AnsiHelper.green("0") if count.zero?
 
       severity = VulnerabilityHelper.highest_severity(data[:vulnerabilities])
-      label = severity ? "#{count} (#{severity})" : count.to_s
+      notes = [severity, ("no fix" if VulnerabilityHelper.no_fix_available?(data[:vulnerabilities]))].compact
+      label = notes.empty? ? count.to_s : "#{count} (#{notes.join(", ")})"
       AnsiHelper.red(label)
     end
 

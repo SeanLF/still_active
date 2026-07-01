@@ -13,6 +13,9 @@ module StillActive
     extend self
 
     STALE_AFTER_SECONDS = 30 * 24 * 60 * 60 # 30 days
+    # Requirement operators whose safe versions are OLDER than the flaw, i.e. not a
+    # forward fix a consumer can upgrade to. Anything else ("> X" etc.) is.
+    OLDER_THAN_FLAW_OPERATORS = ["<", "<="].freeze
 
     # bundler-audit's Database#check_gem expects an object responding to
     # #name and #version (a Gem::Version).
@@ -66,11 +69,31 @@ module StillActive
         cvss3_score: details[:cvss_v3],
         cvss3_vector: nil,
         cvss2_score: details[:cvss_v2],
+        # No safe version a consumer can upgrade TO: the correlation bundler-audit
+        # + `bundle outdated` can't produce alone. A factual read of the DB.
+        no_fix_available: no_forward_fix?(advisory),
         source: "ruby-advisory-db",
       }
     end
 
     private
+
+    # True when the advisory records no version the consumer can move forward to.
+    # Mirrors bundler-audit's own `!patched? && !unaffected?` rather than only the
+    # patched half: a clean release shipped AFTER a backdoored/yanked version is
+    # recorded in unaffected_versions as a "> X" range, not in patched_versions
+    # (the CVE-2019-15224 bootstrap-sass pattern). Be conservative -- only a purely
+    # older-than-the-flaw safe range ("< X") counts as no-forward-fix -- so we never
+    # claim "no fix" while a later safe release exists.
+    def no_forward_fix?(advisory)
+      return false unless advisory.patched_versions.empty?
+
+      advisory.unaffected_versions.all? { |requirement| older_than_flaw_only?(requirement) }
+    end
+
+    def older_than_flaw_only?(requirement)
+      requirement.requirements.all? { |operator, _| OLDER_THAN_FLAW_OPERATORS.include?(operator) }
+    end
 
     # nil for versions Gem::Version can't parse (e.g. a git sha); such a "version"
     # has nothing to match in the advisory DB, so the caller returns [].
