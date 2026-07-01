@@ -122,6 +122,22 @@ RSpec.describe(StillActive::HttpHelper) do
       expect(result).to(be_nil)
     end
 
+    it("returns nil instead of raising on a TLS handshake failure (OpenSSL::SSL::SSLError)") do
+      stub_request(:get, "https://api.deps.dev/x").to_raise(OpenSSL::SSL::SSLError.new("handshake failure"))
+
+      result = nil
+      expect { result = described_class.get_json(URI("https://api.deps.dev"), "/x", headers: auth) }.not_to(raise_error)
+      expect(result).to(be_nil)
+    end
+
+    it("returns nil instead of raising when the host is unreachable (an Errno::* / SystemCallError)") do
+      stub_request(:get, "https://api.deps.dev/x").to_raise(Errno::EHOSTUNREACH)
+
+      result = nil
+      expect { result = described_class.get_json(URI("https://api.deps.dev"), "/x", headers: auth) }.not_to(raise_error)
+      expect(result).to(be_nil)
+    end
+
     it("returns nil instead of parsing a response body over the size cap") do
       stub_const("StillActive::HttpHelper::MAX_BODY_BYTES", 50)
       # Valid JSON, but larger than the cap: the cap must win before parsing.

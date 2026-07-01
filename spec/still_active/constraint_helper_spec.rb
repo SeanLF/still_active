@@ -15,7 +15,7 @@ RSpec.describe(StillActive::ConstraintHelper) do
     end
 
     it("reads an exact pin as :exact_pin") do
-      %w[=4.2.0 ==4.2.0 ===4.2.0].each do |req|
+      ["=4.2.0", "==4.2.0", "===4.2.0"].each do |req|
         expect(described_class.analyze(requirement: req, dep_latest: "8.0.0")[:kind]).to(eq(:exact_pin))
       end
     end
@@ -106,7 +106,7 @@ RSpec.describe(StillActive::ConstraintHelper) do
       expect(described_class.poison_ceiling?(requirement: "~> 4.2", dep_latest: "8.0.0")).to(be(true))
       expect(described_class.poison_ceiling?(requirement: "= 4.2.0", dep_latest: "8.0.0")).to(be(true))
       expect(described_class.poison_ceiling?(requirement: ">= 4.2.0", dep_latest: "8.0.0")).to(be(false)) # permissive
-      expect(described_class.poison_ceiling?(requirement: "~> 8.0", dep_latest: "8.2.0")).to(be(false))  # at latest
+      expect(described_class.poison_ceiling?(requirement: "~> 8.0", dep_latest: "8.2.0")).to(be(false)) # at latest
     end
   end
 end

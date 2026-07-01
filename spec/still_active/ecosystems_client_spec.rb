@@ -91,4 +91,105 @@ RSpec.describe(StillActive::EcosystemsClient) do
       expect(a_request(:get, repo_url).with(query: hash_including("mailto"))).not_to(have_been_made)
     end
   end
+
+  describe(".declared_dependencies") do
+    let(:deps_url) do
+      "https://packages.ecosyste.ms/api/v1/registries/rubygems.org/packages/protected_attributes/versions/1.1.4"
+    end
+
+    def stub_deps(body)
+      stub_request(:get, deps_url)
+        .to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
+    end
+
+    it("returns runtime deps with their raw requirement strings (the poison-pill receipt source)") do
+      stub_deps({
+        "dependencies" => [
+          { "package_name" => "activemodel", "requirements" => "< 5.0, >= 4.0.1", "kind" => "runtime" },
+          { "package_name" => "actionpack", "requirements" => "< 5.0", "kind" => "runtime" },
+        ],
+      })
+      result = described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4")
+      expect(result).to(eq([
+        { package_name: "activemodel", requirements: "< 5.0, >= 4.0.1" },
+        { package_name: "actionpack", requirements: "< 5.0" },
+      ]))
+    end
+
+    it("filters out Development (non-runtime) dependencies, which don't cap the consumer's tree") do
+      stub_deps({
+        "dependencies" => [
+          { "package_name" => "activemodel", "requirements" => "< 5.0", "kind" => "runtime" },
+          { "package_name" => "mocha", "requirements" => ">= 0", "kind" => "Development" },
+          { "package_name" => "sqlite3", "requirements" => ">= 0", "kind" => "Development" },
+        ],
+      })
+      expect(described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4"))
+        .to(eq([{ package_name: "activemodel", requirements: "< 5.0" }]))
+    end
+
+    it("drops entries missing a package name or requirement string, without crashing") do
+      stub_deps({
+        "dependencies" => [
+          { "package_name" => "activemodel", "requirements" => "< 5.0", "kind" => "runtime" },
+          { "package_name" => nil, "requirements" => "< 5.0", "kind" => "runtime" },
+          { "package_name" => "actionpack", "requirements" => nil, "kind" => "runtime" },
+        ],
+      })
+      expect(described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4"))
+        .to(eq([{ package_name: "activemodel", requirements: "< 5.0" }]))
+    end
+
+    it("returns [] when the version has no dependencies array (schema drift or missing field)") do
+      stub_deps({ "number" => "1.1.4" })
+      expect(described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4")).to(eq([]))
+    end
+
+    it("returns [] on a non-object body without raising") do
+      stub_request(:get, deps_url)
+        .to_return(status: 200, body: [1, 2].to_json, headers: { "Content-Type" => "application/json" })
+      expect { expect(described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4")).to(eq([])) }
+        .not_to(raise_error)
+    end
+
+    it("returns [] on a non-success status (e.g. an unindexed version)") do
+      stub_request(:get, deps_url).to_return(status: 404)
+      expect(described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4")).to(eq([]))
+    end
+
+    it("returns [] on timeout") do
+      stub_request(:get, deps_url).to_timeout
+      expect(described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4")).to(eq([]))
+    end
+
+    it("returns [] without calling the API when name or version is nil") do
+      expect(described_class.declared_dependencies(name: nil, version: "1.1.4")).to(eq([]))
+      expect(described_class.declared_dependencies(name: "protected_attributes", version: nil)).to(eq([]))
+      expect(a_request(:get, /packages\.ecosyste\.ms/)).not_to(have_been_made)
+    end
+
+    it("targets the registry passed in (cross-ecosystem: pypi, npm, crates.io)") do
+      stub = stub_request(:get, "https://packages.ecosyste.ms/api/v1/registries/pypi.org/packages/django/versions/1.11")
+        .to_return(status: 200,
+          body: { "dependencies" => [{ "package_name" => "pytz", "requirements" => ">= 0", "kind" => "runtime" }] }.to_json,
+          headers: { "Content-Type" => "application/json" })
+      described_class.declared_dependencies(name: "django", version: "1.11", registry: "pypi.org")
+      expect(stub).to(have_been_requested)
+    end
+
+    it("identifies still_active in the User-Agent (ecosyste.ms polite pool)") do
+      stub = stub_deps({ "dependencies" => [] }).with(headers: { "User-Agent" => /still_active/ })
+      described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4")
+      expect(stub).to(have_been_requested)
+    end
+
+    it("sends a mailto query param for the polite pool when an email is configured") do
+      StillActive.config.ecosystems_email = "dev@example.com"
+      stub = stub_request(:get, deps_url)
+        .with(query: { "mailto" => "dev@example.com" })
+        .to_return(status: 200, body: { "dependencies" => [] }.to_json, headers: { "Content-Type" => "application/json" })
+      described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4")
+      expect(stub).to(have_been_requested)
+    end
+  end
 end

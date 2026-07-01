@@ -18,6 +18,12 @@ module StillActive
   module ConstraintHelper
     extend self
 
+    # The constraint kinds that make a dep a poison-pill candidate: an upper bound
+    # that blocks upgrades, or an exact pin that freezes the whole tree. A
+    # `:permissive` constraint is neither. Shared with the workflow so the poison
+    # definition lives in one place.
+    POISON_KINDS = [:ceiling, :exact_pin].freeze
+
     # An exact pin: = / == / === before a digit (NOT >= or <=).
     EXACT_PIN = /\A={1,3}\s*v?\d/
     # A bare version with no operator (npm/cargo exact form), e.g. "1.2.3", "v1".
@@ -51,7 +57,7 @@ module StillActive
     # constraint, or a cap at/above the dep's latest major, is not a pill.
     def poison_ceiling?(requirement:, dep_latest:)
       result = analyze(requirement: requirement, dep_latest: dep_latest)
-      [:ceiling, :exact_pin].include?(result[:kind]) && result[:majors_behind].positive?
+      POISON_KINDS.include?(result[:kind]) && result[:majors_behind].positive?
     end
 
     private

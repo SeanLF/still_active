@@ -1,11 +1,26 @@
 # frozen_string_literal: true
 
 require "net/http"
+require "openssl"
 require "json"
 
 module StillActive
   module HttpHelper
-    TRUSTED_HOSTS = ["github.com", "gitlab.com", "codeberg.org", "api.deps.dev", "endoflife.date", "rubygems.pkg.github.com", "repos.ecosyste.ms"].freeze
+    TRUSTED_HOSTS = ["github.com", "gitlab.com", "codeberg.org", "api.deps.dev", "endoflife.date", "rubygems.pkg.github.com", "repos.ecosyste.ms", "packages.ecosyste.ms"].freeze
+    # Transport-level failures ("host unreachable / connection broke", not an HTTP
+    # error status). Every network entry point degrades to a safe empty result on
+    # these rather than letting one escape and vanish a gem from the audit.
+    # SystemCallError is the superclass of the whole Errno::* family (EHOSTUNREACH,
+    # ENETUNREACH, ETIMEDOUT, EPIPE, ECONNREFUSED, ECONNRESET, ...), so we don't
+    # have to enumerate each one and miss the next.
+    TRANSPORT_ERRORS = [
+      Net::OpenTimeout,
+      Net::ReadTimeout,
+      SocketError,
+      SystemCallError,
+      OpenSSL::SSL::SSLError,
+      EOFError,
+    ].freeze
     MAX_REDIRECTS = 3
     # Ceiling on a single response body. These are metadata endpoints (version
     # lists, scorecards, advisories); legitimate responses are well under this.
@@ -94,7 +109,7 @@ module StillActive
 
       $stderr.puts("warning: #{uri.host}#{uri.path} too many redirects")
       nil
-    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED, Errno::ECONNRESET => e
+    rescue *TRANSPORT_ERRORS => e
       $stderr.puts("warning: #{uri.host}#{uri.path} failed: #{e.class} (#{e.message})")
       nil
     rescue JSON::ParserError => e
