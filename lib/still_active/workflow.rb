@@ -10,6 +10,8 @@ require_relative "repository"
 require_relative "../helpers/activity_helper"
 require_relative "../helpers/alternatives_helper"
 require_relative "../helpers/catalog_index"
+require_relative "../helpers/constraint_helper"
+require_relative "../helpers/http_helper"
 require_relative "../helpers/libyear_helper"
 require_relative "../helpers/ruby_advisory_db"
 require_relative "../helpers/ruby_helper"
@@ -40,6 +42,11 @@ module StillActive
         barrier = Async::Barrier.new
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result_object = {}
+        # Memoizes each capped dep's latest version across gems for the run, so a
+        # dep pinned by several dormant gems is resolved once. Shared, single-writer
+        # under Async's cooperative scheduling (a duplicate concurrent miss just
+        # refetches the same value; it can't corrupt the map).
+        constraint_cache = {}
         total = StillActive.config.gems.size
         completed = 0
         StillActive.config.gems.each_with_object(result_object) do |gem, hash|
@@ -54,6 +61,7 @@ module StillActive
               dependency_path: gem[:dependency_path],
               advisory_db: advisory_db,
               catalog: catalog,
+              constraint_cache: constraint_cache,
             )
           rescue Octokit::TooManyRequests
             $stderr.print("\r\e[K") if on_progress
@@ -81,7 +89,7 @@ module StillActive
 
     private
 
-    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, direct: true, dependency_path: nil, advisory_db: nil, catalog: nil)
+    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, direct: true, dependency_path: nil, advisory_db: nil, catalog: nil, constraint_cache: {})
       result_object[gem_name] = { source_type: source_type, direct: direct }
       result_object[gem_name][:dependency_path] = dependency_path if dependency_path
       result_object[gem_name][:version_used] = gem_version if gem_version
@@ -100,6 +108,12 @@ module StillActive
       end
 
       attach_alternatives(gem_name: gem_name, result_object: result_object, catalog: catalog)
+      # Poison-pill enrichment runs last and only on the rubygems path (git/path
+      # gems aren't in the registry). Placed after alternatives so a stray fetch
+      # error can never cost the gem its other, already-assembled signals.
+      unless [:path, :git].include?(source_type)
+        attach_constraints(gem_name: gem_name, result_object: result_object, cache: constraint_cache)
+      end
     end
 
     def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:, advisory_db: nil)
@@ -203,6 +217,54 @@ module StillActive
       nil # cosmetic best-effort: lead-fetching must never break the core audit
     end
 
+    # Poison-pill detection. A dormant gem that declares a runtime constraint
+    # capping a still-evolving dep BELOW that dep's current latest major holds the
+    # tree hostage: the cap will never lift because nobody is shipping the gem, and
+    # it gets more poisonous with time as the capped dep keeps releasing majors.
+    #
+    # Gated on dormancy so a MAINTAINED gem with a cap is never flagged (it'll bump
+    # the cap) -- that gate is the whole discipline of the signal. Each surviving
+    # finding carries its receipt (caps X; latest Y; N majors behind). Best-effort
+    # and non-raising: every underlying call degrades to []/nil on failure, so a
+    # lookup miss just means "no constraints known", never a dropped gem.
+    def attach_constraints(gem_name:, result_object:, cache:)
+      gem_data = result_object[gem_name]
+      # The locked version if the caller pinned one (that's the requirement set
+      # actually in their tree), else the gem's latest.
+      version = gem_data[:version_used] || gem_data[:latest_version]
+      return if version.nil?
+      return unless [:critical, :archived].include?(ActivityHelper.activity_level(gem_data))
+
+      declared = EcosystemsClient.declared_dependencies(name: gem_name, version: version)
+      constraints = ConstraintHelper.poison_findings(declared) do |dep_name|
+        resolve_latest_version(dep_name, result_object: result_object, cache: cache)
+      end
+      return if constraints.empty?
+
+      gem_data[:constraints] = constraints
+      # Poison = a version ceiling that blocks upgrades. An exact-pin below latest
+      # is a milder resolution hazard: still surfaced in constraints, but it may be
+      # deliberate, so it doesn't earn the poison label on its own.
+      gem_data[:poison] = constraints.any? { |constraint| constraint[:kind] == :ceiling }
+    end
+
+    # The capped dep's current latest stable version, for the majors-behind math.
+    # Reuse the tree's already-computed latest_version when the dep is itself in
+    # the audit (no extra request); otherwise fetch and memoize per run, so a dep
+    # capped by several dormant gems is looked up once. Only a RESOLVED version is
+    # cached: an unresolved lookup returns nil whether the dep is genuinely absent
+    # or rubygems.org was momentarily rate-limited, and caching the transient case
+    # would drop the pill for every later gem capping the same dep. So a miss is
+    # re-attempted rather than remembered.
+    def resolve_latest_version(dep_name, result_object:, cache:)
+      cache[dep_name] ||= result_object[dep_name]&.dig(:latest_version) || fetch_latest_version(dep_name)
+    end
+
+    def fetch_latest_version(dep_name)
+      latest = VersionHelper.find_version(versions: versions(gem_name: dep_name), pre_release: false)
+      VersionHelper.gem_version(version_hash: latest)
+    end
+
     def fetch_deps_dev_info(gem_name:, version:, advisory_db: nil)
       info = DepsDevClient.version_info(gem_name: gem_name, version: version)
       scorecard = DepsDevClient.project_scorecard(project_id: info&.dig(:project_id))
@@ -236,7 +298,14 @@ module StillActive
       end
     rescue Gems::NotFound
       []
-    rescue Errno::ECONNRESET, Errno::ECONNREFUSED, Net::OpenTimeout, Net::ReadTimeout, SocketError => e
+    # Gems::GemError is the `gems` library's catch-all for any non-success,
+    # non-404 response -- crucially a 429 rate-limit or a 5xx. Left unrescued it
+    # escapes to the per-gem rescue in #call and strips the gem of ALL its signals
+    # (not just versions), blaming a generic "error occurred". The poison-pill
+    # enrichment adds extra version lookups that make a 429 likelier, so a
+    # best-effort feature must not be able to degrade an unrelated gem's core data:
+    # degrade to "no versions known" here, exactly like Gems::NotFound.
+    rescue Gems::GemError, *HttpHelper::TRANSPORT_ERRORS => e
       $stderr.puts("warning: rubygems.org versions lookup failed for #{gem_name}: #{e.class} (#{e.message})")
       []
     end

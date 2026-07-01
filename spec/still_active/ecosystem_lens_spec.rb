@@ -6,7 +6,13 @@ RSpec.describe(StillActive::EcosystemLens) do
   # leaves a test token on the singleton. Without this, run order decides whether
   # the lens hits the (stubbed) ecosyste.ms path or the live GitHub API. Matches
   # the convention in config_spec/forgejo_client_spec.
-  before { StillActive.reset }
+  before do
+    StillActive.reset
+    # Poison-pill enrichment fires for any dormant package; default it to "no
+    # declared deps" so existing dormant/archived fixtures stay network-free. The
+    # poison-pill context overrides this per example.
+    allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([]))
+  end
 
   # Stub the deps.dev version endpoint (advisory keys + SOURCE_REPO link).
   def stub_version(advisory_keys: [], source_repo: nil)
@@ -180,6 +186,96 @@ RSpec.describe(StillActive::EcosystemLens) do
 
       expect(eco).not_to(have_been_requested)
       expect(result[:archived]).to(be_nil)
+    end
+  end
+
+  describe(".assess poison-pill (cross-ecosystem)") do
+    before do
+      stub_version(source_repo: "https://github.com/owner/pkg")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+    end
+
+    # Drive the package's own dormancy + each dep's latest through one mock, keyed
+    # by name, so a dormant package and its below-latest dep are both expressible.
+    def stub_latest(dates)
+      allow(StillActive::DepsDevClient).to(receive(:default_version_info)) do |name:, **|
+        entry = dates[name]
+        entry.is_a?(Hash) ? entry : { version: "9.9.9", published_at: entry }
+      end
+    end
+
+    it("flags a dormant pypi package that caps a runtime dep below its latest major (Flask -> Werkzeug)") do
+      stub_latest("flask" => "2016-05-01T00:00:00Z", "Werkzeug" => { version: "3.1.3" })
+      allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
+        .with(name: "flask", version: "0.12.5", registry: "pypi.org")
+        .and_return([{ package_name: "Werkzeug", requirements: "<1.0,>=0.7" }])
+
+      result = described_class.assess(ecosystem: :pypi, name: "flask", version: "0.12.5")
+
+      expect(result[:poison]).to(be(true))
+      expect(result[:constraints]).to(eq([
+        { dependency: "Werkzeug", requirement: "<1.0,>=0.7", dep_latest: "3.1.3", majors_behind: 3, kind: :ceiling },
+      ]))
+    end
+
+    it("surfaces a dormant npm package's below-latest exact-pin as a hazard, not poison (celery-style vine ==)") do
+      stub_latest("oldpkg" => "2017-01-01T00:00:00Z", "vine" => { version: "5.1.0" })
+      allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies)).and_return([
+        { package_name: "vine", requirements: "==1.3.0" },
+      ])
+
+      result = described_class.assess(ecosystem: :npm, name: "oldpkg", version: "1.0.0")
+
+      expect(result[:poison]).to(be(false))
+      expect(result[:constraints]).to(eq([
+        { dependency: "vine", requirement: "==1.3.0", dep_latest: "5.1.0", majors_behind: 4, kind: :exact_pin },
+      ]))
+    end
+
+    it("does NOT flag a maintained package's cap, and never asks for its constraints") do
+      stub_latest("fresh" => "2026-05-01T00:00:00Z")
+      allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
+
+      result = described_class.assess(ecosystem: :cargo, name: "fresh", version: "1.0.0")
+
+      expect(result).not_to(have_key(:poison))
+      expect(StillActive::EcosystemsClient).not_to(have_received(:declared_dependencies))
+    end
+
+    it("re-attempts a capped dep's latest across packages rather than caching a transient nil (no run-wide pill suppression)") do
+      # A shared cache across two dormant packages that both cap Werkzeug: the
+      # first hits a momentary deps.dev nil on Werkzeug; the second must still
+      # resolve it, not read a cached miss.
+      cache = {}
+      werkzeug_calls = 0
+      allow(StillActive::DepsDevClient).to(receive(:default_version_info)) do |name:, **|
+        if name == "Werkzeug"
+          werkzeug_calls += 1
+          werkzeug_calls == 1 ? nil : { version: "3.1.3" }
+        else
+          { version: "9.9.9", published_at: "2016-05-01T00:00:00Z" } # dormant package
+        end
+      end
+      allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies)).and_return([
+        { package_name: "Werkzeug", requirements: "<1.0,>=0.7" },
+      ])
+
+      first = described_class.assess(ecosystem: :pypi, name: "flask", version: "0.12.5", constraint_cache: cache)
+      second = described_class.assess(ecosystem: :pypi, name: "flask2", version: "0.12.5", constraint_cache: cache)
+
+      expect(first).not_to(have_key(:constraints)) # transient nil -> dropped this time
+      expect(second[:poison]).to(be(true))         # but recovered for the next package
+    end
+
+    it("does not attempt constraints for an unmapped ecosystem (maven/go/nuget)") do
+      stub_latest("dormant.artifact" => "2015-01-01T00:00:00Z")
+      allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
+
+      result = described_class.assess(ecosystem: :maven, name: "dormant.artifact", version: "1.0.0")
+
+      expect(result).not_to(have_key(:constraints))
+      expect(StillActive::EcosystemsClient).not_to(have_received(:declared_dependencies))
     end
   end
 end

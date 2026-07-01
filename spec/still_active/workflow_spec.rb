@@ -9,6 +9,11 @@ RSpec.describe(StillActive::Workflow) do
     # tests don't depend on a local `bundle audit update` checkout. The merge is
     # exercised explicitly in its own context below.
     allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil))
+    # Poison-pill enrichment fires for any dormant gem; default it to "no declared
+    # deps" so existing dormant-gem contexts stay network-free. The poison-pill
+    # context overrides this per example. (WebMock would otherwise raise on the
+    # unstubbed packages.ecosyste.ms call.)
+    allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([]))
     # Pin a GitHub token so provider_for selects GithubClient (the path these
     # integration specs and their VCR cassettes assume), independent of whether
     # the host running the suite happens to have a `gh` token. The no-token
@@ -470,6 +475,105 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    context("with a poison-pill / compatibility ceiling") do
+      # A dormant gem (last release 2016 -> critical) locked at 1.1.4.
+      def stub_dormant_gem(name)
+        allow(Gems).to(receive(:versions).with(name).and_return([
+          { "number" => "1.1.4", "prerelease" => false, "created_at" => "2016-01-01T00:00:00Z", "licenses" => ["MIT"] },
+        ]))
+        allow(Gems).to(receive(:info).with(name).and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+      end
+
+      before do
+        StillActive.config.gems = [{ name: "protected_attributes", version: "1.1.4" }]
+        stub_dormant_gem("protected_attributes")
+        # activemodel is at v8, so a "< 5.0" cap is 4 majors behind.
+        allow(Gems).to(receive(:versions).with("activemodel").and_return([
+          { "number" => "8.0.1", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z" },
+        ]))
+        allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
+        allow(described_class).to(receive(:repo_signals).and_return({}))
+      end
+
+      it("attaches the constraint receipt and marks a below-latest ceiling as poison") do
+        allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([
+          { package_name: "activemodel", requirements: "< 5.0, >= 4.0.1" },
+        ]))
+
+        data = result["protected_attributes"]
+        expect(data[:poison]).to(be(true))
+        expect(data[:constraints]).to(eq([
+          { dependency: "activemodel", requirement: "< 5.0, >= 4.0.1", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling },
+        ]))
+      end
+
+      it("does NOT flag a maintained gem's cap, and never even asks for its constraints (the discipline)") do
+        StillActive.config.gems = [{ name: "activerecord", version: "8.0.0" }]
+        allow(Gems).to(receive(:versions).with("activerecord").and_return([
+          { "number" => "8.0.0", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"] },
+        ]))
+        allow(Gems).to(receive(:info).with("activerecord").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+        allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
+
+        data = result["activerecord"]
+        expect(data).not_to(have_key(:poison))
+        expect(data).not_to(have_key(:constraints))
+        expect(StillActive::EcosystemsClient).not_to(have_received(:declared_dependencies))
+      end
+
+      it("does NOT flag a dormant gem whose runtime dep is permissive (nose/kaminari case)") do
+        allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([
+          { package_name: "activemodel", requirements: ">= 4.0.1" },
+        ]))
+
+        data = result["protected_attributes"]
+        expect(data).not_to(have_key(:poison))
+        expect(data).not_to(have_key(:constraints))
+      end
+
+      it("does NOT flag a dormant gem whose cap is at or above the dep's latest major") do
+        allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([
+          { package_name: "activemodel", requirements: "~> 8.0" },
+        ]))
+
+        expect(result["protected_attributes"]).not_to(have_key(:constraints))
+      end
+
+      it("surfaces a below-latest exact-pin as a hazard, but does not label it poison") do
+        allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([
+          { package_name: "activemodel", requirements: "= 4.2.0" },
+        ]))
+
+        data = result["protected_attributes"]
+        expect(data[:poison]).to(be(false))
+        expect(data[:constraints]).to(eq([
+          { dependency: "activemodel", requirement: "= 4.2.0", dep_latest: "8.0.1", majors_behind: 4, kind: :exact_pin },
+        ]))
+      end
+
+      it("drops a capped dep whose latest version can't be resolved, rather than guessing") do
+        allow(Gems).to(receive(:versions).with("activemodel").and_return([]))
+        allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([
+          { package_name: "activemodel", requirements: "< 5.0" },
+        ]))
+
+        expect(result["protected_attributes"]).not_to(have_key(:constraints))
+      end
+
+      it("drops a capped dep when its latest lookup is rate-limited (Gems::GemError), leaving the dormant gem's own signals intact") do
+        # A 429 on the extra dep lookup the poison path adds must degrade to "no
+        # constraints", never crash the gem or blame it for an unrelated failure.
+        allow(Gems).to(receive(:versions).with("activemodel").and_raise(Gems::GemError.new("429 Too Many Requests")))
+        allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([
+          { package_name: "activemodel", requirements: "< 5.0" },
+        ]))
+
+        data = result["protected_attributes"]
+        expect(data).not_to(have_key(:constraints))
+        expect(data[:latest_version]).to(eq("1.1.4"))
+      end
+    end
+
     context("when configured to use gems with versions") do
       let(:gems) { ["rails", "nokogiri"] }
       let(:versions) { ["6.1.3.2", "1.12.5"] }
@@ -550,6 +654,18 @@ RSpec.describe(StillActive::Workflow) do
 
       expect(Gems).to(have_received(:versions).with("rake"))
     end
+
+    it("degrades to [] (never raising) when rubygems.org rate-limits or 5xxs (Gems::GemError)") do
+      # The `gems` library raises Gems::GemError for any non-success, non-404
+      # response. Unrescued it would escape #versions and strip the gem of every
+      # signal via the per-gem rescue in #call, not just its version list.
+      allow(Gems).to(receive(:versions).with("flaky").and_raise(Gems::GemError.new("429 Too Many Requests")))
+
+      result = nil
+      expect { result = described_class.send(:versions, gem_name: "flaky", source_uri: nil) }
+        .to(output(/versions lookup failed.*Gems::GemError/).to_stderr)
+      expect(result).to(eq([]))
+    end
   end
 
   describe("#provider_for (GitHub repo-signal source selection)") do
@@ -582,6 +698,45 @@ RSpec.describe(StillActive::Workflow) do
       described_class.send(:repository_info, gem_name: "publicgem_xyz", versions: [], source_uri: "https://rubygems.org/")
 
       expect(Gems).to(have_received(:info).with("publicgem_xyz"))
+    end
+  end
+
+  describe(".resolve_latest_version (capped-dep latest resolution + per-run cache)") do
+    it("reuses an in-tree dep's already-computed latest_version without a network call") do
+      allow(Gems).to(receive(:versions))
+      result_object = { "activemodel" => { latest_version: "8.0.1" } }
+
+      latest = described_class.send(:resolve_latest_version, "activemodel", result_object: result_object, cache: {})
+
+      expect(latest).to(eq("8.0.1"))
+      expect(Gems).not_to(have_received(:versions))
+    end
+
+    it("fetches once and memoizes a dep not present in the tree") do
+      allow(Gems).to(receive(:versions).with("terrapin").and_return([
+        { "number" => "1.0.1", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z" },
+      ]))
+      cache = {}
+
+      first = described_class.send(:resolve_latest_version, "terrapin", result_object: {}, cache: cache)
+      second = described_class.send(:resolve_latest_version, "terrapin", result_object: {}, cache: cache)
+
+      expect([first, second]).to(all(eq("1.0.1")))
+      expect(Gems).to(have_received(:versions).with("terrapin").once)
+    end
+
+    it("re-attempts an unresolved dep rather than caching the miss, so a transient failure can't permanently suppress a later pill") do
+      # First lookup: latest momentarily unavailable (rate-limit/timeout -> []).
+      # Second: it resolves. Caching the first nil would drop the pill run-wide.
+      allow(Gems).to(receive(:versions).with("flappy")
+        .and_return([], [{ "number" => "3.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z" }]))
+      cache = {}
+
+      first = described_class.send(:resolve_latest_version, "flappy", result_object: {}, cache: cache)
+      second = described_class.send(:resolve_latest_version, "flappy", result_object: {}, cache: cache)
+
+      expect(first).to(be_nil)
+      expect(second).to(eq("3.0.0"))
     end
   end
 

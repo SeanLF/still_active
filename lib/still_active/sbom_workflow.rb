@@ -33,12 +33,18 @@ module StillActive
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result = {}
         failures = []
+        # Memoizes each capped dep's RESOLVED latest version across the whole SBOM
+        # (keyed by ecosystem+name inside the lens), so a dep pinned by several
+        # dormant packages is fetched once. Unresolved lookups aren't cached (a
+        # transient nil must not suppress a later package's pill), so concurrent
+        # first-misses on the same dep may briefly double-fetch; harmless.
+        constraint_cache = {}
         total = dependencies.size
         completed = 0
         dependencies.each do |dep|
           semaphore.async do
             result["#{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}"] =
-              EcosystemLens.assess(ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version])
+              EcosystemLens.assess(ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], constraint_cache: constraint_cache)
           rescue StandardError => e
             # One dependency's failure must not abort the audit, but it must not
             # disappear either: record it as an unassessable entry (same shape as
