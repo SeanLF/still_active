@@ -49,12 +49,22 @@ module StillActive
       signals
     end
 
+    # ecosyste.ms dependency-kind labels that ship at RUNTIME (so a cap on one
+    # holds the consumer's tree hostage). It is registry-specific vocabulary:
+    # rubygems/npm/pypi say "runtime", but cargo says "normal" (its "dev"/"build"
+    # kinds are excluded). An ALLOWLIST, not a denylist: an unrecognised kind is
+    # dropped rather than risk flagging a dev/build dep and breaking the FP
+    # discipline. Compared case-insensitively (rubygems's dev kind is
+    # "Development").
+    RUNTIME_KINDS = ["runtime", "normal"].freeze
+
     # The runtime dependency constraints a package version declares: an array of
-    # { package_name:, requirements: } for kind == "runtime" only. Development
-    # deps are dropped -- they don't cap the consumer's tree, so they can't be a
-    # poison-pill. `requirements` is the raw constraint string ("< 5.0, >= 4.0.1")
-    # ConstraintHelper reads. `registry` is the ecosyste.ms registry name
-    # (rubygems.org, pypi.org, npmjs.org, crates.io), defaulting to Ruby.
+    # { package_name:, requirements: } for runtime-shipped deps only (see
+    # RUNTIME_KINDS). Dev/build/test deps are dropped -- they don't cap the
+    # consumer's tree, so they can't be a poison-pill. `requirements` is the raw
+    # constraint string ("< 5.0, >= 4.0.1") ConstraintHelper reads. `registry` is
+    # the ecosyste.ms registry name (rubygems.org, pypi.org, npmjs.org,
+    # crates.io), defaulting to Ruby.
     #
     # Returns [] whenever the version can't be read (unindexed, 404, timeout,
     # schema drift), so a caller degrades to "no constraints known" rather than
@@ -70,7 +80,7 @@ module StillActive
       return [] unless dependencies.is_a?(Array)
 
       dependencies.filter_map do |dep|
-        next unless dep.is_a?(Hash) && dep["kind"] == "runtime"
+        next unless dep.is_a?(Hash) && RUNTIME_KINDS.include?(dep["kind"].to_s.downcase)
 
         package_name = dep["package_name"]
         requirements = dep["requirements"]

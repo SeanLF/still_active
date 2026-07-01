@@ -99,6 +99,47 @@ RSpec.describe(StillActive::ConstraintHelper) do
       expect(described_class.analyze(requirement: ">=1.2.0 <2.0.0", dep_latest: "3.0.0"))
         .to(eq(kind: :ceiling, majors_behind: 2))
     end
+
+    # rb/polynomial-redos: the requirement string is lockfile-derived, so a gem
+    # could publish a pathological one. A huge run of whitespace must not hang the
+    # AND-clause split; it is over-length garbage, so it reads as permissive.
+    it("returns permissive immediately for a pathological all-whitespace requirement (no ReDoS)") do
+      expect(described_class.analyze(requirement: " " * 100_000, dep_latest: "8.0.0"))
+        .to(eq(kind: :permissive, majors_behind: 0))
+    end
+
+    it("treats an over-long requirement string as permissive (never mints a pill from garbage)") do
+      long_ceilingish = "#{"< 5.0," * 100} < 5.0"
+      expect(long_ceilingish.length).to(be > described_class::MAX_REQUIREMENT_LENGTH)
+      expect(described_class.analyze(requirement: long_ceilingish, dep_latest: "8.0.0"))
+        .to(eq(kind: :permissive, majors_behind: 0))
+    end
+  end
+
+  describe(".poison_findings") do
+    let(:latest) { { "activemodel" => "8.0.1", "terrapin" => "1.1.1", "rack" => "3.1.0" } }
+
+    def resolve = ->(name) { latest[name] }
+
+    it("returns a receipt for each below-latest ceiling / exact pin, skipping the rest") do
+      deps = [
+        { package_name: "activemodel", requirements: "< 5.0" },     # ceiling, 4 behind
+        { package_name: "terrapin", requirements: "~> 0.6.0" },     # ceiling, 1 behind
+        { package_name: "rack", requirements: ">= 2.0" },           # permissive -> skipped
+      ]
+
+      findings = described_class.poison_findings(deps, &resolve)
+
+      expect(findings).to(eq([
+        { dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling },
+        { dependency: "terrapin", requirement: "~> 0.6.0", dep_latest: "1.1.1", majors_behind: 1, kind: :ceiling },
+      ]))
+    end
+
+    it("drops a dep whose latest the resolver cannot determine (returns nil), rather than guessing") do
+      deps = [{ package_name: "ghost", requirements: "< 5.0" }]
+      expect(described_class.poison_findings(deps) { nil }).to(eq([]))
+    end
   end
 
   describe(".poison_ceiling?") do

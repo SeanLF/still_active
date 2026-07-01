@@ -32,11 +32,21 @@ module StillActive
     CLAUSE = /\A(===?|=|<=|<|~>|~=|\^|~)?\s*v?(\d+(?:\.\d+)*)/
     # Whitespace that separates npm AND clauses (">=1.2.0 <2.0.0"), i.e. a space
     # before an operator. It won't split a Ruby clause like "~> 4.2" (the space
-    # there precedes a digit, not an operator).
-    AND_SEPARATOR = /\s+(?=[<>=~^])/
+    # there precedes a digit, not an operator). The quantifier is POSSESSIVE
+    # (`\s++`, not `\s+`): a lookahead after a greedy `\s+` backtracks once per
+    # trailing space, which is quadratic on a long run of spaces (ReDoS on the
+    # lockfile-derived requirement string). Possessive matching never backtracks.
+    AND_SEPARATOR = /\s++(?=[<>=~^])/
+    # A real declared requirement ("< 5.0, >= 4.0.1", "^1 || ^2 || ^3") is short.
+    # Anything past this is not a parseable constraint, so cap the input up front:
+    # it bounds every regex below to linear work and refuses to mint a pill from
+    # garbage (an over-long string reads as permissive, never a false ceiling).
+    MAX_REQUIREMENT_LENGTH = 256
 
     # => { kind: :permissive|:ceiling|:exact_pin, majors_behind: Integer }
     def analyze(requirement:, dep_latest:)
+      return { kind: :permissive, majors_behind: 0 } if requirement.to_s.length > MAX_REQUIREMENT_LENGTH
+
       # `||` is an OR-range (npm): satisfied by ANY branch, so an unbounded branch
       # lifts the cap entirely and the effective ceiling is the LOOSEST branch.
       # Reading only the first branch would invent a false pill on the common
@@ -58,6 +68,30 @@ module StillActive
     def poison_ceiling?(requirement:, dep_latest:)
       result = analyze(requirement: requirement, dep_latest: dep_latest)
       POISON_KINDS.include?(result[:kind]) && result[:majors_behind].positive?
+    end
+
+    # Build the poison-pill receipts for a package's declared runtime deps. Each
+    # `dep` is { package_name:, requirements: }; the block resolves a dep name to
+    # its current latest version string (or nil when unresolvable, which drops the
+    # dep rather than guessing). Returns only the below-latest ceilings and exact
+    # pins, each as a self-contained receipt. Shared by the native Bundler path and
+    # the cross-ecosystem lens, which differ only in how they resolve dep_latest.
+    def poison_findings(deps)
+      deps.filter_map do |dep|
+        dep_latest = yield(dep[:package_name])
+        next if dep_latest.nil?
+
+        result = analyze(requirement: dep[:requirements], dep_latest: dep_latest)
+        next unless POISON_KINDS.include?(result[:kind]) && result[:majors_behind].positive?
+
+        {
+          dependency: dep[:package_name],
+          requirement: dep[:requirements],
+          dep_latest: dep_latest,
+          majors_behind: result[:majors_behind],
+          kind: result[:kind],
+        }
+      end
     end
 
     private

@@ -235,20 +235,9 @@ module StillActive
       return if version.nil?
       return unless [:critical, :archived].include?(ActivityHelper.activity_level(gem_data))
 
-      constraints = EcosystemsClient.declared_dependencies(name: gem_name, version: version).filter_map do |dep|
-        dep_latest = resolve_latest_version(dep[:package_name], result_object: result_object, cache: cache)
-        next if dep_latest.nil?
-
-        analysis = ConstraintHelper.analyze(requirement: dep[:requirements], dep_latest: dep_latest)
-        next unless ConstraintHelper::POISON_KINDS.include?(analysis[:kind]) && analysis[:majors_behind].positive?
-
-        {
-          dependency: dep[:package_name],
-          requirement: dep[:requirements],
-          dep_latest: dep_latest,
-          majors_behind: analysis[:majors_behind],
-          kind: analysis[:kind],
-        }
+      declared = EcosystemsClient.declared_dependencies(name: gem_name, version: version)
+      constraints = ConstraintHelper.poison_findings(declared) do |dep_name|
+        resolve_latest_version(dep_name, result_object: result_object, cache: cache)
       end
       return if constraints.empty?
 
@@ -261,13 +250,14 @@ module StillActive
 
     # The capped dep's current latest stable version, for the majors-behind math.
     # Reuse the tree's already-computed latest_version when the dep is itself in
-    # the audit (no extra request); otherwise fetch once and memoize per run, so a
-    # dep capped by several dormant gems is looked up a single time.
+    # the audit (no extra request); otherwise fetch and memoize per run, so a dep
+    # capped by several dormant gems is looked up once. Only a RESOLVED version is
+    # cached: an unresolved lookup returns nil whether the dep is genuinely absent
+    # or rubygems.org was momentarily rate-limited, and caching the transient case
+    # would drop the pill for every later gem capping the same dep. So a miss is
+    # re-attempted rather than remembered.
     def resolve_latest_version(dep_name, result_object:, cache:)
-      return cache[dep_name] if cache.key?(dep_name)
-
-      in_tree = result_object[dep_name]&.dig(:latest_version)
-      cache[dep_name] = in_tree || fetch_latest_version(dep_name)
+      cache[dep_name] ||= result_object[dep_name]&.dig(:latest_version) || fetch_latest_version(dep_name)
     end
 
     def fetch_latest_version(dep_name)

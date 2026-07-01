@@ -3,6 +3,8 @@
 require_relative "deps_dev_client"
 require_relative "ecosystems_client"
 require_relative "github_client"
+require_relative "../helpers/activity_helper"
+require_relative "../helpers/constraint_helper"
 require_relative "../helpers/vulnerability_helper"
 
 module StillActive
@@ -20,7 +22,20 @@ module StillActive
   module EcosystemLens
     extend self
 
-    def assess(ecosystem:, name:, version:)
+    # still_active ecosystem symbol -> ecosyste.ms registry name for the declared
+    # dependency (poison-pill) lookup. Only the ecosystems where the ecosyste.ms
+    # registry name and the deps.dev package name align cleanly are wired; maven
+    # (group:artifact) and go (module paths) need name-format handling and are
+    # left out for now, so they simply carry no constraint signal rather than a
+    # wrong one.
+    ECOSYSTEM_REGISTRIES = {
+      rubygems: "rubygems.org",
+      npm: "npmjs.org",
+      pypi: "pypi.org",
+      cargo: "crates.io",
+    }.freeze
+
+    def assess(ecosystem:, name:, version:, constraint_cache: {})
       info = DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)
       default = DepsDevClient.default_version_info(name: name, system: ecosystem)
       # Recover the repo from the default version when the exact locked version
@@ -34,7 +49,7 @@ module StillActive
       scorecard = DepsDevClient.project_scorecard(project_id: project_id)
       repo = repo_signals(project_id)
 
-      {
+      gem_data = {
         ecosystem: ecosystem,
         name: name,
         version_used: version,
@@ -47,9 +62,42 @@ module StillActive
         vulnerability_count: vulnerabilities.length,
         vulnerabilities: vulnerabilities,
       }
+      attach_constraints(gem_data, ecosystem: ecosystem, name: name, version: version, cache: constraint_cache)
+      gem_data
     end
 
     private
+
+    # Poison-pill enrichment for the cross-ecosystem path, mirroring the native
+    # Bundler path: gated on dormancy so a maintained package is never flagged,
+    # each finding carrying its receipt. Resolves a capped dep's latest via
+    # deps.dev in the SAME ecosystem (a runtime dep of an npm package is npm).
+    def attach_constraints(gem_data, ecosystem:, name:, version:, cache:)
+      registry = ECOSYSTEM_REGISTRIES[ecosystem]
+      return if registry.nil?
+      return unless [:critical, :archived].include?(ActivityHelper.activity_level(gem_data))
+
+      declared = EcosystemsClient.declared_dependencies(name: name, version: version, registry: registry)
+      findings = ConstraintHelper.poison_findings(declared) do |dep_name|
+        latest_version_for(ecosystem, dep_name, cache)
+      end
+      return if findings.empty?
+
+      gem_data[:constraints] = findings
+      gem_data[:poison] = findings.any? { |finding| finding[:kind] == :ceiling }
+    end
+
+    # A capped dep's current latest version in `ecosystem`, via deps.dev's default
+    # (latest stable) version. Memoized per run, keyed by ecosystem+name so an npm
+    # `foo` and a pypi `foo` never collide. Only a RESOLVED version is cached: a
+    # nil can mean "genuinely unindexed" or "deps.dev was momentarily down / rate-
+    # limited" (both surface as nil here), and caching the transient case would
+    # suppress the pill for every later dormant package capping the same dep. So an
+    # unresolved dep is re-attempted rather than remembered as a permanent miss.
+    def latest_version_for(ecosystem, dep_name, cache)
+      key = "#{ecosystem}/#{dep_name}"
+      cache[key] ||= DepsDevClient.default_version_info(name: dep_name, system: ecosystem)&.dig(:version)
+    end
 
     def vulnerabilities_for(info)
       advisory_keys = info&.dig(:advisory_keys) || []

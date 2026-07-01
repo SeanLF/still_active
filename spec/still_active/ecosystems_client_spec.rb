@@ -128,6 +128,21 @@ RSpec.describe(StillActive::EcosystemsClient) do
         .to(eq([{ package_name: "activemodel", requirements: "< 5.0" }]))
     end
 
+    it("treats cargo's 'normal' kind as runtime, and excludes its dev/build kinds") do
+      # cargo labels runtime deps 'normal' (not 'runtime'); a `== \"runtime\"`
+      # filter silently drops every cargo dependency and never flags a cargo pill.
+      stub_request(:get, "https://packages.ecosyste.ms/api/v1/registries/crates.io/packages/tempdir/versions/0.3.7")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+          "dependencies" => [
+            { "package_name" => "rand", "requirements" => "^0.4", "kind" => "normal" },
+            { "package_name" => "quickcheck", "requirements" => "^0.4", "kind" => "dev" },
+            { "package_name" => "cc", "requirements" => "^1.0", "kind" => "build" },
+          ],
+        }.to_json)
+      expect(described_class.declared_dependencies(name: "tempdir", version: "0.3.7", registry: "crates.io"))
+        .to(eq([{ package_name: "rand", requirements: "^0.4" }]))
+    end
+
     it("drops entries missing a package name or requirement string, without crashing") do
       stub_deps({
         "dependencies" => [

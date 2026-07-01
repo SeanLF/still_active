@@ -13,7 +13,7 @@ RSpec.describe(StillActive::SbomWorkflow) do
         { ecosystem: :npm, name: "express", version: "5.2.1" },
         { ecosystem: :pypi, name: "requests", version: "2.32.5" },
       ]
-      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:| { ecosystem:, name:, version_used: version } }
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
 
       out = described_class.call(result_with(deps))
 
@@ -27,7 +27,7 @@ RSpec.describe(StillActive::SbomWorkflow) do
         { ecosystem: :npm, name: "foo", version: "1.0.0" },
         { ecosystem: :pypi, name: "foo", version: "2.0.0" },
       ]
-      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:| { ecosystem:, name:, version_used: version } }
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
 
       out = described_class.call(result_with(deps))
 
@@ -44,7 +44,7 @@ RSpec.describe(StillActive::SbomWorkflow) do
         { ecosystem: :pypi, name: "attrs", version: "25.4.0" },
         { ecosystem: :pypi, name: "attrs", version: "26.1.0" },
       ]
-      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:| { ecosystem:, name:, version_used: version } }
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
 
       out = described_class.call(result_with(deps))
 
@@ -57,7 +57,7 @@ RSpec.describe(StillActive::SbomWorkflow) do
         { ecosystem: :npm, name: "good", version: "1.0.0" },
         { ecosystem: :cargo, name: "boom", version: "0.1.0" },
       ]
-      allow(StillActive::EcosystemLens).to(receive(:assess)) do |ecosystem:, name:, version:|
+      allow(StillActive::EcosystemLens).to(receive(:assess)) do |ecosystem:, name:, version:, **_|
         raise "kaboom" if name == "boom"
 
         { ecosystem:, name:, version_used: version }

@@ -725,14 +725,18 @@ RSpec.describe(StillActive::Workflow) do
       expect(Gems).to(have_received(:versions).with("terrapin").once)
     end
 
-    it("caches a nil (unresolvable) result so it is not refetched") do
-      allow(Gems).to(receive(:versions).with("ghost").and_raise(Gems::NotFound))
+    it("re-attempts an unresolved dep rather than caching the miss, so a transient failure can't permanently suppress a later pill") do
+      # First lookup: latest momentarily unavailable (rate-limit/timeout -> []).
+      # Second: it resolves. Caching the first nil would drop the pill run-wide.
+      allow(Gems).to(receive(:versions).with("flappy")
+        .and_return([], [{ "number" => "3.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z" }]))
       cache = {}
 
-      described_class.send(:resolve_latest_version, "ghost", result_object: {}, cache: cache)
-      described_class.send(:resolve_latest_version, "ghost", result_object: {}, cache: cache)
+      first = described_class.send(:resolve_latest_version, "flappy", result_object: {}, cache: cache)
+      second = described_class.send(:resolve_latest_version, "flappy", result_object: {}, cache: cache)
 
-      expect(Gems).to(have_received(:versions).with("ghost").once)
+      expect(first).to(be_nil)
+      expect(second).to(eq("3.0.0"))
     end
   end
 
