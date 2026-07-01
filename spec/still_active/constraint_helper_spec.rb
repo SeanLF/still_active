@@ -175,6 +175,35 @@ RSpec.describe(StillActive::ConstraintHelper) do
     end
   end
 
+  describe("severity") do
+    def ceiling(behind)
+      { dependency: "d", requirement: "< x", dep_latest: "9.0.0", majors_behind: behind, kind: :ceiling }
+    end
+
+    it("tiers a ceiling by magnitude: 1 behind = note, 2 = warning, 3+ = critical") do
+      expect(described_class.constraint_severity(ceiling(1))).to(eq(:note))
+      expect(described_class.constraint_severity(ceiling(2))).to(eq(:warning))
+      expect(described_class.constraint_severity(ceiling(3))).to(eq(:critical))
+      expect(described_class.constraint_severity(ceiling(5))).to(eq(:critical))
+    end
+
+    it("rolls a gem's ceilings up to its worst tier (exact-pins excluded)") do
+      findings = [ceiling(1), ceiling(3), { dependency: "e", kind: :exact_pin, majors_behind: 9 }]
+      expect(described_class.worst_severity(findings)).to(eq(:critical))
+    end
+
+    it("returns nil worst_severity when there are no ceilings") do
+      expect(described_class.worst_severity([{ kind: :exact_pin, majors_behind: 4 }])).to(be_nil)
+    end
+
+    it("compares severities by ordinal for the gate threshold") do
+      expect(described_class.severity_at_or_above?(:critical, :warning)).to(be(true))
+      expect(described_class.severity_at_or_above?(:note, :warning)).to(be(false))
+      expect(described_class.severity_at_or_above?(:warning, :warning)).to(be(true))
+      expect(described_class.severity_at_or_above?(nil, :note)).to(be(false))
+    end
+  end
+
   describe(".poison_ceiling?") do
     it("is true only for a below-latest ceiling or exact pin") do
       expect(described_class.poison_ceiling?(requirement: "~> 4.2", dep_latest: "8.0.0")).to(be(true))

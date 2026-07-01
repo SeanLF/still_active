@@ -400,7 +400,10 @@ module StillActive
       return false unless config.fail_if_poison
       return false if suppressions.suppressed?(gem: name, signal: :poison)
 
-      data[:poison] == true
+      # Bare --fail-if-poison fails at :warning and above (a 1-behind :note is FYI,
+      # not a build breaker); --fail-if-poison=TIER sets an explicit threshold.
+      threshold = config.fail_if_poison == true ? :warning : config.fail_if_poison
+      ConstraintHelper.severity_at_or_above?(data[:poison_severity], threshold)
     end
 
     def failed_activity?(name, data, config, suppressions)

@@ -339,6 +339,15 @@ RSpec.describe(StillActive::TerminalHelper) do
         expect(described_class.render(result)).to(include("2 poison-pills"))
       end
 
+      it("colours the poison line by severity tier (red critical, dim note)") do
+        crit = poison_gem([{ dependency: "x", requirement: "< 5", dep_latest: "8.0.0", majors_behind: 4, kind: :ceiling }], { poison_severity: :critical })
+        note = poison_gem([{ dependency: "y", requirement: "~> 2", dep_latest: "3.0.0", majors_behind: 1, kind: :ceiling }], { poison_severity: :note })
+        out = described_class.render({ "crit" => crit, "note" => note })
+        expect(out).to(match(/\e\[31m  ↳ poison: caps x/))   # red = critical
+        expect(out).to(match(/\e\[2m  ↳ poison: caps y/))    # dim = note
+        expect(out).to(include("2 poison-pills (1 critical, 1 note)"))
+      end
+
       it("prints no poison line for a non-poison gem") do
         result = { "kaminari" => { version_used: "1", latest_version: "1", vulnerability_count: 0, scorecard_score: nil, poison: false } }
         expect(described_class.render(result)).not_to(include("poison:"))

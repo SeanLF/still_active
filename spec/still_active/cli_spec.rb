@@ -712,16 +712,28 @@ RSpec.describe(StillActive::CLI) do
   end
 
   describe("--fail-if-poison") do
-    def poison_gem
+    def poison_gem(severity = :critical)
       gem_data(last_commit_date: ancient_date).merge(
         poison: true,
+        poison_severity: severity,
         constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling }],
       )
     end
 
-    it("exits 1 when a gem is a poison-pill") do
+    it("exits 1 when a critical poison-pill meets the default (warning) threshold") do
       StillActive.config.fail_if_poison = true
-      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem }) }
+      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem(:critical) }) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("does NOT exit on a note-level poison-pill under the default (warning) threshold") do
+      StillActive.config.fail_if_poison = true
+      expect { cli.send(:check_exit_status, { "tty-reader" => poison_gem(:note) }) }.not_to(raise_error)
+    end
+
+    it("exits on a note-level pill when the threshold is lowered to note") do
+      StillActive.config.fail_if_poison = :note
+      expect { cli.send(:check_exit_status, { "tty-reader" => poison_gem(:note) }) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 

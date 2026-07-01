@@ -246,6 +246,7 @@ module StillActive
       # is a milder resolution hazard: still surfaced in constraints, but it may be
       # deliberate, so it doesn't earn the poison label on its own.
       gem_data[:poison] = constraints.any? { |constraint| constraint[:kind] == :ceiling }
+      gem_data[:poison_severity] = ConstraintHelper.worst_severity(constraints) if gem_data[:poison]
     end
 
     # The capped dep's current latest stable version, for the majors-behind math.

@@ -145,16 +145,23 @@ module StillActive
       end
     end
 
-    # "  ↳ poison: caps <receipt>", yellow because it is an actionable finding
-    # (the row is already red -- poison requires a dormant gem). Transitive gems
-    # name the direct parent that pulls the pill in, the actionable target.
+    # "  ↳ poison: caps <receipt>", coloured by severity tier (see poison_colour).
+    # The row is already red (poison requires a dormant gem); the sub-line tier
+    # says how urgent the cap is. Transitive gems name the direct parent that pulls
+    # the pill in, the actionable target.
     def poison_line(data)
       constraints = data[:constraints]
       return if constraints.nil? || constraints.empty?
 
       path = data[:dependency_path]
       via = data[:direct] == false && path && path.length >= 2 ? " (via #{path.first})" : ""
-      AnsiHelper.yellow("  ↳ poison#{via}: #{poison_receipt(constraints)}")
+      # Colour carries the tier: red = act-now (3+ majors behind), yellow = plan,
+      # dim = a minor/FYI cap (1 behind). The row is already red (dormant gem).
+      AnsiHelper.public_send(poison_colour(data[:poison_severity]), "  ↳ poison#{via}: #{poison_receipt(constraints)}")
+    end
+
+    def poison_colour(severity)
+      { critical: :red, warning: :yellow, note: :dim }.fetch(severity, :yellow)
     end
 
     # Single cap: the full receipt (requirement + latest major), since there's
@@ -246,8 +253,13 @@ module StillActive
       activity << ", #{archived} archived" if archived > 0
       parts << activity
       parts << "#{summary[:vulnerabilities]} vulnerabilities"
-      poison = result.each_value.count { |data| data[:poison] }
-      parts << AnsiHelper.yellow("#{poison} poison-#{poison == 1 ? "pill" : "pills"}") if poison > 0
+      poison = result.each_value.select { |data| data[:poison] }
+      unless poison.empty?
+        by_tier = poison.group_by { |data| data[:poison_severity] || :note }
+        present = ConstraintHelper::SEVERITY.reverse.select { |t| by_tier[t] } # worst-first
+        breakdown = present.map { |t| "#{by_tier[t].size} #{t}" }.join(", ")
+        parts << AnsiHelper.public_send(poison_colour(present.first), "#{poison.size} poison-#{poison.size == 1 ? "pill" : "pills"} (#{breakdown})")
+      end
       total_libyear = LibyearHelper.total_libyear(result)
       parts << "#{total_libyear.round(1)} libyears behind" if total_libyear > 0
       parts.join(" · ")
