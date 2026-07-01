@@ -269,5 +269,65 @@ RSpec.describe(StillActive::TerminalHelper) do
         expect(out).not_to(include("--alternatives"))
       end
     end
+
+    context("with a poison-pill sub-line") do
+      def poison_gem(constraints, extra = {})
+        {
+          version_used: "1.1.4",
+          latest_version: "1.1.4",
+          vulnerability_count: 0,
+          scorecard_score: nil,
+          poison: true,
+          constraints: constraints,
+        }.merge(extra)
+      end
+
+      it("prints a rich single-cap receipt with the requirement and latest major") do
+        result = {
+          "protected_attributes" => poison_gem([
+            { dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling },
+          ]),
+        }
+        expect(described_class.render(result))
+          .to(include("poison: caps activemodel < 5.0 (4 majors behind, latest 8.x)"))
+      end
+
+      it("prints a compact top-3 receipt with +N more for a many-cap gem, worst-first with name tie-break") do
+        caps = [
+          { dependency: "chalk", requirement: "^1", dep_latest: "5.0.0", majors_behind: 4, kind: :ceiling },
+          { dependency: "through2", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
+          { dependency: "vinyl", requirement: "^0.5", dep_latest: "3.0.0", majors_behind: 3, kind: :ceiling },
+          { dependency: "dateformat", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
+          { dependency: "beeper", requirement: "^1", dep_latest: "3.0.0", majors_behind: 2, kind: :ceiling },
+        ]
+        expect(described_class.render({ "gulp-util" => poison_gem(caps) }))
+          .to(include("poison: caps chalk (4 behind), dateformat (3), through2 (3) +2 more"))
+      end
+
+      it("folds the parent into a transitive poison line and suppresses the generic transitive line") do
+        result = {
+          "terrapin" => poison_gem(
+            [{ dependency: "climate_control", requirement: "< 1.0", dep_latest: "1.2.0", majors_behind: 1, kind: :ceiling }],
+            { direct: false, dependency_path: ["paperclip", "terrapin"] },
+          ),
+        }
+        out = described_class.render(result)
+        expect(out).to(include("poison (via paperclip): caps climate_control < 1.0 (1 major behind, latest 1.x)"))
+        expect(out).not_to(include("transitive, pulled in by paperclip"))
+      end
+
+      it("counts poison-pills in the summary line") do
+        result = {
+          "a" => poison_gem([{ dependency: "x", requirement: "< 5", dep_latest: "8.0.0", majors_behind: 3, kind: :ceiling }]),
+          "b" => poison_gem([{ dependency: "y", requirement: "< 5", dep_latest: "8.0.0", majors_behind: 3, kind: :ceiling }]),
+        }
+        expect(described_class.render(result)).to(include("2 poison-pills"))
+      end
+
+      it("prints no poison line for a non-poison gem") do
+        result = { "kaminari" => { version_used: "1", latest_version: "1", vulnerability_count: 0, scorecard_score: nil, poison: false } }
+        expect(described_class.render(result)).not_to(include("poison:"))
+      end
+    end
   end
 end

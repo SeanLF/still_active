@@ -691,6 +691,26 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
+  describe("--markdown poison-pill") do
+    let(:workflow_result) do
+      {
+        "protected_attributes" => gem_data(last_commit_date: ancient_date).merge(
+          poison: true,
+          constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling }],
+        ),
+      }
+    end
+
+    it("appends a Poison-pill findings section to markdown output") do
+      lines = []
+      allow($stdout).to(receive(:puts)) { |arg| lines << arg }
+      cli.run(["--gems=protected_attributes", "--markdown"])
+      output = lines.join("\n")
+      expect(output).to(include("**Poison-pill findings**"))
+      expect(output).to(include("`protected_attributes` caps `activemodel` `< 5.0` (4 majors behind, latest 8.x)"))
+    end
+  end
+
   describe("--fail-if-warning") do
     context("when a gem has warning activity") do
       let(:workflow_result) { { "aging_gem" => gem_data(last_commit_date: old_date) } }

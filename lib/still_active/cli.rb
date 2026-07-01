@@ -338,6 +338,8 @@ module StillActive
 
         puts MarkdownHelper.markdown_table_body_line(gem_name: name, data: gem_data)
       end
+      poison = MarkdownHelper.poison_section(result)
+      puts poison unless poison.empty?
       alternatives = MarkdownHelper.alternatives_section(result)
       puts alternatives unless alternatives.empty?
       transitive = MarkdownHelper.transitive_section(result)
