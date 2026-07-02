@@ -25,7 +25,11 @@ module StillActive
     # input before it reaches Gem::Requirement's own regex.
     MAX_SPECIFIER_LENGTH = 256
 
-    CLAUSE_PATTERN = /\A(===|==|~=|!=|<=|>=|<|>)\s*(.+)\z/
+    # Operator, then the version as a run of non-space chars. `\s*(\S+)` (not
+    # `\s*(.+)`) keeps the two groups over disjoint character classes so there's no
+    # polynomial backtracking on pathological input like "<" + many spaces (a PEP
+    # 440 version never contains internal spaces, so this loses nothing).
+    CLAUSE_PATTERN = /\A(===|==|~=|!=|<=|>=|<|>)\s*(\S+)\z/
 
     # => a comma-joined RubyGems requirement string, or nil when nothing usable
     # survives translation. The caller feeds the string to RuntimeCeilingHelper,

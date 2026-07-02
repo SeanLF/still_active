@@ -130,5 +130,12 @@ RSpec.describe(StillActive::Pep440Helper) do
     it "bounds pathologically long input" do
       expect(translate.call(">=#{"9" * 500}")).to(be_nil)
     end
+
+    it "handles a space-heavy operator/version split in linear time (no polynomial backtracking)" do
+      # Exercises the previously-ambiguous `\s*(.+)` split (CodeQL ReDoS); the
+      # `\s*(\S+)` form matches or fails linearly on runs of spaces.
+      expect(translate.call("< #{" " * 200}x")).to(be_nil) # x is not a version -> dropped
+      expect(admits?(">=#{" " * 50}3.7", "3.8")).to(be(true)) # spaces before the version are fine
+    end
   end
 end
