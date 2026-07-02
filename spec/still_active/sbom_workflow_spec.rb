@@ -8,6 +8,33 @@ RSpec.describe(StillActive::SbomWorkflow) do
   end
 
   describe(".call") do
+    it("reconciles a language ceiling against a poison cap end-to-end, on the assembled key/name shape (not a hand-built hash)") do
+      # The reconciler's cross-path contract (data[:name] + "ecosystem/name@version"
+      # keys) is unit-tested with hand-built hashes; this exercises it through the
+      # REAL SbomWorkflow assembly, so a drift in the gem_data shape (e.g. assess
+      # stops setting :name) can't pass green. `foo` carries a Python ceiling that
+      # says "upgrade to lift it"; `bar` poison-caps `foo` below that upgrade, so the
+      # reconcile must clear fixed_by_upgrade and set upgrade_blocked.
+      allow(StillActive::PythonHelper).to(receive(:supported_python_range).and_return(nil))
+      allow(StillActive::EcosystemLens).to(receive(:assess)) do |ecosystem:, name:, version:, **_|
+        base = { ecosystem:, name:, version_used: version }
+        if name == "foo"
+          base.merge(language_ceiling: { runtime: "Python", eol_forced: true, fixed_by_upgrade: true, requirement: "< 3.10" })
+        else
+          base.merge(constraints: [{ dependency: "foo", requirement: "< 1.0", dep_latest: "2.0.0", majors_behind: 2, kind: :ceiling }])
+        end
+      end
+
+      out = described_class.call(result_with([
+        { ecosystem: :pypi, name: "foo", version: "1.0.0" },
+        { ecosystem: :pypi, name: "bar", version: "0.1.0" },
+      ]))
+
+      ceiling = out.assessed["pypi/foo@1.0.0"][:language_ceiling]
+      expect(ceiling[:fixed_by_upgrade]).to(be(false))
+      expect(ceiling[:upgrade_blocked]).to(be(true))
+    end
+
     it("runs the lens over each dependency, keyed by ecosystem/name@version") do
       deps = [
         { ecosystem: :npm, name: "express", version: "5.2.1" },
