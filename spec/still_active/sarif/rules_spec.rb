@@ -70,7 +70,9 @@ RSpec.describe(StillActive::Sarif::Rules) do
       4.0 => "warning",
       3.9 => "note",
       0.1 => "note",
-      nil => "note",
+      # A confirmed-but-unscored advisory (nil after effective_score) is elevated to
+      # warning, not an informational note -- the SARIF fail-closed (see cvss_to_level).
+      nil => "warning",
     }.each do |score, expected|
       it("maps #{score.inspect} -> #{expected}") do
         expect(described_class.cvss_to_level(score)).to(eq(expected))

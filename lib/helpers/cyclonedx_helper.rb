@@ -142,10 +142,12 @@ module StillActive
     end
 
     def rating(advisory)
-      score = advisory[:cvss3_score] || advisory[:cvss2_score]
+      # effective_score drops deps.dev's cvss3=0 sentinel; an unscored advisory
+      # gets no numeric rating (honest) rather than a masquerading 0.0.
+      score = VulnerabilityHelper.effective_score(advisory)
       return if score.nil?
 
-      method = advisory[:cvss3_score] ? "CVSSv3" : "CVSSv2"
+      method = advisory[:cvss3_score]&.positive? ? "CVSSv3" : "CVSSv2"
       rating = { "score" => score, "severity" => VulnerabilityHelper.highest_severity([advisory]) || "unknown", "method" => method }
       rating["vector"] = advisory[:cvss3_vector] if advisory[:cvss3_vector]
       rating

@@ -221,7 +221,11 @@ module StillActive
     end
 
     def vulnerability_result(name, version, vuln, location, data = {})
-      score = vuln[:cvss3_score] || vuln[:cvss2_score]
+      # effective_score treats deps.dev's cvss3=0 sentinel (CVSS-4-only advisories)
+      # as unscored, so a HIGH finding can't be exported as a note/0.0 that a code-
+      # scanning gate reads as informational -- the same false-clean the CLI gate
+      # guards. An unscored-but-confirmed advisory maps to warning (see cvss_to_level).
+      score = VulnerabilityHelper.effective_score(vuln)
       level = Sarif::Rules.cvss_to_level(score)
       severity = Sarif::Rules.cvss_to_security_severity(score)
       advisory_id = vuln[:id] || Array(vuln[:aliases]).first || "unknown"
