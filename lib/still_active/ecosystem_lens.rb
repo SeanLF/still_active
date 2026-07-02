@@ -4,8 +4,10 @@ require_relative "deps_dev_client"
 require_relative "ecosystems_client"
 require_relative "github_client"
 require_relative "pypi_client"
+require "time"
 require_relative "../helpers/activity_helper"
 require_relative "../helpers/constraint_helper"
+require_relative "../helpers/libyear_helper"
 require_relative "../helpers/pep440_helper"
 require_relative "../helpers/runtime_ceiling_helper"
 require_relative "../helpers/vulnerability_helper"
@@ -63,11 +65,21 @@ module StillActive
       scorecard = DepsDevClient.project_scorecard(project_id: project_id)
       repo = repo_signals(project_id)
 
+      used_release_date = info&.dig(:published_at)
+      latest_release_date = default&.dig(:published_at)
       gem_data = {
         ecosystem: ecosystem,
         name: name,
         version_used: version,
-        latest_version_release_date: default&.dig(:published_at),
+        version_used_release_date: used_release_date,
+        latest_version_release_date: latest_release_date,
+        # libyear parity with the native path: how far behind latest the locked
+        # version is, in release-years. Both dates come from deps.dev responses
+        # already fetched above (no extra call); nil when either date is missing.
+        libyear: LibyearHelper.gem_libyear(
+          version_used_release_date: parse_time(used_release_date),
+          latest_version_release_date: parse_time(latest_release_date),
+        ),
         repository_url: project_id && "https://#{project_id}",
         last_commit_date: repo[:last_commit_date],
         archived: repo[:archived],
@@ -196,6 +208,19 @@ module StillActive
     # 60), so an untokened cross-ecosystem run still resolves a large SBOM.
     def repo_provider
       StillActive.config.github_oauth_token ? GithubClient : EcosystemsClient
+    end
+
+    # deps.dev renders dates as ISO8601 strings; libyear needs Time to subtract.
+    # nil-safe, and a malformed value degrades to nil rather than raising.
+    def parse_time(value)
+      # Guard the type, not just nil: a non-String publishedAt (schema drift) would
+      # make Time.parse raise TypeError (unrescued) and, since this enrichment runs
+      # in assess, demote an otherwise-healthy package. Best-effort must degrade.
+      return unless value.is_a?(String)
+
+      Time.parse(value)
+    rescue ArgumentError
+      nil
     end
   end
 end

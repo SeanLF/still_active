@@ -22,6 +22,10 @@ module StillActive
       {
         advisory_keys: body.dig("advisoryKeys")&.map { |a| a["id"] } || [],
         project_id: extract_project_id(body),
+        # The locked version's release date -- the cross-ecosystem libyear input
+        # (paired with the package's latest-release date). Already in this response,
+        # so no extra fetch; nil when the feed omits it.
+        published_at: body["publishedAt"],
       }
     end
 

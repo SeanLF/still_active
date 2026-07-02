@@ -13,6 +13,17 @@ RSpec.describe(StillActive::DepsDevClient) do
       end
     end
 
+    it("extracts the locked version's publishedAt (the cross-ecosystem libyear input)") do
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/pypi/packages/lxml/versions/6\.0\.2})
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { "advisoryKeys" => [], "publishedAt" => "2025-09-22T04:04:12Z" }.to_json,
+        )
+      result = described_class.version_info(gem_name: "lxml", version: "6.0.2", system: :pypi)
+      expect(result[:published_at]).to(eq("2025-09-22T04:04:12Z"))
+    end
+
     it("returns nil when gem_name is nil") do
       expect(described_class.version_info(gem_name: nil, version: "1.0.0")).to(be_nil)
     end
