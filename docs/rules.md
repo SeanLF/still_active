@@ -24,9 +24,9 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 ## SA002 — Abandoned Gem {#sa002}
 
-**Triggers when:** the gem's source repository shows no commit activity for over 2 years, and the repository is not archived.
+**Triggers when:** the gem has had no release for over 3 years and its repository is not archived. For a gem with no releases at all (e.g. git-sourced), the last commit date is used instead. (Release recency drives the signal; a recent commit can't mask a stale release.)
 
-**Why it matters:** dormant gems accumulate latent risk (incompatibilities with new Ruby versions, unpatched edge-case bugs). Not yet a hard fail, but a signal worth tracking.
+**Why it matters:** dormant gems accumulate latent risk (incompatibilities with new Ruby versions, unpatched edge-case bugs) and, most concretely, a consumer cannot pull fixes that were never released. Not yet a hard fail, but a signal worth tracking.
 
 **SARIF level:** `warning` · **security-severity:** *(none)* · **tag:** `maintenance`
 
