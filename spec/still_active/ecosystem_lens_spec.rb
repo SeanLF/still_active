@@ -14,10 +14,11 @@ RSpec.describe(StillActive::EcosystemLens) do
     allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([]))
   end
 
-  # Stub the deps.dev version endpoint (advisory keys + SOURCE_REPO link).
-  def stub_version(advisory_keys: [], source_repo: nil)
+  # Stub the deps.dev version endpoint (advisory keys + SOURCE_REPO link + the
+  # locked version's publishedAt, the libyear input).
+  def stub_version(advisory_keys: [], source_repo: nil, published_at: nil)
     links = source_repo ? [{ "label" => "SOURCE_REPO", "url" => source_repo }] : []
-    body = { "advisoryKeys" => advisory_keys.map { { "id" => _1 } }, "links" => links }
+    body = { "advisoryKeys" => advisory_keys.map { { "id" => _1 } }, "links" => links, "publishedAt" => published_at }
     stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/[^/]+/packages/.+/versions/.+})
       .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: body.to_json)
   end
@@ -69,6 +70,29 @@ RSpec.describe(StillActive::EcosystemLens) do
         vulnerability_count: 0,
       ))
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:ok))
+    end
+
+    it("computes libyear from the locked and latest release dates (cross-ecosystem parity with the native path)") do
+      stub_version(source_repo: "https://github.com/psf/requests", published_at: "2023-05-22T15:12:42Z")
+      stub_package(default_published_at: "2026-05-22T15:12:42Z") # 3 years newer
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+
+      result = described_class.assess(ecosystem: :pypi, name: "requests", version: "2.31.0")
+
+      expect(result[:version_used_release_date]).to(eq("2023-05-22T15:12:42Z"))
+      expect(result[:libyear]).to(be_within(0.1).of(3.0))
+    end
+
+    it("leaves libyear nil when the locked version's release date is unavailable, rather than guessing") do
+      stub_version(source_repo: "https://github.com/psf/requests") # no publishedAt
+      stub_package(default_published_at: "2026-05-22T15:12:42Z")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+
+      result = described_class.assess(ecosystem: :pypi, name: "requests", version: "2.31.0")
+
+      expect(result[:libyear]).to(be_nil)
     end
 
     it("reads a clean, long-dormant pypi package as :legacy") do
