@@ -1,6 +1,31 @@
 # frozen_string_literal: true
 
 RSpec.describe(StillActive::DepsDevClient) do
+  describe(".advisory_schema_ok?") do
+    # Guards against the alpha v3alpha API renaming/dropping `advisoryKeys`, which
+    # would degrade every vuln count to 0 and render known-vulnerable packages
+    # "clean" (a silent false-negative on a tool that trades on no-false-positives).
+    def stub_canary(body)
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/pypi/packages/django/versions/3\.0\.0})
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: body.to_json)
+    end
+
+    it "is true when the canary package still carries advisoryKeys (schema intact)" do
+      stub_canary({ "advisoryKeys" => [{ "id" => "GHSA-x" }, { "id" => "GHSA-y" }] })
+      expect(described_class.advisory_schema_ok?).to(be(true))
+    end
+
+    it "is false when the canary comes back with no advisories (field renamed/dropped)" do
+      stub_canary({ "advisoryKeys" => [] })
+      expect(described_class.advisory_schema_ok?).to(be(false))
+    end
+
+    it "is false when the canary can't be reached (can't confirm the schema)" do
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/pypi/packages/django/versions/3\.0\.0}).to_return(status: 500)
+      expect(described_class.advisory_schema_ok?).to(be(false))
+    end
+  end
+
   describe(".version_info") do
     it("returns advisory keys and project id for a known gem") do
       VCR.use_cassette("deps_dev_version") do
