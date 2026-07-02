@@ -173,6 +173,21 @@ module StillActive
           StillActive.config { |config| config.fail_if_poison = true }
         end
       end
+      opts.on("--fail-if-ruby-ceiling[=TIER]", "Exit 1 on a Ruby-runtime ceiling (default: EOL-forced only; =note also gates latest-not-yet)") do |value|
+        if value
+          valid = StillActive::ConstraintHelper::SEVERITY.map(&:to_s)
+          raise ArgumentError, "--fail-if-ruby-ceiling tier must be one of: #{valid.join(", ")} (got #{value})" unless valid.include?(value)
+
+          # Ceiling findings are only ever :critical or :note, so =warning can't
+          # match anything the bare (=critical) default doesn't already catch.
+          if value == "warning"
+            $stderr.puts("warning: --fail-if-ruby-ceiling=warning has no effect (runtime ceilings are only critical or note); behaves as =critical")
+          end
+          StillActive.config { |config| config.fail_if_ruby_ceiling = value.to_sym }
+        else
+          StillActive.config { |config| config.fail_if_ruby_ceiling = true }
+        end
+      end
     end
 
     def add_emoji_options(opts)

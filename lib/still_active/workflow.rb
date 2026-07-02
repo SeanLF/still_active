@@ -15,6 +15,7 @@ require_relative "../helpers/http_helper"
 require_relative "../helpers/libyear_helper"
 require_relative "../helpers/ruby_advisory_db"
 require_relative "../helpers/ruby_helper"
+require_relative "../helpers/runtime_ceiling_helper"
 require_relative "../helpers/version_helper"
 require_relative "../helpers/vulnerability_helper"
 require "async"
@@ -33,6 +34,19 @@ module StillActive
         # read-only Database is shared across fibers rather than reloaded per gem.
         advisory_db = RubyAdvisoryDb.load
         catalog = StillActive.config.alternatives ? CatalogIndex.load : nil
+        # The Ruby support window (oldest-supported / latest-stable / EOL cycles)
+        # is a per-run constant, so fetch it once here rather than per gem. nil when
+        # the endoflife feed is unavailable -> the language-ceiling signal quietly
+        # sits out, exactly like a missing advisory_db. This runs OUTSIDE the
+        # per-gem rescue, so a defensive rescue keeps a best-effort enrichment from
+        # ever aborting the whole audit (the "never crash the core" contract).
+        ruby_range =
+          begin
+            RubyHelper.supported_ruby_range
+          rescue StandardError => e
+            $stderr.puts("warning: Ruby support window lookup failed: #{e.class} (#{e.message}); skipping language-ceiling checks")
+            nil
+          end
         # Resolve the GitHub token once here, single-fibered, before the fan-out:
         # provider_for reads it per gem across fibers and gh_cli_token shells out,
         # so resolving eagerly keeps that off the concurrent path and guarantees
@@ -62,6 +76,7 @@ module StillActive
               advisory_db: advisory_db,
               catalog: catalog,
               constraint_cache: constraint_cache,
+              ruby_range: ruby_range,
             )
           rescue Octokit::TooManyRequests
             $stderr.print("\r\e[K") if on_progress
@@ -75,6 +90,10 @@ module StillActive
           end
         end
         barrier.wait
+        # Whole-tree correlation, once every gem's signals are in: a ceiling's
+        # "upgrade to lift it" must not contradict a poison finding that caps the
+        # same gem below that upgrade.
+        reconcile_ceiling_with_poison(result_object)
         # Gems are inserted as their async tasks finish, so the natural order is
         # nondeterministic completion order. Sort by name once here so every
         # consumer (JSON, SARIF, the baseline diff) gets a stable, diffable order.
@@ -89,7 +108,27 @@ module StillActive
 
     private
 
-    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, direct: true, dependency_path: nil, advisory_db: nil, catalog: nil, constraint_cache: {})
+    # A ceiling that says "upgrade <gem> to lift it" is wrong if the same tree
+    # poisons <gem> below that upgrade (a dormant dep caps it). Correlate the two
+    # signals so the report never advises an upgrade its own poison finding says is
+    # impossible: clear fixed_by_upgrade and mark the block. All data is already in
+    # the assembled result, so this is one whole-tree pass, no extra fetches.
+    def reconcile_ceiling_with_poison(result_object)
+      capped = result_object.each_value
+        .flat_map { |data| Array(data[:constraints]) }
+        .select { |constraint| constraint[:majors_behind].to_i.positive? }
+        .map { |constraint| constraint[:dependency] }
+        .uniq
+      result_object.each do |name, data|
+        ceiling = data[:ruby_ceiling]
+        next unless ceiling && ceiling[:fixed_by_upgrade] && capped.include?(name)
+
+        ceiling[:fixed_by_upgrade] = false
+        ceiling[:upgrade_blocked] = true
+      end
+    end
+
+    def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, direct: true, dependency_path: nil, advisory_db: nil, catalog: nil, constraint_cache: {}, ruby_range: nil)
       result_object[gem_name] = { source_type: source_type, direct: direct }
       result_object[gem_name][:dependency_path] = dependency_path if dependency_path
       result_object[gem_name][:version_used] = gem_version if gem_version
@@ -104,6 +143,7 @@ module StillActive
           result_object: result_object,
           source_uri: source_uri,
           advisory_db: advisory_db,
+          ruby_range: ruby_range,
         )
       end
 
@@ -116,7 +156,7 @@ module StillActive
       end
     end
 
-    def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:, advisory_db: nil)
+    def gem_info_rubygems(gem_name:, gem_version:, result_object:, source_uri:, advisory_db: nil, ruby_range: nil)
       vs = versions(gem_name: gem_name, source_uri: source_uri)
       repo_info = repository_info(gem_name: gem_name, versions: vs, source_uri: source_uri)
       signals = repo_signals(
@@ -159,8 +199,8 @@ module StillActive
         )
       end
 
+      version_used = gem_version ? VersionHelper.find_version(versions: vs, version_string: gem_version) : nil
       if gem_version
-        version_used = VersionHelper.find_version(versions: vs, version_string: gem_version)
         result_object[gem_name].merge!({
           up_to_date: VersionHelper.up_to_date(
             version_used: version_used,
@@ -177,6 +217,64 @@ module StillActive
           ),
         })
       end
+
+      attach_ruby_ceiling(
+        gem_data: result_object[gem_name],
+        used_ruby_requirement: canonical_ruby_requirement(vs, version_used),
+        latest_ruby_requirement: canonical_ruby_requirement(vs, last_release),
+        pinned: !version_used.nil?,
+        ruby_range: ruby_range,
+      )
+    end
+
+    # The ruby_version to judge a language ceiling against, read from the canonical
+    # `ruby` (source) platform entry of a version rather than whichever variant the
+    # registry happens to list first. Native gems ship a permissive `ruby` platform
+    # plus precompiled per-platform variants that cap ruby_version to the ABIs they
+    # were built for; the source platform is the gem's true Ruby support (it can be
+    # compiled on a newer Ruby), so a precompiled variant's tighter cap must not be
+    # read as the gem's ceiling. (Flagging that a project's LOCKED precompiled
+    # variant lacks a newer-Ruby build is a distinct, narrower signal, and needs the
+    # locked platform, which isn't threaded here yet.)
+    def canonical_ruby_requirement(versions, version_hash)
+      number = version_hash && version_hash["number"]
+      return if number.nil?
+
+      entries = versions.select { |version| version["number"] == number }
+      chosen = entries.find { |version| version["platform"] == "ruby" || version["platform"].nil? } || entries.first
+      VersionHelper.ruby_requirement(version_hash: chosen)
+    end
+
+    # Language-runtime ceiling: the sibling of poison. A gem's resolved version
+    # declares a `ruby_version` that caps the runtime -- either onto an end-of-life
+    # Ruby (critical: no patched runtime is reachable) or below the latest stable
+    # (note: a compatibility ceiling to plan around / a place to contribute Ruby-N
+    # support). Unlike poison this is NOT gated on dormancy: a cap is a fact of the
+    # resolved version whether or not the gem is maintained. Best-effort: a nil
+    # range (endoflife feed down) or absent ruby_version yields no finding.
+    def attach_ruby_ceiling(gem_data:, used_ruby_requirement:, latest_ruby_requirement:, pinned:, ruby_range:)
+      return if ruby_range.nil?
+
+      # Analyze the version actually in the tree. Fall back to latest ONLY when
+      # there's no pinned version (a latest-only audit), never when the pinned
+      # version merely declares no ruby_version: an absent cap runs on any Ruby, so
+      # projecting a newer release's cap back onto it would mint a false ceiling.
+      requirement = pinned ? used_ruby_requirement : latest_ruby_requirement
+      finding = RuntimeCeilingHelper.analyze(requirement: requirement, support_window: ruby_range)
+      return if finding.nil?
+
+      finding[:fixed_by_upgrade] = ruby_ceiling_lifted_by_upgrade?(used_req: used_ruby_requirement, latest_req: latest_ruby_requirement, ruby_range: ruby_range)
+      gem_data[:ruby_ceiling] = finding
+    end
+
+    # Does bumping the gem to its latest lift the ceiling? True only when the cap
+    # is on the resolved (older) version and the latest version declares no ceiling
+    # of its own -- the actionable "upgrade the gem" case (e.g. CFPropertyList
+    # 3.0.9's `< 3.2` cap, gone by 4.0.0). False when already on latest.
+    def ruby_ceiling_lifted_by_upgrade?(used_req:, latest_req:, ruby_range:)
+      return false if used_req.nil? || used_req == latest_req
+
+      RuntimeCeilingHelper.analyze(requirement: latest_req, support_window: ruby_range).nil?
     end
 
     def gem_info_non_rubygems(gem_name:, gem_version:, result_object:, source_uri: nil, advisory_db: nil)

@@ -42,7 +42,7 @@ Ruby 4.0.1 (latest)
 | **Yanked version detection** | -                 | -                      | -                 | **Yes**                  |
 | **Ruby version freshness**   | -                 | -                      | -                 | **Yes** (EOL + libyear)  |
 | GitLab support               | -                 | -                      | -                 | Yes                      |
-| CI quality gates             | -                 | Exit code              | -                 | Yes (4 flags)            |
+| CI quality gates             | -                 | Exit code              | -                 | Yes (6 flags)            |
 | Output formats               | Text              | Text                   | Text              | Terminal, JSON, Markdown, SARIF, CycloneDX |
 
 The bolded rows are the gap `still_active` fills: nobody else answers "is the maintainer still around?" The CVE column is worth a closer look: `bundler-audit` reads `ruby-advisory-db` and `still_active` reads `deps.dev`, which sometimes diverge. **If `bundler-audit` is installed alongside `still_active`, we read its `ruby-advisory-db` checkout too and merge the results** (deduplicated, each advisory tagged with its `source`) — so running both no longer means reconciling two different vuln counts by hand.
@@ -130,6 +130,8 @@ Usage: still_active [options]
                                      Exit 1 if any gem has vulnerabilities (optionally at or above SEVERITY)
         --fail-if-outdated=LIBYEARS  Exit 1 if any gem exceeds LIBYEARS behind latest
         --fail-if-poison[=TIER]      Exit 1 on a poison-pill at or above TIER (note|warning|critical; default warning)
+        --fail-if-ruby-ceiling[=TIER]
+                                     Exit 1 on a Ruby-runtime ceiling (default: EOL-forced only; =note also gates latest-not-yet)
         --ignore=GEM,GEM2,...        Exclude gems from pass/fail checks (still shown in output)
         --critical-warning-emoji=EMOJI
         --futurist-emoji=EMOJI
@@ -373,6 +375,7 @@ fail_if_critical: true
 fail_if_vulnerable: high       # true, or a minimum severity: low|medium|high|critical
 fail_if_outdated: 3            # libyears
 fail_if_poison: warning        # true (=warning), or a tier: note|warning|critical (severity scales with majors-behind)
+fail_if_ruby_ceiling: true     # true = EOL-forced ceilings only; :note also gates latest-not-yet (fluctuates with Ruby's release calendar)
 unreleased_commits: true
 output: json                   # terminal | markdown | json
 direct_only: true              # audit only declared deps, not the full transitive graph (--direct-only)
@@ -390,7 +393,7 @@ ignore:
 
   # Accept staleness on a vendored gem, but still fail if it gets a CVE
   - gem: legacy_thing
-    signal: activity            # activity | vulnerability | libyear | poison
+    signal: activity            # activity | vulnerability | libyear | poison | ruby_ceiling
     reason: "vendored, intentionally frozen"
 
   # A bare gem name keeps the old whole-gem behaviour (mutes every signal)

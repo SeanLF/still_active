@@ -14,6 +14,10 @@ RSpec.describe(StillActive::Workflow) do
     # context overrides this per example. (WebMock would otherwise raise on the
     # unstubbed packages.ecosyste.ms call.)
     allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([]))
+    # Language-runtime ceiling enrichment fetches the Ruby support window once per
+    # run. Default it off (nil) so existing contexts stay network-free; the ceiling
+    # context stubs a real range. (WebMock would otherwise raise on endoflife.date.)
+    allow(StillActive::RubyHelper).to(receive(:supported_ruby_range).and_return(nil))
     # Pin a GitHub token so provider_for selects GithubClient (the path these
     # integration specs and their VCR cassettes assume), independent of whether
     # the host running the suite happens to have a `gh` token. The no-token
@@ -572,6 +576,132 @@ RSpec.describe(StillActive::Workflow) do
         data = result["protected_attributes"]
         expect(data).not_to(have_key(:constraints))
         expect(data[:latest_version]).to(eq("1.1.4"))
+      end
+    end
+
+    describe(".reconcile_ceiling_with_poison") do
+      it("drops a ceiling's fixed_by_upgrade when the same tree poisons that gem below the fix") do
+        result = {
+          "foo" => { ruby_ceiling: { requirement: "< 3.3", eol_forced: true, severity: :critical, fixed_by_upgrade: true } },
+          "bar" => { constraints: [{ dependency: "foo", requirement: "< 2.0", dep_latest: "2.0.0", majors_behind: 1, kind: :ceiling }] },
+        }
+        described_class.send(:reconcile_ceiling_with_poison, result)
+        expect(result["foo"][:ruby_ceiling][:fixed_by_upgrade]).to(be(false))
+        expect(result["foo"][:ruby_ceiling][:upgrade_blocked]).to(be(true))
+      end
+
+      it("leaves fixed_by_upgrade true when nothing caps that gem") do
+        result = { "foo" => { ruby_ceiling: { fixed_by_upgrade: true } } }
+        described_class.send(:reconcile_ceiling_with_poison, result)
+        expect(result["foo"][:ruby_ceiling][:fixed_by_upgrade]).to(be(true))
+        expect(result["foo"][:ruby_ceiling]).not_to(have_key(:upgrade_blocked))
+      end
+    end
+
+    context("with a language-runtime ceiling") do
+      let(:range) do
+        {
+          oldest_supported: Gem::Version.new("3.3"),
+          latest_stable: Gem::Version.new("4.0.5"),
+          cycles: [
+            { version: Gem::Version.new("4.0"), eol: false, eol_date: Time.parse("2029-03-31") },
+            { version: Gem::Version.new("3.4"), eol: false, eol_date: Time.parse("2028-03-31") },
+            { version: Gem::Version.new("3.3"), eol: false, eol_date: Time.parse("2027-03-31") },
+            { version: Gem::Version.new("3.1"), eol: true, eol_date: Time.parse("2025-03-31") },
+          ],
+        }
+      end
+
+      before do
+        allow(StillActive::RubyHelper).to(receive(:supported_ruby_range).and_return(range))
+        allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
+        allow(described_class).to(receive(:repo_signals).and_return({}))
+      end
+
+      # A maintained gem pinned at an old version whose ruby_version caps the
+      # runtime. NOT dormant: the ceiling is a compatibility fact regardless of
+      # maintenance, unlike poison. latest (4.0.0) lifts the cap.
+      def stub_gem_with_ruby_caps(name:, used:, used_ruby:, latest:, latest_ruby:)
+        allow(Gems).to(receive(:versions).with(name).and_return([
+          { "number" => latest, "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => latest_ruby },
+          { "number" => used, "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => used_ruby },
+        ]))
+        allow(Gems).to(receive(:info).with(name).and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+      end
+
+      it("flags an EOL-forcing cap (critical) and notes that upgrading the gem lifts it") do
+        StillActive.config.gems = [{ name: "cfpropertylist", version: "3.0.9" }]
+        stub_gem_with_ruby_caps(name: "cfpropertylist", used: "3.0.9", used_ruby: "< 3.2", latest: "4.0.0", latest_ruby: ">= 3.2")
+
+        ceiling = result["cfpropertylist"][:ruby_ceiling]
+        expect(ceiling[:eol_forced]).to(be(true))
+        expect(ceiling[:severity]).to(eq(:critical))
+        expect(ceiling[:ceiling_version]).to(eq("3.1"))
+        expect(ceiling[:fixed_by_upgrade]).to(be(true))
+      end
+
+      it("flags a compound floor+ceiling ruby_version end-to-end (the real registry shape)") do
+        StillActive.config.gems = [{ name: "legacygem", version: "1.0.0" }]
+        stub_gem_with_ruby_caps(name: "legacygem", used: "1.0.0", used_ruby: ">= 2.3.0, < 3.2", latest: "2.0.0", latest_ruby: ">= 3.3")
+
+        ceiling = result["legacygem"][:ruby_ceiling]
+        expect(ceiling[:eol_forced]).to(be(true))
+        expect(ceiling[:severity]).to(eq(:critical))
+        expect(ceiling[:ceiling_version]).to(eq("3.1"))
+        expect(ceiling[:fixed_by_upgrade]).to(be(true))
+      end
+
+      it("flags a latest-not-yet cap on the resolved version as a note") do
+        StillActive.config.gems = [{ name: "somegem", version: "1.0.0" }]
+        stub_gem_with_ruby_caps(name: "somegem", used: "1.0.0", used_ruby: "~> 3.3", latest: "1.0.0", latest_ruby: "~> 3.3")
+
+        ceiling = result["somegem"][:ruby_ceiling]
+        expect(ceiling[:eol_forced]).to(be(false))
+        expect(ceiling[:severity]).to(eq(:note))
+        expect(ceiling[:fixed_by_upgrade]).to(be(false))
+      end
+
+      it("reads the canonical `ruby`-platform ruby_version, not a precompiled native variant's tighter cap") do
+        # Native gems ship a permissive `ruby` (source) platform plus precompiled
+        # per-platform variants that cap ruby_version to the ABIs they were built
+        # for. The source platform is the gem's true Ruby support, so a permissive
+        # `ruby` entry must win even when a capped native entry is listed first.
+        StillActive.config.gems = [{ name: "sqlite3", version: "2.8.1" }]
+        allow(Gems).to(receive(:versions).with("sqlite3").and_return([
+          { "number" => "2.8.1", "platform" => "x86_64-linux", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => ">= 3.1, < 3.5.dev" },
+          { "number" => "2.8.1", "platform" => "ruby", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => ">= 3.1" },
+        ]))
+        allow(Gems).to(receive(:info).with("sqlite3").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+
+        expect(result["sqlite3"]).not_to(have_key(:ruby_ceiling))
+      end
+
+      it("does NOT flag a pinned version that declares no ruby_version, even if the latest version caps") do
+        # Absent ruby_version means "runs on any Ruby" -> no ceiling. The cap on a
+        # newer release must not be projected back onto the version in the tree.
+        StillActive.config.gems = [{ name: "oldgem", version: "1.0.0" }]
+        allow(Gems).to(receive(:versions).with("oldgem").and_return([
+          { "number" => "2.0.0", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => "< 3.2" },
+          { "number" => "1.0.0", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"] }, # no ruby_version
+        ]))
+        allow(Gems).to(receive(:info).with("oldgem").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+
+        expect(result["oldgem"]).not_to(have_key(:ruby_ceiling))
+      end
+
+      it("attaches nothing when the used version's ruby_version is a bare floor") do
+        StillActive.config.gems = [{ name: "modern", version: "2.0.0" }]
+        stub_gem_with_ruby_caps(name: "modern", used: "2.0.0", used_ruby: ">= 3.1", latest: "2.0.0", latest_ruby: ">= 3.1")
+
+        expect(result["modern"]).not_to(have_key(:ruby_ceiling))
+      end
+
+      it("attaches nothing when the Ruby support window is unavailable (range nil)") do
+        allow(StillActive::RubyHelper).to(receive(:supported_ruby_range).and_return(nil))
+        StillActive.config.gems = [{ name: "cfpropertylist", version: "3.0.9" }]
+        stub_gem_with_ruby_caps(name: "cfpropertylist", used: "3.0.9", used_ruby: "< 3.2", latest: "4.0.0", latest_ruby: ">= 3.2")
+
+        expect(result["cfpropertylist"]).not_to(have_key(:ruby_ceiling))
       end
     end
 

@@ -16,7 +16,7 @@ module StillActive
   # name an explicit advisory id, so a newly disclosed CVE on the same gem is
   # never pre-silenced.
   class Suppressions
-    GATEABLE_SIGNALS = [:activity, :vulnerability, :libyear, :poison].freeze
+    GATEABLE_SIGNALS = [:activity, :vulnerability, :libyear, :poison, :ruby_ceiling].freeze
 
     Entry = Struct.new(:gem, :advisory, :signal, :reason, :expires, keyword_init: true) do
       def whole_gem?

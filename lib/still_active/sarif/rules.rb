@@ -2,7 +2,7 @@
 
 module StillActive
   module Sarif
-    # Catalog of SARIF rules emitted by still_active. Rule IDs (SA001-SA008)
+    # Catalog of SARIF rules emitted by still_active. Rule IDs (SA001-SA009)
     # are stable across versions; renames or removals are breaking changes.
     #
     # Each rule maps a still_active finding into a SARIF result. Security
@@ -114,6 +114,16 @@ module StillActive
           level: "warning",
           security_severity: nil, # maintenance/resolvability, not a CVE (as SA002/SA004/SA005)
           tags: ["maintenance", "supply-chain", "external/cwe/cwe-1104"],
+        },
+        {
+          id: "SA009",
+          name: "RubyRuntimeCeiling",
+          short: "Resolved gem version caps the Ruby runtime",
+          full: "A resolved gem version's declared `ruby_version` caps the Ruby you can run: either below every still-supported release (stranding you on an end-of-life Ruby with no security patches) or below the latest stable (a compatibility ceiling to plan around). The default level is note; an EOL-forcing cap is raised to error per result.",
+          help_text: "If a newer release of the gem lifts the cap, upgrade it. Otherwise replace or fork the gem, or contribute Ruby-N support upstream.",
+          level: "note",
+          security_severity: nil, # maintenance/compatibility, not a CVE (as SA002/SA004/SA005/SA008)
+          tags: ["maintenance", "runtime", "external/cwe/cwe-1104"],
         },
       ].freeze
 

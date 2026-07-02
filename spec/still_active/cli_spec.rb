@@ -261,6 +261,31 @@ RSpec.describe(StillActive::CLI) do
           alternatives: ["foo"],
           vulnerabilities: [{ id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "merged" }],
         },
+        # A poison-pill gem and a language-ceiling gem, so the published schema is
+        # actually validated against those compatibility-signal shapes.
+        "protected_attributes" => {
+          source_type: :rubygems,
+          direct: true,
+          poison: true,
+          poison_severity: :critical,
+          constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling }],
+        },
+        "cfpropertylist" => {
+          source_type: :rubygems,
+          direct: true,
+          version_used: "3.0.9",
+          latest_version: "4.0.0",
+          ruby_ceiling: {
+            requirement: "< 3.2",
+            eol_forced: true,
+            severity: :critical,
+            ceiling_version: "3.1",
+            ceiling_eol_date: Time.new(2025, 3, 31, 0, 0, 0, "+00:00"),
+            oldest_supported: "3.3",
+            latest_stable: "4.0.5",
+            fixed_by_upgrade: true,
+          },
+        },
       }
       allow(StillActive::Workflow).to(receive_messages(
         call: rich,
@@ -275,7 +300,7 @@ RSpec.describe(StillActive::CLI) do
 
       errors = JSONSchemer.schema(Pathname.new(schema_path)).validate(payload).to_a
       expect(errors).to(be_empty, errors.map { |e| "#{e["data_pointer"]}: #{e["type"]} (#{e["data"].inspect})" }.join("\n"))
-      expect(payload["summary"]).to(include("total_gems" => 2, "direct" => 1, "transitive" => 1, "vulnerable_gems" => 1, "ruby_eol" => false))
+      expect(payload["summary"]).to(include("total_gems" => 4, "direct" => 3, "transitive" => 1, "vulnerable_gems" => 1, "ruby_eol" => false))
     end
 
     it("omits ruby key when ruby info is nil") do
@@ -762,6 +787,46 @@ RSpec.describe(StillActive::CLI) do
       )
       expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem }) }
         .not_to(raise_error)
+    end
+  end
+
+  describe("--fail-if-ruby-ceiling") do
+    def ceiling_gem(severity = :critical)
+      gem_data(last_commit_date: recent_date).merge(
+        ruby_ceiling: { requirement: "< 3.2", eol_forced: severity == :critical, severity: severity },
+      )
+    end
+
+    # Ceiling findings only ever carry :critical (EOL-forced) or :note
+    # (latest-not-yet) -- there is no :warning tier -- so the bare gate defaults to
+    # :critical (the real blocker), not the :warning poison uses.
+    it("exits 1 when an EOL-forcing (critical) ceiling meets the default (critical) threshold") do
+      StillActive.config.fail_if_ruby_ceiling = true
+      expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem(:critical) }) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("does NOT exit on a note-level ceiling under the default (critical) threshold") do
+      StillActive.config.fail_if_ruby_ceiling = true
+      expect { cli.send(:check_exit_status, { "somegem" => ceiling_gem(:note) }) }.not_to(raise_error)
+    end
+
+    it("exits on a note-level ceiling when the threshold is lowered to note") do
+      StillActive.config.fail_if_ruby_ceiling = :note
+      expect { cli.send(:check_exit_status, { "somegem" => ceiling_gem(:note) }) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("does not exit when the flag is off, even with a ceiling gem") do
+      expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem }) }.not_to(raise_error)
+    end
+
+    it("does not exit when the gem's ruby_ceiling signal is suppressed in .still_active.yml") do
+      StillActive.config.fail_if_ruby_ceiling = true
+      StillActive.config.suppressions = StillActive::Suppressions.from(
+        [{ "gem" => "cfpropertylist", "signal" => "ruby_ceiling", "reason" => "pinned on purpose" }],
+      )
+      expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem }) }.not_to(raise_error)
     end
   end
 

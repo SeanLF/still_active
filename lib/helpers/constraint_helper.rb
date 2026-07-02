@@ -75,6 +75,11 @@ module StillActive
     # below a utility) and a vulnerable-gem escalator was rejected (that is the
     # vulnerability finding's job, not the cap's).
     def constraint_severity(finding)
+      # A runtime ceiling that strands you on an end-of-life Ruby is act-now: no
+      # patched runtime is reachable. This short-circuit lets the language-ceiling
+      # signal (which carries no majors_behind) reuse the same tierer as poison.
+      return :critical if finding[:eol_forced]
+
       case finding[:majors_behind]
       when 2 then :warning
       when 3.. then :critical

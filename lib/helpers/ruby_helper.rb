@@ -42,7 +42,66 @@ module StillActive
       }
     end
 
+    # The runtime facts a per-gem language ceiling is measured against: the
+    # oldest Ruby cycle still receiving security releases, the latest stable
+    # release, and the normalized cycle list (version + EOL flag/date) so a
+    # ceiling finding can name the exact Ruby a cap strands you on and how long
+    # it's been dead. Reuses the same endoflife.date feed as #ruby_freshness.
+    # Returns nil when the feed is unavailable or every known cycle is EOL (no
+    # supported floor to compare against).
+    def supported_ruby_range
+      cycles = fetch_cycles
+      return if cycles.nil? || cycles.empty?
+
+      # endoflife.date is best-effort third-party data. Guard the newest cycle's
+      # `latest` the same way normalize_cycle guards `cycle`: a malformed/preview
+      # value must degrade to "sit out" (nil), not raise. This method is fetched
+      # once outside the per-gem rescue, so an unguarded raise would abort the
+      # entire audit, contrary to the best-effort contract.
+      latest = cycles.first["latest"]
+      return unless latest && Gem::Version.correct?(latest)
+
+      normalized = cycles.filter_map { |cycle| normalize_cycle(cycle) }
+      supported = normalized.reject { |cycle| cycle[:eol] }
+      return if supported.empty?
+
+      {
+        oldest_supported: supported.map { |cycle| cycle[:version] }.min,
+        latest_stable: Gem::Version.new(latest),
+        latest_stable_fresh: latest_stable_fresh?(cycles.first),
+        cycles: normalized,
+      }
+    end
+
+    # How long a newly-released runtime gets before gems are held accountable for
+    # not yet declaring support for it. Below this, a latest-not-yet ceiling is
+    # about the release calendar, not the gem, so the note is suppressed.
+    LATEST_STABLE_GRACE_SECONDS = 90 * 24 * 60 * 60
+
+    def latest_stable_fresh?(latest_cycle)
+      released = parse_date(latest_cycle["releaseDate"])
+      return false if released.nil?
+
+      (Time.now - released) < LATEST_STABLE_GRACE_SECONDS
+    rescue ArgumentError
+      # A malformed (non-nil) releaseDate from the best-effort feed must degrade to
+      # "not fresh" (notes fire as normal), never raise: raising here would null the
+      # whole support window and silently disable EOL-forced criticals too.
+      false
+    end
+
     private
+
+    def normalize_cycle(cycle)
+      version = cycle["cycle"]
+      return unless version && Gem::Version.correct?(version)
+
+      {
+        version: Gem::Version.new(version),
+        eol: eol_reached?(cycle["eol"]) == true,
+        eol_date: parse_eol(cycle["eol"]),
+      }
+    end
 
     def current_ruby_version
       lockfile_ruby_version || (RUBY_ENGINE == "ruby" ? RUBY_VERSION : nil)

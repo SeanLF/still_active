@@ -32,9 +32,9 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(driver["informationUri"]).to(include("github.com/SeanLF/still_active"))
     end
 
-    it("emits all 8 rules in tool.driver.rules with required fields") do
+    it("emits all 9 rules in tool.driver.rules with required fields") do
       rules = doc.dig("runs", 0, "tool", "driver", "rules")
-      expect(rules.size).to(eq(8))
+      expect(rules.size).to(eq(9))
       rules.each do |r|
         expect(r).to(include("id", "name", "shortDescription", "fullDescription", "help", "helpUri", "defaultConfiguration", "properties"))
         expect(r["help"]).to(include("text", "markdown"))
@@ -49,7 +49,7 @@ RSpec.describe(StillActive::SarifHelper) do
       ["SA001", "SA003", "SA006", "SA007"].each do |id|
         expect(by_id[id]["properties"]["security-severity"]).to(match(/\A\d+\.\d+\z/))
       end
-      ["SA002", "SA004", "SA005", "SA008"].each do |id|
+      ["SA002", "SA004", "SA005", "SA008", "SA009"].each do |id|
         expect(by_id[id]["properties"]).not_to(have_key("security-severity"))
       end
     end
@@ -268,6 +268,75 @@ RSpec.describe(StillActive::SarifHelper) do
       )
       sa008 = render(result: poison([cap])).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
       expect(sa008["suppressions"]).to(eq([{ "kind" => "external", "justification" => "vendored" }]))
+    end
+  end
+
+  describe("SA009 RubyRuntimeCeiling") do
+    def ceiling(finding, extra = {})
+      { "gem" => { version_used: "3.0.9", latest_version: "4.0.0", ruby_ceiling: finding }.merge(extra) }
+    end
+
+    let(:eol_finding) do
+      {
+        requirement: "< 3.2",
+        eol_forced: true,
+        severity: :critical,
+        ceiling_version: "3.1",
+        ceiling_eol_date: Time.new(2025, 3, 31),
+        oldest_supported: "3.3",
+        latest_stable: "4.0.5",
+        fixed_by_upgrade: true,
+      }
+    end
+
+    it("fires an error-level SA009 for an EOL-forcing cap with the receipt") do
+      results = render(result: ceiling(eol_finding)).dig("runs", 0, "results")
+      sa009 = results.select { |r| r["ruleId"] == "SA009" }
+      expect(sa009.size).to(eq(1))
+      expect(sa009[0]["level"]).to(eq("error")) # critical -> error
+      expect(sa009[0].dig("message", "text")).to(include("requires Ruby < 3.2, stranding you on end-of-life Ruby 3.1 (EOL 2025-03-31)"))
+      expect(sa009[0].dig("message", "text")).to(include("upgrade to 4.0.0 to lift it"))
+    end
+
+    it("fires a note-level SA009 for a latest-not-yet cap") do
+      finding = { requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }
+      sa009 = render(result: ceiling(finding, { version_used: "1.0.0", latest_version: "1.0.0" })).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }
+      expect(sa009["level"]).to(eq("note"))
+      expect(sa009.dig("message", "text")).to(include("no Ruby 4.0.5 support yet"))
+    end
+
+    it("carries no security-severity (maintenance/compatibility, not a CVE)") do
+      sa009 = render(result: ceiling(eol_finding)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }
+      expect(sa009).not_to(have_key("properties"))
+    end
+
+    it("fingerprints stably within a tier, so a shifting Ruby window doesn't re-alert cosmetic churn") do
+      fp = lambda do |ceiling_ver|
+        f = eol_finding.merge(ceiling_version: ceiling_ver)
+        render(result: ceiling(f)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }.dig("partialFingerprints", "stillActiveFinding/v1")
+      end
+      expect(fp.call("3.1")).to(eq(fp.call("3.0")))
+    end
+
+    it("mints a DIFFERENT fingerprint when a note escalates to EOL-forced, so a past dismissal can't mute the critical") do
+      note = { requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }
+      fp = lambda do |finding|
+        render(result: ceiling(finding)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }.dig("partialFingerprints", "stillActiveFinding/v1")
+      end
+      expect(fp.call(note)).not_to(eq(fp.call(eol_finding)))
+    end
+
+    it("does not fire for a gem without a ceiling") do
+      results = render(result: { "clean" => { version_used: "1.0.0" } }).dig("runs", 0, "results")
+      expect(results.any? { |r| r["ruleId"] == "SA009" }).to(be(false))
+    end
+
+    it("is suppressible via the :ruby_ceiling signal") do
+      StillActive.config.suppressions = StillActive::Suppressions.from(
+        [{ "gem" => "gem", "signal" => "ruby_ceiling", "reason" => "pinned on purpose" }],
+      )
+      sa009 = render(result: ceiling(eol_finding)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }
+      expect(sa009["suppressions"]).to(eq([{ "kind" => "external", "justification" => "pinned on purpose" }]))
     end
 
     it("does NOT fire on a recent release") do

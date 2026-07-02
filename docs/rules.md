@@ -1,6 +1,6 @@
 # still_active SARIF Rules
 
-Each finding `still_active --sarif` emits maps to one of the rules below. Rule IDs (`SA001`–`SA008`) are stable across versions; renames or removals are breaking changes.
+Each finding `still_active --sarif` emits maps to one of the rules below. Rule IDs (`SA001`–`SA009`) are stable across versions; renames or removals are breaking changes.
 
 When uploaded via `github/codeql-action/upload-sarif`, findings appear in the GitHub Code Scanning UI and as inline annotations on `Gemfile.lock` in pull requests.
 
@@ -128,8 +128,24 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 ---
 
+## SA009 — Ruby Runtime Ceiling {#sa009}
+
+**Triggers when:** a resolved gem version's declared `ruby_version` caps the Ruby you can run: either below every still-supported release (an EOL-forcing cap) or below the latest stable (a latest-not-yet cap). The runtime support window comes from [endoflife.date](https://endoflife.date/ruby).
+
+**Why it matters:** this is the language-runtime sibling of the poison pill. Where a poison pill caps a dependency, this caps your interpreter. An EOL-forcing cap strands you on a Ruby that receives no security patches, a genuine upgrade blocker. A latest-not-yet cap is a lower-stakes heads-up: a compatibility ceiling to plan around before you invest, or a place to contribute Ruby-N support upstream. It is not gated on maintenance status, since the cap is a fact of the resolved version whether or not the gem is still shipping.
+
+**SARIF level:** `note` by default, raised to `error` per result for an EOL-forcing cap · **security-severity:** none (a maintenance/compatibility finding, not a vulnerability) · **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html)
+
+**How to fix:** if a newer release of the gem lifts the cap, upgrade it (the finding says so when it does, unless a poison-pill on the same gem blocks that upgrade). Otherwise replace or fork the gem, or contribute Ruby-N support upstream.
+
+**Reading the negative space:** a declared `ruby_version` cap is a maintainer being honest about tested compatibility, not a defect. Equally, **no SA009 findings does not mean "safe to bump Ruby"**: the signal only sees gems that *declare* a cap. The most common real upgrade blockers (native extensions that fail to compile, removed stdlib, deprecated C-API) declare nothing and are invisible here. A latest-not-yet cap is also suppressed for a grace period after a new Ruby ships, since "doesn't support it yet" three days in is about the release calendar, not the gem.
+
+**When to suppress:** when the pinned version is deliberate and the runtime ceiling is accepted. Suppress the `ruby_ceiling` signal for the specific gem in `.still_active.yml`, ideally with an `expires:` date so the acceptance is revisited.
+
+---
+
 ## Stability
 
-- Rule IDs are stable. New rules (SA009+) are additive. Existing rule renames/removals would be breaking changes.
+- Rule IDs are stable. New rules (SA010+) are additive. Existing rule renames/removals would be breaking changes.
 - `partialFingerprints` hash `(rule_id, gem_name, advisory_id?)` — version is **not** included, so a `bundle update` that doesn't change which gems are flagged keeps the same alert IDs (no churn in the GitHub Security UI).
 - Rule thresholds (libyear ≥ 1.0, scorecard < 4.0, abandonment ≥ 2 years) are tracked in `lib/helpers/sarif_helper.rb`.

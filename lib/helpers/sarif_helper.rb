@@ -145,7 +145,37 @@ module StillActive
         out << mark_suppressed(result("SA008", name, poison_message(name, version, data), location, level: poison_level(data)), name, :poison)
       end
 
+      if data[:ruby_ceiling]
+        # Level tracks the ceiling tier: critical (EOL-forced) -> error, note
+        # (latest-not-yet) -> note. Fingerprint is (rule_id, gem_name, state) where
+        # state is the eol_forced boolean: cosmetic churn (which patch, which
+        # latest) doesn't re-alert, but a note -> EOL-forced escalation (a supported
+        # Ruby went EOL) mints a NEW alert so a past dismissal of the note can't
+        # silently mute the critical -- that transition is exactly the one a human
+        # must see.
+        state = data[:ruby_ceiling][:eol_forced] ? "eol_forced" : "latest_not_yet"
+        out << mark_suppressed(result("SA009", name, ruby_ceiling_message(name, version, data), location, level: ruby_ceiling_level(data), fp_extra: state), name, :ruby_ceiling)
+      end
+
       out
+    end
+
+    def ruby_ceiling_level(data)
+      { critical: "error", warning: "warning", note: "note" }.fetch(data[:ruby_ceiling][:severity], "note")
+    end
+
+    def ruby_ceiling_message(name, version, data)
+      ceiling = data[:ruby_ceiling]
+      body =
+        if ceiling[:eol_forced]
+          eol = ceiling[:ceiling_eol_date]
+          eol_part = eol ? " (EOL #{format_date(eol)})" : ""
+          "stranding you on end-of-life Ruby #{ceiling[:ceiling_version]}#{eol_part}"
+        else
+          "no Ruby #{ceiling[:latest_stable]} support yet"
+        end
+      fix = ceiling[:fixed_by_upgrade] && data[:latest_version] ? "; upgrade to #{data[:latest_version]} to lift it" : ""
+      "#{name} #{version}: requires Ruby #{ceiling[:requirement]}, #{body}#{fix}#{transitive_suffix(data)}."
     end
 
     # The poison receipt for a Code Scanning alert: the worst 3 caps (shared
