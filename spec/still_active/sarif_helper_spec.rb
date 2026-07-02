@@ -417,7 +417,7 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(sa003[0].dig("properties", "security-severity")).to(eq("6.0"))
     end
 
-    it("emits no security-severity property when both CVSS scores are nil") do
+    it("elevates a confirmed-but-unscored advisory to warning (not an informational note) and omits security-severity") do
       report_v2 = {
         "vuln_gem" => {
           version_used: "3.0.0",
@@ -425,8 +425,22 @@ RSpec.describe(StillActive::SarifHelper) do
         },
       }
       sa003 = render(result: report_v2).dig("runs", 0, "results", 0)
-      expect(sa003["level"]).to(eq("note"))
+      expect(sa003["level"]).to(eq("warning"))
       expect(sa003["properties"]&.dig("security-severity")).to(be_nil)
+    end
+
+    it("does not export a deps.dev cvss3=0 (CVSS-4-only) advisory as an informational note/0.0") do
+      # Two real HIGH protobuf GHSAs arrive from deps.dev as cvss3_score 0 (its
+      # no-CVSS-3 sentinel); a 0 must not read as low and clear a code-scanning gate.
+      report = {
+        "protobuf" => {
+          version_used: "4.21.6",
+          vulnerabilities: [{ id: "GHSA-8qvm-5x2c-j2w7", title: "DoS", cvss3_score: 0, cvss2_score: nil }],
+        },
+      }
+      sa003 = render(result: report).dig("runs", 0, "results", 0)
+      expect(sa003["level"]).to(eq("warning"))
+      expect(sa003["properties"]&.dig("security-severity")).not_to(eq("0.0"))
     end
   end
 

@@ -20,7 +20,11 @@ module StillActive
       # CVSS 0-10 -> SARIF level. Per GitHub Code Scanning convention,
       # scores >= 7.0 map to error, 4.0-6.9 to warning, below 4.0 to note.
       def cvss_to_level(score)
-        return "note" if score.nil?
+        # A confirmed-but-unscored advisory (nil after effective_score, e.g. a
+        # CVSS-4-only advisory deps.dev returns as 0, or a fresh CVE) is elevated to
+        # warning, not note: it's a real finding a gate must not read as
+        # informational -- the SARIF analogue of the CLI gate's fail-closed.
+        return "warning" if score.nil?
         return "error" if score >= 7.0
         return "warning" if score >= 4.0
 
