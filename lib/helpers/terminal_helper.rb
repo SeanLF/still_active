@@ -194,8 +194,20 @@ module StillActive
       path = data[:dependency_path]
       via = data[:direct] == false && path && path.length >= 2 ? " (via #{path.first})" : ""
       # Colour carries the tier: red = act-now (3+ majors behind), yellow = plan,
-      # dim = a minor/FYI cap (1 behind). The row is already red (dormant gem).
-      AnsiHelper.public_send(poison_colour(data[:poison_severity]), "  ↳ poison#{via}: #{poison_receipt(constraints)}")
+      # dim = a minor/FYI cap (1 behind). A security-relevant cap (it pins a
+      # vulnerable dependency below the fix) is always red -- that's the finding to
+      # act on regardless of how many majors behind it happens to be.
+      colour = data[:poison_security_relevant] ? :red : poison_colour(data[:poison_severity])
+      AnsiHelper.public_send(colour, "  ↳ poison#{via}: #{poison_receipt(constraints)}#{poison_security_suffix(data)}")
+    end
+
+    # Names the vulnerable dependency a security-relevant poison cap pins you to --
+    # the actionable "you're stuck below a fix for a known-vulnerable dep" detail.
+    def poison_security_suffix(data)
+      return "" unless data[:poison_security_relevant]
+
+      pinned = Array(data[:constraints]).select { |c| c[:capped_dep_vulnerable] }.map { |c| c[:dependency] }.uniq
+      " ⚠ pins vulnerable #{pinned.join(", ")}"
     end
 
     def poison_colour(severity)

@@ -228,6 +228,18 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(sa008).not_to(have_key("properties"))
     end
 
+    it("escalates a security-relevant cap to error, names the pinned vulnerable dep, and mints a distinct fingerprint") do
+      vuln_cap = cap.merge(dependency: "protobuf", capped_dep_vulnerable: true)
+      data = poison([vuln_cap], { poison_severity: :note, poison_security_relevant: true })
+      sa008 = render(result: data).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
+      expect(sa008["level"]).to(eq("error")) # security-relevant escalates above the :note tier
+      expect(sa008.dig("message", "text")).to(include("pins known-vulnerable protobuf below the fix"))
+
+      plain = render(result: poison([cap])).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
+      expect(sa008.dig("partialFingerprints", "primaryLocationLineHash"))
+        .not_to(eq(plain.dig("partialFingerprints", "primaryLocationLineHash")))
+    end
+
     it("fingerprints on gem identity, NOT on majors_behind, so a growing cap is not re-alerted every run") do
       fp = lambda do |behind|
         r = render(result: poison([cap.merge(majors_behind: behind)])).dig("runs", 0, "results").find { |x| x["ruleId"] == "SA008" }

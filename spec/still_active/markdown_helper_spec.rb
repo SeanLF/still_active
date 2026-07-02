@@ -373,6 +373,23 @@ RSpec.describe(StillActive::MarkdownHelper) do
       expect(out).to(include("`protected_attributes` caps `activemodel` `< 5.0` (4 majors behind, latest 8.x)"))
     end
 
+    it("marks a security-relevant cap (names the pinned vulnerable dep) and leads with it over a higher-tier plain cap") do
+      result = {
+        "plaingem" => poison_gem(
+          [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling }],
+          { poison_severity: :critical },
+        ),
+        "google-api-core" => poison_gem(
+          [{ dependency: "protobuf", requirement: "< 5", dep_latest: "7.0.0", majors_behind: 3, kind: :ceiling, capped_dep_vulnerable: true }],
+          { poison_severity: :note, poison_security_relevant: true },
+        ),
+      }
+      out = described_class.poison_section(result)
+      expect(out).to(include("⚠ **pins vulnerable protobuf**"))
+      # security-relevant leads, despite being :note vs the plain :critical.
+      expect(out.index("google-api-core")).to(be < out.index("plaingem"))
+    end
+
     it("shows the worst 3 caps + total for a many-cap gem, worst-first with name tie-break") do
       caps = [
         { dependency: "chalk", requirement: "^1", dep_latest: "5.0.0", majors_behind: 4, kind: :ceiling },

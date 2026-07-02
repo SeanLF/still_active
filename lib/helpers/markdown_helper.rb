@@ -128,15 +128,25 @@ module StillActive
       # triage-friendly order.
       ranked = flagged.sort_by do |name, data|
         [
+          data[:poison_security_relevant] ? 0 : 1, # security-relevant caps lead
           -ConstraintHelper::SEVERITY.index(data[:poison_severity] || :note),
           -Array(data[:constraints]).map { |c| c[:majors_behind].to_i }.max,
           name.to_s,
         ]
       end
       ranked.each do |name, data|
-        lines << "- **#{data[:poison_severity] || :note}** #{poison_gem_ref(name, data)} caps #{poison_caps(data[:constraints])}"
+        lines << "- **#{data[:poison_severity] || :note}** #{poison_gem_ref(name, data)} caps #{poison_caps(data[:constraints])}#{poison_security_marker(data)}"
       end
       lines.join("\n")
+    end
+
+    # A prominent marker naming the known-vulnerable dependency a security-relevant
+    # cap pins you below the fix for -- the finding to act on first.
+    def poison_security_marker(data)
+      return "" unless data[:poison_security_relevant]
+
+      pinned = Array(data[:constraints]).select { |c| c[:capped_dep_vulnerable] }.map { |c| c[:dependency] }.uniq
+      " ⚠ **pins vulnerable #{pinned.join(", ")}**"
     end
 
     # The language-runtime ceiling: a resolved version whose declared runtime
