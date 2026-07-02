@@ -3,6 +3,7 @@
 require_relative "artifactory_client"
 require_relative "ceiling_reconciler"
 require_relative "deps_dev_client"
+require_relative "poison_security_correlator"
 require_relative "ecosystems_client"
 require_relative "forgejo_client"
 require_relative "github_client"
@@ -95,6 +96,9 @@ module StillActive
         # "upgrade to lift it" must not contradict a poison finding that caps the
         # same gem below that upgrade.
         CeilingReconciler.reconcile_ceiling_with_poison(result_object)
+        # Flag poison caps that pin a vulnerable dependency: "a dormant package is
+        # holding you on a known-vulnerable dep, below the fix." No extra fetches.
+        PoisonSecurityCorrelator.correlate(result_object)
         # Gems are inserted as their async tasks finish, so the natural order is
         # nondeterministic completion order. Sort by name once here so every
         # consumer (JSON, SARIF, the baseline diff) gets a stable, diffable order.

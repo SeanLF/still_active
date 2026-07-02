@@ -2,6 +2,7 @@
 
 require_relative "ecosystem_lens"
 require_relative "ceiling_reconciler"
+require_relative "poison_security_correlator"
 require_relative "../helpers/python_helper"
 require "async"
 require "async/barrier"
@@ -73,6 +74,9 @@ module StillActive
         # ceiling's "upgrade to lift it" must not contradict a poison finding that
         # caps the same package below that upgrade (same guarantee as the native path).
         CeilingReconciler.reconcile_ceiling_with_poison(result)
+        # Flag poison caps that pin a vulnerable dependency (the moat's strongest
+        # case: an archived package holding you on a known-vulnerable dep).
+        PoisonSecurityCorrelator.correlate(result)
         # Stable, diffable order regardless of async completion order.
         Outcome.new(
           assessed: result.sort_by { |key, _| key }.to_h,

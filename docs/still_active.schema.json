@@ -89,6 +89,7 @@
         "libyear": { "type": ["number", "null"] },
         "poison": { "type": "boolean" },
         "poison_severity": { "type": "string", "enum": ["note", "warning", "critical"] },
+        "poison_security_relevant": { "type": "boolean" },
         "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
         "language_ceiling": { "$ref": "#/$defs/language_ceiling" }
       }
@@ -102,7 +103,8 @@
         "requirement": { "type": "string" },
         "dep_latest": { "type": ["string", "null"] },
         "majors_behind": { "type": "integer", "minimum": 0 },
-        "kind": { "type": "string", "enum": ["ceiling", "exact_pin", "permissive"] }
+        "kind": { "type": "string", "enum": ["ceiling", "exact_pin", "permissive"] },
+        "capped_dep_vulnerable": { "type": "boolean" }
       }
     },
     "language_ceiling": {
