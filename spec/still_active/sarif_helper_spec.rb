@@ -271,9 +271,9 @@ RSpec.describe(StillActive::SarifHelper) do
     end
   end
 
-  describe("SA009 RubyRuntimeCeiling") do
+  describe("SA009 RuntimeCeiling") do
     def ceiling(finding, extra = {})
-      { "gem" => { version_used: "3.0.9", latest_version: "4.0.0", ruby_ceiling: finding }.merge(extra) }
+      { "gem" => { version_used: "3.0.9", latest_version: "4.0.0", language_ceiling: { runtime: "Ruby" }.merge(finding) }.merge(extra) }
     end
 
     let(:eol_finding) do
@@ -331,9 +331,9 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(results.any? { |r| r["ruleId"] == "SA009" }).to(be(false))
     end
 
-    it("is suppressible via the :ruby_ceiling signal") do
+    it("is suppressible via the :language_ceiling signal") do
       StillActive.config.suppressions = StillActive::Suppressions.from(
-        [{ "gem" => "gem", "signal" => "ruby_ceiling", "reason" => "pinned on purpose" }],
+        [{ "gem" => "gem", "signal" => "language_ceiling", "reason" => "pinned on purpose" }],
       )
       sa009 = render(result: ceiling(eol_finding)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }
       expect(sa009["suppressions"]).to(eq([{ "kind" => "external", "justification" => "pinned on purpose" }]))

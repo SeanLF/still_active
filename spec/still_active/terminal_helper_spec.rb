@@ -361,7 +361,7 @@ RSpec.describe(StillActive::TerminalHelper) do
           latest_version: "4.0.0",
           vulnerability_count: 0,
           scorecard_score: nil,
-          ruby_ceiling: ceiling,
+          language_ceiling: { runtime: "Ruby" }.merge(ceiling),
         }.merge(extra)
       end
 

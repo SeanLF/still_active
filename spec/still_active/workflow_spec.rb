@@ -579,25 +579,6 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
-    describe(".reconcile_ceiling_with_poison") do
-      it("drops a ceiling's fixed_by_upgrade when the same tree poisons that gem below the fix") do
-        result = {
-          "foo" => { ruby_ceiling: { requirement: "< 3.3", eol_forced: true, severity: :critical, fixed_by_upgrade: true } },
-          "bar" => { constraints: [{ dependency: "foo", requirement: "< 2.0", dep_latest: "2.0.0", majors_behind: 1, kind: :ceiling }] },
-        }
-        described_class.send(:reconcile_ceiling_with_poison, result)
-        expect(result["foo"][:ruby_ceiling][:fixed_by_upgrade]).to(be(false))
-        expect(result["foo"][:ruby_ceiling][:upgrade_blocked]).to(be(true))
-      end
-
-      it("leaves fixed_by_upgrade true when nothing caps that gem") do
-        result = { "foo" => { ruby_ceiling: { fixed_by_upgrade: true } } }
-        described_class.send(:reconcile_ceiling_with_poison, result)
-        expect(result["foo"][:ruby_ceiling][:fixed_by_upgrade]).to(be(true))
-        expect(result["foo"][:ruby_ceiling]).not_to(have_key(:upgrade_blocked))
-      end
-    end
-
     context("with a language-runtime ceiling") do
       let(:range) do
         {
@@ -633,7 +614,8 @@ RSpec.describe(StillActive::Workflow) do
         StillActive.config.gems = [{ name: "cfpropertylist", version: "3.0.9" }]
         stub_gem_with_ruby_caps(name: "cfpropertylist", used: "3.0.9", used_ruby: "< 3.2", latest: "4.0.0", latest_ruby: ">= 3.2")
 
-        ceiling = result["cfpropertylist"][:ruby_ceiling]
+        ceiling = result["cfpropertylist"][:language_ceiling]
+        expect(ceiling[:runtime]).to(eq("Ruby"))
         expect(ceiling[:eol_forced]).to(be(true))
         expect(ceiling[:severity]).to(eq(:critical))
         expect(ceiling[:ceiling_version]).to(eq("3.1"))
@@ -644,7 +626,7 @@ RSpec.describe(StillActive::Workflow) do
         StillActive.config.gems = [{ name: "legacygem", version: "1.0.0" }]
         stub_gem_with_ruby_caps(name: "legacygem", used: "1.0.0", used_ruby: ">= 2.3.0, < 3.2", latest: "2.0.0", latest_ruby: ">= 3.3")
 
-        ceiling = result["legacygem"][:ruby_ceiling]
+        ceiling = result["legacygem"][:language_ceiling]
         expect(ceiling[:eol_forced]).to(be(true))
         expect(ceiling[:severity]).to(eq(:critical))
         expect(ceiling[:ceiling_version]).to(eq("3.1"))
@@ -655,7 +637,7 @@ RSpec.describe(StillActive::Workflow) do
         StillActive.config.gems = [{ name: "somegem", version: "1.0.0" }]
         stub_gem_with_ruby_caps(name: "somegem", used: "1.0.0", used_ruby: "~> 3.3", latest: "1.0.0", latest_ruby: "~> 3.3")
 
-        ceiling = result["somegem"][:ruby_ceiling]
+        ceiling = result["somegem"][:language_ceiling]
         expect(ceiling[:eol_forced]).to(be(false))
         expect(ceiling[:severity]).to(eq(:note))
         expect(ceiling[:fixed_by_upgrade]).to(be(false))
@@ -673,7 +655,7 @@ RSpec.describe(StillActive::Workflow) do
         ]))
         allow(Gems).to(receive(:info).with("sqlite3").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
 
-        expect(result["sqlite3"]).not_to(have_key(:ruby_ceiling))
+        expect(result["sqlite3"]).not_to(have_key(:language_ceiling))
       end
 
       it("does NOT flag a pinned version that declares no ruby_version, even if the latest version caps") do
@@ -686,14 +668,14 @@ RSpec.describe(StillActive::Workflow) do
         ]))
         allow(Gems).to(receive(:info).with("oldgem").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
 
-        expect(result["oldgem"]).not_to(have_key(:ruby_ceiling))
+        expect(result["oldgem"]).not_to(have_key(:language_ceiling))
       end
 
       it("attaches nothing when the used version's ruby_version is a bare floor") do
         StillActive.config.gems = [{ name: "modern", version: "2.0.0" }]
         stub_gem_with_ruby_caps(name: "modern", used: "2.0.0", used_ruby: ">= 3.1", latest: "2.0.0", latest_ruby: ">= 3.1")
 
-        expect(result["modern"]).not_to(have_key(:ruby_ceiling))
+        expect(result["modern"]).not_to(have_key(:language_ceiling))
       end
 
       it("attaches nothing when the Ruby support window is unavailable (range nil)") do
@@ -701,7 +683,7 @@ RSpec.describe(StillActive::Workflow) do
         StillActive.config.gems = [{ name: "cfpropertylist", version: "3.0.9" }]
         stub_gem_with_ruby_caps(name: "cfpropertylist", used: "3.0.9", used_ruby: "< 3.2", latest: "4.0.0", latest_ruby: ">= 3.2")
 
-        expect(result["cfpropertylist"]).not_to(have_key(:ruby_ceiling))
+        expect(result["cfpropertylist"]).not_to(have_key(:language_ceiling))
       end
     end
 

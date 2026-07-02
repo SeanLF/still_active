@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require_relative "ecosystem_lens"
+require_relative "ceiling_reconciler"
+require_relative "../helpers/python_helper"
 require "async"
 require "async/barrier"
 require "async/semaphore"
@@ -29,6 +31,16 @@ module StillActive
     def call(sbom_result, &on_progress)
       dependencies = sbom_result.dependencies
       Async do
+        # The Python runtime support window, fetched once for the whole SBOM (the
+        # language-ceiling input for pypi deps). Guarded like the native Ruby path:
+        # a feed failure degrades to "no ceiling checks", never aborts the audit.
+        python_range =
+          begin
+            PythonHelper.supported_python_range
+          rescue StandardError => e
+            $stderr.puts("warning: Python support window lookup failed: #{e.class} (#{e.message}); skipping language-ceiling checks")
+            nil
+          end
         barrier = Async::Barrier.new
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result = {}
@@ -44,7 +56,7 @@ module StillActive
         dependencies.each do |dep|
           semaphore.async do
             result["#{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}"] =
-              EcosystemLens.assess(ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], constraint_cache: constraint_cache)
+              EcosystemLens.assess(ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], constraint_cache: constraint_cache, python_range: python_range)
           rescue StandardError => e
             # One dependency's failure must not abort the audit, but it must not
             # disappear either: record it as an unassessable entry (same shape as
@@ -57,6 +69,10 @@ module StillActive
           end
         end
         barrier.wait
+        # Whole-tree correlation once every package's signals are in: a Python
+        # ceiling's "upgrade to lift it" must not contradict a poison finding that
+        # caps the same package below that upgrade (same guarantee as the native path).
+        CeilingReconciler.reconcile_ceiling_with_poison(result)
         # Stable, diffable order regardless of async completion order.
         Outcome.new(
           assessed: result.sort_by { |key, _| key }.to_h,

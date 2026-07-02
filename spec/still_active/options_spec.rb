@@ -136,25 +136,25 @@ RSpec.describe(StillActive::Options) do
       expect(StillActive.config.fail_if_outdated).to(eq(3.0))
     end
 
-    it("sets fail-if-ruby-ceiling to true when bare") do
-      described_class.new.parse!(["--fail-if-ruby-ceiling", "--gems=rails"])
-      expect(StillActive.config.fail_if_ruby_ceiling).to(be(true))
+    it("sets fail-if-language-ceiling to true when bare") do
+      described_class.new.parse!(["--fail-if-language-ceiling", "--gems=rails"])
+      expect(StillActive.config.fail_if_language_ceiling).to(be(true))
     end
 
-    it("sets fail-if-ruby-ceiling to a tier symbol when given one") do
-      described_class.new.parse!(["--fail-if-ruby-ceiling=note", "--gems=rails"])
-      expect(StillActive.config.fail_if_ruby_ceiling).to(eq(:note))
+    it("sets fail-if-language-ceiling to a tier symbol when given one") do
+      described_class.new.parse!(["--fail-if-language-ceiling=note", "--gems=rails"])
+      expect(StillActive.config.fail_if_language_ceiling).to(eq(:note))
     end
 
-    it("raises when the fail-if-ruby-ceiling tier is invalid") do
-      expect { described_class.new.parse!(["--fail-if-ruby-ceiling=banana", "--gems=rails"]) }
+    it("raises when the fail-if-language-ceiling tier is invalid") do
+      expect { described_class.new.parse!(["--fail-if-language-ceiling=banana", "--gems=rails"]) }
         .to(raise_error(ArgumentError, /tier must be one of/))
     end
 
-    it("warns that fail-if-ruby-ceiling=warning is a no-op tier but still accepts it") do
-      expect { described_class.new.parse!(["--fail-if-ruby-ceiling=warning", "--gems=rails"]) }
+    it("warns that fail-if-language-ceiling=warning is a no-op tier but still accepts it") do
+      expect { described_class.new.parse!(["--fail-if-language-ceiling=warning", "--gems=rails"]) }
         .to(output(/no effect.*behaves as =critical/).to_stderr)
-      expect(StillActive.config.fail_if_ruby_ceiling).to(eq(:warning))
+      expect(StillActive.config.fail_if_language_ceiling).to(eq(:warning))
     end
 
     it("sets ignored gems from comma-separated list") do

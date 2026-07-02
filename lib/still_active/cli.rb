@@ -341,8 +341,8 @@ module StillActive
       end
       poison = MarkdownHelper.poison_section(result)
       puts poison unless poison.empty?
-      ruby_ceiling = MarkdownHelper.ruby_ceiling_section(result)
-      puts ruby_ceiling unless ruby_ceiling.empty?
+      language_ceiling = MarkdownHelper.language_ceiling_section(result)
+      puts language_ceiling unless language_ceiling.empty?
       alternatives = MarkdownHelper.alternatives_section(result)
       puts alternatives unless alternatives.empty?
       transitive = MarkdownHelper.transitive_section(result)
@@ -355,7 +355,7 @@ module StillActive
 
     def check_exit_status(result)
       config = StillActive.config
-      return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated || config.fail_if_poison || config.fail_if_ruby_ceiling
+      return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated || config.fail_if_poison || config.fail_if_language_ceiling
 
       warn_unknown_severity_gate(result, config)
       exit(1) if result.any? { |name, data| gate_failed?(name, data, config) }
@@ -396,7 +396,7 @@ module StillActive
         failed_vulnerability?(name, data, config, suppressions) ||
         failed_outdated?(name, data, config, suppressions) ||
         failed_poison?(name, data, config, suppressions) ||
-        failed_ruby_ceiling?(name, data, config, suppressions)
+        failed_language_ceiling?(name, data, config, suppressions)
     end
 
     def failed_poison?(name, data, config, suppressions)
@@ -409,17 +409,17 @@ module StillActive
       ConstraintHelper.severity_at_or_above?(data[:poison_severity], threshold)
     end
 
-    def failed_ruby_ceiling?(name, data, config, suppressions)
-      return false unless config.fail_if_ruby_ceiling
-      return false if suppressions.suppressed?(gem: name, signal: :ruby_ceiling)
+    def failed_language_ceiling?(name, data, config, suppressions)
+      return false unless config.fail_if_language_ceiling
+      return false if suppressions.suppressed?(gem: name, signal: :language_ceiling)
 
       # Ceiling findings are only ever :critical (EOL-forced) or :note
       # (latest-not-yet) -- there is no :warning tier for this signal -- so the
-      # bare flag defaults to :critical (the genuine blocker: no supported Ruby is
-      # reachable). A latest-not-yet :note is an FYI/contribution lead that gates
+      # bare flag defaults to :critical (the genuine blocker: no supported runtime
+      # is reachable). A latest-not-yet :note is an FYI/contribution lead that gates
       # only when the user explicitly opts in with =note.
-      threshold = config.fail_if_ruby_ceiling == true ? :critical : config.fail_if_ruby_ceiling
-      ConstraintHelper.severity_at_or_above?(data.dig(:ruby_ceiling, :severity), threshold)
+      threshold = config.fail_if_language_ceiling == true ? :critical : config.fail_if_language_ceiling
+      ConstraintHelper.severity_at_or_above?(data.dig(:language_ceiling, :severity), threshold)
     end
 
     def failed_activity?(name, data, config, suppressions)

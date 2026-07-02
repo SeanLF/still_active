@@ -145,27 +145,29 @@ module StillActive
       end
       # A language-runtime ceiling is orthogonal to poison/alternatives (a gem can
       # be maintained yet still cap your Ruby), so it always gets its own line.
-      lines << ruby_ceiling_line(data)
+      lines << language_ceiling_line(data)
       lines.compact
     end
 
-    # "  ↳ ruby ceiling: <receipt>", coloured by tier (red = strands you on an EOL
-    # Ruby, dim = an FYI cap below the latest stable). Reuses poison_colour.
-    def ruby_ceiling_line(data)
-      ceiling = data[:ruby_ceiling]
+    # "  ↳ ruby ceiling: <receipt>" (or "python ceiling"), coloured by tier (red =
+    # strands you on an EOL runtime, dim = an FYI cap below the latest stable).
+    # Reuses poison_colour; the runtime name comes off the finding, not hardcoded.
+    def language_ceiling_line(data)
+      ceiling = data[:language_ceiling]
       return if ceiling.nil?
 
-      AnsiHelper.public_send(poison_colour(ceiling[:severity]), "  ↳ ruby ceiling: #{ruby_ceiling_receipt(ceiling, data)}")
+      AnsiHelper.public_send(poison_colour(ceiling[:severity]), "  ↳ #{ceiling[:runtime].downcase} ceiling: #{language_ceiling_receipt(ceiling, data)}")
     end
 
-    def ruby_ceiling_receipt(ceiling, data)
+    def language_ceiling_receipt(ceiling, data)
+      runtime = ceiling[:runtime]
       base =
         if ceiling[:eol_forced]
-          "requires Ruby #{ceiling[:requirement]}, stranding you on end-of-life Ruby #{ceiling[:ceiling_version]}#{eol_suffix(ceiling[:ceiling_eol_date])}"
+          "requires #{runtime} #{ceiling[:requirement]}, stranding you on end-of-life #{runtime} #{ceiling[:ceiling_version]}#{eol_suffix(ceiling[:ceiling_eol_date])}"
         else
-          "requires Ruby #{ceiling[:requirement]}, no Ruby #{ceiling[:latest_stable]} support yet"
+          "requires #{runtime} #{ceiling[:requirement]}, no #{runtime} #{ceiling[:latest_stable]} support yet"
         end
-      "#{base}#{ruby_ceiling_fix_hint(ceiling, data)}"
+      "#{base}#{language_ceiling_fix_hint(ceiling, data)}"
     end
 
     def eol_suffix(eol_date)
@@ -175,7 +177,7 @@ module StillActive
     # Name the actionable fix when a newer release of the gem lifts the cap; the
     # gem's own name sits on the row directly above, so "upgrade to <latest>" reads
     # unambiguously without repeating it.
-    def ruby_ceiling_fix_hint(ceiling, data)
+    def language_ceiling_fix_hint(ceiling, data)
       return "" unless ceiling[:fixed_by_upgrade] && data[:latest_version]
 
       "; upgrade to #{data[:latest_version]} to lift it"
@@ -304,8 +306,10 @@ module StillActive
       poison_tiers = result.each_value.select { |data| data[:poison] }.map { |data| data[:poison_severity] }
       poison_part = tier_summary_part(poison_tiers, "#{poison_tiers.size} poison-#{poison_tiers.size == 1 ? "pill" : "pills"}")
       parts << poison_part if poison_part
-      ceilings = result.each_value.filter_map { |data| data[:ruby_ceiling] }
-      ceiling_part = tier_summary_part(ceilings.map { |ceiling| ceiling[:severity] }, "#{ceilings.size} Ruby ceiling#{"s" unless ceilings.size == 1}")
+      ceilings = result.each_value.filter_map { |data| data[:language_ceiling] }
+      runtimes = ceilings.map { |ceiling| ceiling[:runtime] }.uniq
+      runtime_label = runtimes.size == 1 ? runtimes.first : "language"
+      ceiling_part = tier_summary_part(ceilings.map { |ceiling| ceiling[:severity] }, "#{ceilings.size} #{runtime_label} ceiling#{"s" unless ceilings.size == 1}")
       parts << ceiling_part if ceiling_part
       total_libyear = LibyearHelper.total_libyear(result)
       parts << "#{total_libyear.round(1)} libyears behind" if total_libyear > 0

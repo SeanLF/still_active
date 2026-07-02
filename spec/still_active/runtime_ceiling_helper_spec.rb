@@ -122,5 +122,23 @@ RSpec.describe(StillActive::RuntimeCeilingHelper) do
         expect(described_class.analyze(requirement: "< 3.2", support_window: nil)).to(be_nil)
       end
     end
+
+    context("when latest_stable is nil (a malformed `latest` on the feed's newest cycle)") do
+      # The note needs latest_stable to compare against; the EOL-forced critical
+      # needs only the cycles' eol flags. A nil latest_stable must suppress the
+      # note WITHOUT hiding criticals.
+      let(:support_window) { super().merge(latest_stable: nil, latest_stable_fresh: false) }
+
+      it("still fires an EOL-forced critical (independent of latest_stable)") do
+        finding = analyze("< 3.2")
+        expect(finding[:eol_forced]).to(be(true))
+        expect(finding[:severity]).to(eq(:critical))
+      end
+
+      it("suppresses the latest-not-yet note rather than crashing on nil") do
+        expect { analyze("~> 3.3") }.not_to(raise_error)
+        expect(analyze("~> 3.3")).to(be_nil)
+      end
+    end
   end
 end

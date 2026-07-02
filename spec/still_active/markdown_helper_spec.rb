@@ -417,9 +417,9 @@ RSpec.describe(StillActive::MarkdownHelper) do
     end
   end
 
-  describe(".ruby_ceiling_section") do
+  describe(".language_ceiling_section") do
     def ceiling_gem(ceiling, extra = {})
-      { source_type: :rubygems, latest_version: "4.0.0", ruby_ceiling: ceiling }.merge(extra)
+      { source_type: :rubygems, latest_version: "4.0.0", language_ceiling: { runtime: "Ruby" }.merge(ceiling) }.merge(extra)
     end
 
     it("lists an EOL-forcing ceiling with the stranded Ruby, its EOL date, and the upgrade fix") do
@@ -435,8 +435,8 @@ RSpec.describe(StillActive::MarkdownHelper) do
           fixed_by_upgrade: true,
         }),
       }
-      out = described_class.ruby_ceiling_section(result)
-      expect(out).to(include("**Ruby ceiling findings**"))
+      out = described_class.language_ceiling_section(result)
+      expect(out).to(include("**Runtime ceiling findings**"))
       expect(out).to(include("**critical** `cfpropertylist` requires Ruby `< 3.2`, stranding you on end-of-life Ruby 3.1 (EOL 2025-03-31); upgrade to 4.0.0 to lift it"))
     end
 
@@ -454,7 +454,7 @@ RSpec.describe(StillActive::MarkdownHelper) do
           { latest_version: "1.0.0" },
         ),
       }
-      out = described_class.ruby_ceiling_section(result)
+      out = described_class.language_ceiling_section(result)
       expect(out).to(include("**note** `somegem` requires Ruby `~> 3.3`, no Ruby 4.0.5 support yet"))
       expect(out).not_to(include("upgrade to"))
     end
@@ -464,12 +464,12 @@ RSpec.describe(StillActive::MarkdownHelper) do
         "minor" => ceiling_gem({ requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }, { latest_version: "1.0.0" }),
         "blocker" => ceiling_gem({ requirement: "< 3.2", eol_forced: true, severity: :critical, ceiling_version: "3.1", ceiling_eol_date: nil, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }),
       }
-      out = described_class.ruby_ceiling_section(result)
+      out = described_class.language_ceiling_section(result)
       expect(out.index("blocker")).to(be < out.index("minor"))
     end
 
     it("returns empty string when no gem has a ceiling") do
-      expect(described_class.ruby_ceiling_section({ "rails" => { source_type: :rubygems } })).to(eq(""))
+      expect(described_class.language_ceiling_section({ "rails" => { source_type: :rubygems } })).to(eq(""))
     end
   end
 

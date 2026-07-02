@@ -45,7 +45,7 @@ module StillActive
 
       if supported_allowed.empty?
         eol_forced_finding(req, requirement, support_window)
-      elsif !req.satisfied_by?(support_window[:latest_stable]) && !support_window[:latest_stable_fresh]
+      elsif !support_window[:latest_stable].nil? && !req.satisfied_by?(support_window[:latest_stable]) && !support_window[:latest_stable_fresh]
         # Runs on a supported runtime but not the latest stable. Suppressed while
         # the latest stable is still within its grace window (see supported_ruby_
         # range): right after a runtime ships, "doesn't support it yet" indicts the

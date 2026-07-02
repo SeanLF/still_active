@@ -90,7 +90,7 @@
         "poison": { "type": "boolean" },
         "poison_severity": { "type": "string", "enum": ["note", "warning", "critical"] },
         "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
-        "ruby_ceiling": { "$ref": "#/$defs/ruby_ceiling" }
+        "language_ceiling": { "$ref": "#/$defs/language_ceiling" }
       }
     },
     "constraint": {
@@ -105,11 +105,12 @@
         "kind": { "type": "string", "enum": ["ceiling", "exact_pin", "permissive"] }
       }
     },
-    "ruby_ceiling": {
+    "language_ceiling": {
       "type": "object",
-      "required": ["requirement", "eol_forced", "severity", "oldest_supported", "latest_stable"],
+      "required": ["runtime", "requirement", "eol_forced", "severity", "oldest_supported", "latest_stable"],
       "additionalProperties": false,
       "properties": {
+        "runtime": { "type": "string" },
         "requirement": { "type": "string" },
         "eol_forced": { "type": "boolean" },
         "severity": { "type": "string", "enum": ["note", "warning", "critical"] },

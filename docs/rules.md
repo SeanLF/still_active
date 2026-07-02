@@ -128,19 +128,21 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 ---
 
-## SA009 — Ruby Runtime Ceiling {#sa009}
+## SA009 — Language Runtime Ceiling {#sa009}
 
-**Triggers when:** a resolved gem version's declared `ruby_version` caps the Ruby you can run: either below every still-supported release (an EOL-forcing cap) or below the latest stable (a latest-not-yet cap). The runtime support window comes from [endoflife.date](https://endoflife.date/ruby).
+**Triggers when:** a resolved package version's declared runtime constraint caps the language runtime you can run: either below every still-supported release (an EOL-forcing cap) or below the latest stable (a latest-not-yet cap). The constraint is the gem's `ruby_version` on the native Ruby path and a package's `requires_python` on the cross-ecosystem (`--sbom`) path. The runtime support window comes from [endoflife.date](https://endoflife.date/) (Ruby and Python calendars).
 
-**Why it matters:** this is the language-runtime sibling of the poison pill. Where a poison pill caps a dependency, this caps your interpreter. An EOL-forcing cap strands you on a Ruby that receives no security patches, a genuine upgrade blocker. A latest-not-yet cap is a lower-stakes heads-up: a compatibility ceiling to plan around before you invest, or a place to contribute Ruby-N support upstream. It is not gated on maintenance status, since the cap is a fact of the resolved version whether or not the gem is still shipping.
+**Why it matters:** this is the language-runtime sibling of the poison pill. Where a poison pill caps a dependency, this caps your interpreter. An EOL-forcing cap strands you on a runtime that receives no security patches, a genuine upgrade blocker. A latest-not-yet cap is a lower-stakes heads-up: a compatibility ceiling to plan around before you invest, or a place to contribute support for the newest runtime upstream. It is not gated on maintenance status, since the cap is a fact of the resolved version whether or not the package is still shipping.
+
+**Enforcement:** both `ruby_version` (RubyGems/Bundler) and `requires_python` (pip) are *hard install walls*: the resolver refuses an incompatible runtime, so an EOL-forcing cap is a real block, not an inference. still_active reports what the resolver enforces; runtime-correctness beyond that (a native extension that silently breaks) is out of static sight.
 
 **SARIF level:** `note` by default, raised to `error` per result for an EOL-forcing cap · **security-severity:** none (a maintenance/compatibility finding, not a vulnerability) · **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html)
 
-**How to fix:** if a newer release of the gem lifts the cap, upgrade it (the finding says so when it does, unless a poison-pill on the same gem blocks that upgrade). Otherwise replace or fork the gem, or contribute Ruby-N support upstream.
+**How to fix:** if a newer release of the package lifts the cap, upgrade it (the finding says so when it does, unless a poison-pill on the same package blocks that upgrade). Otherwise replace or fork the package, or contribute support for the newer runtime upstream.
 
-**Reading the negative space:** a declared `ruby_version` cap is a maintainer being honest about tested compatibility, not a defect. Equally, **no SA009 findings does not mean "safe to bump Ruby"**: the signal only sees gems that *declare* a cap. The most common real upgrade blockers (native extensions that fail to compile, removed stdlib, deprecated C-API) declare nothing and are invisible here. A latest-not-yet cap is also suppressed for a grace period after a new Ruby ships, since "doesn't support it yet" three days in is about the release calendar, not the gem.
+**Reading the negative space:** a declared runtime cap is a maintainer being honest about tested compatibility, not a defect. Equally, **no SA009 findings does not mean "safe to bump your runtime"**: the signal only sees packages that *declare* a cap. The most common real upgrade blockers (native extensions that fail to compile, removed stdlib, deprecated C-API) declare nothing and are invisible here. A latest-not-yet cap is also suppressed for a grace period after a new runtime ships, since "doesn't support it yet" three days in is about the release calendar, not the package.
 
-**When to suppress:** when the pinned version is deliberate and the runtime ceiling is accepted. Suppress the `ruby_ceiling` signal for the specific gem in `.still_active.yml`, ideally with an `expires:` date so the acceptance is revisited.
+**When to suppress:** when the pinned version is deliberate and the runtime ceiling is accepted. Suppress the `language_ceiling` signal for the specific package in `.still_active.yml`, ideally with an `expires:` date so the acceptance is revisited.
 
 ---
 

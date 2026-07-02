@@ -117,10 +117,10 @@ module StillActive
         },
         {
           id: "SA009",
-          name: "RubyRuntimeCeiling",
-          short: "Resolved gem version caps the Ruby runtime",
-          full: "A resolved gem version's declared `ruby_version` caps the Ruby you can run: either below every still-supported release (stranding you on an end-of-life Ruby with no security patches) or below the latest stable (a compatibility ceiling to plan around). The default level is note; an EOL-forcing cap is raised to error per result.",
-          help_text: "If a newer release of the gem lifts the cap, upgrade it. Otherwise replace or fork the gem, or contribute Ruby-N support upstream.",
+          name: "RuntimeCeiling",
+          short: "Resolved package version caps its language runtime",
+          full: "A resolved package version's declared runtime constraint (Ruby `ruby_version`, Python `requires_python`) caps the language runtime you can run: either below every still-supported release (stranding you on an end-of-life runtime with no security patches) or below the latest stable (a compatibility ceiling to plan around). The default level is note; an EOL-forcing cap is raised to error per result.",
+          help_text: "If a newer release of the package lifts the cap, upgrade it. Otherwise replace or fork the package, or contribute support for the newer runtime upstream.",
           level: "note",
           security_severity: nil, # maintenance/compatibility, not a CVE (as SA002/SA004/SA005/SA008)
           tags: ["maintenance", "runtime", "external/cwe/cwe-1104"],

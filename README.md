@@ -130,8 +130,8 @@ Usage: still_active [options]
                                      Exit 1 if any gem has vulnerabilities (optionally at or above SEVERITY)
         --fail-if-outdated=LIBYEARS  Exit 1 if any gem exceeds LIBYEARS behind latest
         --fail-if-poison[=TIER]      Exit 1 on a poison-pill at or above TIER (note|warning|critical; default warning)
-        --fail-if-ruby-ceiling[=TIER]
-                                     Exit 1 on a Ruby-runtime ceiling (default: EOL-forced only; =note also gates latest-not-yet)
+        --fail-if-language-ceiling[=TIER]
+                                     Exit 1 on a language-runtime ceiling (Ruby/Python; default: EOL-forced only; =note also gates latest-not-yet)
         --ignore=GEM,GEM2,...        Exclude gems from pass/fail checks (still shown in output)
         --critical-warning-emoji=EMOJI
         --futurist-emoji=EMOJI
@@ -375,7 +375,7 @@ fail_if_critical: true
 fail_if_vulnerable: high       # true, or a minimum severity: low|medium|high|critical
 fail_if_outdated: 3            # libyears
 fail_if_poison: warning        # true (=warning), or a tier: note|warning|critical (severity scales with majors-behind)
-fail_if_ruby_ceiling: true     # true = EOL-forced ceilings only; :note also gates latest-not-yet (fluctuates with Ruby's release calendar)
+fail_if_language_ceiling: true # true = EOL-forced ceilings only; :note also gates latest-not-yet (fluctuates with the runtime's release calendar)
 unreleased_commits: true
 output: json                   # terminal | markdown | json
 direct_only: true              # audit only declared deps, not the full transitive graph (--direct-only)
@@ -393,7 +393,7 @@ ignore:
 
   # Accept staleness on a vendored gem, but still fail if it gets a CVE
   - gem: legacy_thing
-    signal: activity            # activity | vulnerability | libyear | poison | ruby_ceiling
+    signal: activity            # activity | vulnerability | libyear | poison | language_ceiling
     reason: "vendored, intentionally frozen"
 
   # A bare gem name keeps the old whole-gem behaviour (mutes every signal)

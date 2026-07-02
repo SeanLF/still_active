@@ -2,6 +2,7 @@
 
 require "time"
 require_relative "bundler_helper"
+require_relative "endoflife_helper"
 require_relative "http_helper"
 require_relative "libyear_helper"
 
@@ -24,15 +25,15 @@ module StillActive
       return if latest_cycle.nil?
 
       latest_version = latest_cycle["latest"]
-      latest_release_date = parse_date(latest_cycle["releaseDate"])
-      current_release_date = parse_date(current_cycle&.dig("releaseDate"))
+      latest_release_date = EndoflifeHelper.parse_date(latest_cycle["releaseDate"])
+      current_release_date = EndoflifeHelper.parse_date(current_cycle&.dig("releaseDate"))
       eol_value = current_cycle&.dig("eol")
 
       {
         version: current,
         release_date: current_release_date,
-        eol_date: parse_eol(eol_value),
-        eol: eol_reached?(eol_value),
+        eol_date: EndoflifeHelper.parse_eol(eol_value),
+        eol: EndoflifeHelper.eol_reached?(eol_value),
         latest_version: latest_version,
         latest_release_date: latest_release_date,
         libyear: LibyearHelper.gem_libyear(
@@ -42,66 +43,15 @@ module StillActive
       }
     end
 
-    # The runtime facts a per-gem language ceiling is measured against: the
-    # oldest Ruby cycle still receiving security releases, the latest stable
-    # release, and the normalized cycle list (version + EOL flag/date) so a
-    # ceiling finding can name the exact Ruby a cap strands you on and how long
-    # it's been dead. Reuses the same endoflife.date feed as #ruby_freshness.
-    # Returns nil when the feed is unavailable or every known cycle is EOL (no
-    # supported floor to compare against).
+    # The runtime facts a per-gem language ceiling is measured against, sourced
+    # from the shared endoflife.date support-window builder. Ruby only picks the
+    # feed; the ecosystem-neutral logic (support floor, latest stable, grace
+    # window, cycle normalization) lives in EndoflifeHelper.
     def supported_ruby_range
-      cycles = fetch_cycles
-      return if cycles.nil? || cycles.empty?
-
-      # endoflife.date is best-effort third-party data. Guard the newest cycle's
-      # `latest` the same way normalize_cycle guards `cycle`: a malformed/preview
-      # value must degrade to "sit out" (nil), not raise. This method is fetched
-      # once outside the per-gem rescue, so an unguarded raise would abort the
-      # entire audit, contrary to the best-effort contract.
-      latest = cycles.first["latest"]
-      return unless latest && Gem::Version.correct?(latest)
-
-      normalized = cycles.filter_map { |cycle| normalize_cycle(cycle) }
-      supported = normalized.reject { |cycle| cycle[:eol] }
-      return if supported.empty?
-
-      {
-        oldest_supported: supported.map { |cycle| cycle[:version] }.min,
-        latest_stable: Gem::Version.new(latest),
-        latest_stable_fresh: latest_stable_fresh?(cycles.first),
-        cycles: normalized,
-      }
-    end
-
-    # How long a newly-released runtime gets before gems are held accountable for
-    # not yet declaring support for it. Below this, a latest-not-yet ceiling is
-    # about the release calendar, not the gem, so the note is suppressed.
-    LATEST_STABLE_GRACE_SECONDS = 90 * 24 * 60 * 60
-
-    def latest_stable_fresh?(latest_cycle)
-      released = parse_date(latest_cycle["releaseDate"])
-      return false if released.nil?
-
-      (Time.now - released) < LATEST_STABLE_GRACE_SECONDS
-    rescue ArgumentError
-      # A malformed (non-nil) releaseDate from the best-effort feed must degrade to
-      # "not fresh" (notes fire as normal), never raise: raising here would null the
-      # whole support window and silently disable EOL-forced criticals too.
-      false
+      EndoflifeHelper.support_window(feed_path: "/api/ruby.json")
     end
 
     private
-
-    def normalize_cycle(cycle)
-      version = cycle["cycle"]
-      return unless version && Gem::Version.correct?(version)
-
-      {
-        version: Gem::Version.new(version),
-        eol: eol_reached?(cycle["eol"]) == true,
-        eol_date: parse_eol(cycle["eol"]),
-      }
-    end
 
     def current_ruby_version
       lockfile_ruby_version || (RUBY_ENGINE == "ruby" ? RUBY_VERSION : nil)
@@ -126,26 +76,6 @@ module StillActive
     def find_cycle(cycles, version)
       major_minor = version.split(".")[0..1].join(".")
       cycles.find { |c| c["cycle"] == major_minor }
-    end
-
-    def parse_date(date_string)
-      return if date_string.nil?
-
-      Time.parse(date_string)
-    end
-
-    def parse_eol(value)
-      case value
-      when String then parse_date(value)
-      end
-    end
-
-    def eol_reached?(value)
-      case value
-      when true then true
-      when false then false
-      when String then Time.parse(value) <= Time.now
-      end
     end
   end
 end
