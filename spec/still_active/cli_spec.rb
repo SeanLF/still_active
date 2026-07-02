@@ -946,6 +946,16 @@ RSpec.describe(StillActive::CLI) do
       allow($stdout).to(receive(:tty?).and_return(false))
       allow($stderr).to(receive(:tty?).and_return(false))
       allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({ "pypi/flask@2.0.0" => lens_data })))
+      # deps.dev vuln-schema canary runs once per SBOM audit; keep it green by
+      # default so unrelated cases stay network-free. The degraded case is its own test.
+      allow(StillActive::DepsDevClient).to(receive(:advisory_schema_ok?).and_return(true))
+    end
+
+    it("warns loudly (does not present an authoritative all-clear) when the deps.dev vuln schema canary fails") do
+      allow(StillActive::DepsDevClient).to(receive(:advisory_schema_ok?).and_return(false))
+      allow($stdout).to(receive(:puts))
+      expect { cli.run(["--sbom=sbom.json"]) }
+        .to(output(/deps\.dev vulnerability schema check failed.*not authoritative/im).to_stderr)
     end
 
     it("dispatches on --sbom without a Gemfile, emitting an SBOM-shaped JSON report") do

@@ -8,6 +8,22 @@ module StillActive
 
     BASE_URI = URI("https://api.deps.dev/")
 
+    # A known-vulnerable package used to canary the `advisoryKeys` schema. deps.dev
+    # is an explicitly ALPHA API (v3alpha), and every cross-ecosystem vulnerability
+    # count flows through the `advisoryKeys` field with a field-level degrade to
+    # `[]` -- so a rename or drop of that field would silently turn every count to
+    # 0 and read a known-vulnerable package as clean (exit 0). django 3.0.0 carries
+    # 30+ permanent advisories; if the canary returns none, the schema drifted.
+    ADVISORY_CANARY = { system: "pypi", name: "django", version: "3.0.0" }.freeze
+
+    # Is deps.dev still returning advisories in the shape we parse? False when the
+    # canary comes back empty (schema drift) or unreachable (can't confirm). The
+    # caller warns loudly rather than presenting a possibly-understated "all clear".
+    def advisory_schema_ok?
+      info = version_info(gem_name: ADVISORY_CANARY[:name], version: ADVISORY_CANARY[:version], system: ADVISORY_CANARY[:system])
+      !(info.nil? || info[:advisory_keys].empty?)
+    end
+
     # `system` is the deps.dev package system, lowercased: rubygems, npm, pypi,
     # cargo, go, maven, nuget. It matches the ecosystem symbol SbomReader emits,
     # so a cross-ecosystem caller threads it straight through. An unknown system

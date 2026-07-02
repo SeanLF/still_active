@@ -114,6 +114,12 @@ module StillActive
     def run_sbom
       path = StillActive.config.sbom_path
       require_parseable_sbom(path)
+      # deps.dev is the SBOM path's sole vulnerability source and an alpha API; a
+      # field rename would silently zero every vuln count. Canary the schema once
+      # and warn loudly so a degraded run never reads as an authoritative all-clear.
+      unless DepsDevClient.advisory_schema_ok?
+        $stderr.puts("warning: deps.dev vulnerability schema check failed (its `advisoryKeys` field may have changed, or the API is unreachable); vulnerability counts may be understated -- a clean result is NOT authoritative")
+      end
       sbom = SbomReader.parse(path)
       outcome = if $stderr.tty?
         SbomWorkflow.call(sbom) { |done, total| $stderr.print("\rAssessing #{done}/#{total} dependencies...") }
