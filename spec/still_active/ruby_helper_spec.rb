@@ -202,14 +202,17 @@ RSpec.describe(StillActive::RubyHelper) do
       expect(range[:latest_stable_fresh]).to(be(false))
     end
 
-    it("returns nil rather than raising when the newest cycle's `latest` is malformed") do
+    it("keeps the window with nil latest_stable when the newest cycle's `latest` is malformed (so EOL-forced criticals still fire)") do
       # endoflife.date is best-effort third-party data; a garbled/preview `latest`
-      # must never crash the run (supported_ruby_range is fetched outside the
-      # per-gem rescue, so a raise here would abort the whole audit).
+      # feeds only the latest-not-yet note, so it degrades latest_stable to nil
+      # rather than nulling the whole window and silently disabling criticals.
       garbled = [cycles.first.merge("latest" => "unknown-preview"), *cycles[1..]]
       allow(StillActive::HttpHelper).to(receive(:get_json).and_return(garbled))
-      expect { described_class.supported_ruby_range }.not_to(raise_error)
-      expect(described_class.supported_ruby_range).to(be_nil)
+      range = nil
+      expect { range = described_class.supported_ruby_range }.not_to(raise_error)
+      expect(range).not_to(be_nil)
+      expect(range[:latest_stable]).to(be_nil)
+      expect(range[:oldest_supported]).to(eq(Gem::Version.new("3.3")))
     end
   end
 end

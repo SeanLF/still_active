@@ -50,7 +50,7 @@ module StillActive
         when "fail_if_critical" then set_boolean(config, :fail_if_critical=, value, key, warnings)
         when "fail_if_warning" then set_boolean(config, :fail_if_warning=, value, key, warnings)
         when "fail_if_poison" then apply_fail_if_poison(config, value, warnings)
-        when "fail_if_ruby_ceiling" then apply_fail_if_ruby_ceiling(config, value, warnings)
+        when "fail_if_language_ceiling" then apply_fail_if_language_ceiling(config, value, warnings)
         when "alternatives" then set_boolean(config, :alternatives=, value, key, warnings)
         when "unreleased_commits" then set_boolean(config, :unreleased_commits=, value, key, warnings)
         when "direct_only" then set_boolean(config, :direct_only=, value, key, warnings)
@@ -151,13 +151,13 @@ module StillActive
 
     # true/false, or a severity tier (note|warning|critical). Mirrors the CLI
     # flag: bare `true` fails at :warning, a tier sets an explicit threshold.
-    def apply_fail_if_ruby_ceiling(config, value, warnings)
+    def apply_fail_if_language_ceiling(config, value, warnings)
       if value == true || value == false
-        config.fail_if_ruby_ceiling = value
+        config.fail_if_language_ceiling = value
       elsif ConstraintHelper::SEVERITY.map(&:to_s).include?(value.to_s)
-        config.fail_if_ruby_ceiling = value.to_sym
+        config.fail_if_language_ceiling = value.to_sym
       else
-        warnings << "#{FILENAME}: fail_if_ruby_ceiling must be true/false or one of #{ConstraintHelper::SEVERITY.join(", ")} (got #{value.inspect}), ignoring it"
+        warnings << "#{FILENAME}: fail_if_language_ceiling must be true/false or one of #{ConstraintHelper::SEVERITY.join(", ")} (got #{value.inspect}), ignoring it"
       end
     end
 

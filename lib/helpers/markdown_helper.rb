@@ -139,33 +139,35 @@ module StillActive
       lines.join("\n")
     end
 
-    # The language-runtime ceiling: a resolved version whose `ruby_version` caps
-    # the runtime onto an EOL Ruby (critical) or below the latest stable (note).
-    # Ranked worst-first with a tier label, mirroring the poison section.
-    def ruby_ceiling_section(result)
-      flagged = result.select { |_name, data| data[:ruby_ceiling] }
+    # The language-runtime ceiling: a resolved version whose declared runtime
+    # constraint (Ruby `ruby_version`, Python `requires_python`) caps the runtime
+    # onto an EOL release (critical) or below the latest stable (note). Ranked
+    # worst-first with a tier label, mirroring the poison section.
+    def language_ceiling_section(result)
+      flagged = result.select { |_name, data| data[:language_ceiling] }
       return "" if flagged.empty?
 
-      lines = ["", "**Ruby ceiling findings** (a resolved version's `ruby_version` capping your Ruby runtime):"]
-      ranked = flagged.sort_by { |name, data| [-ConstraintHelper::SEVERITY.index(data[:ruby_ceiling][:severity] || :note), name.to_s] }
+      lines = ["", "**Runtime ceiling findings** (a resolved version capping the language runtime it can run on):"]
+      ranked = flagged.sort_by { |name, data| [-ConstraintHelper::SEVERITY.index(data[:language_ceiling][:severity] || :note), name.to_s] }
       ranked.each do |name, data|
-        ceiling = data[:ruby_ceiling]
-        lines << "- **#{ceiling[:severity] || :note}** #{MarkdownEscape.code_span(name)} #{ruby_ceiling_receipt(ceiling, data)}"
+        ceiling = data[:language_ceiling]
+        lines << "- **#{ceiling[:severity] || :note}** #{MarkdownEscape.code_span(name)} #{language_ceiling_receipt(ceiling, data)}"
       end
       lines.join("\n")
     end
 
     private
 
-    def ruby_ceiling_receipt(ceiling, data)
+    def language_ceiling_receipt(ceiling, data)
+      runtime = ceiling[:runtime]
       req = MarkdownEscape.code_span(ceiling[:requirement])
       base =
         if ceiling[:eol_forced]
           eol = ceiling[:ceiling_eol_date]
           eol_part = eol ? " (EOL #{eol.strftime("%Y-%m-%d")})" : ""
-          "requires Ruby #{req}, stranding you on end-of-life Ruby #{ceiling[:ceiling_version]}#{eol_part}"
+          "requires #{runtime} #{req}, stranding you on end-of-life #{runtime} #{ceiling[:ceiling_version]}#{eol_part}"
         else
-          "requires Ruby #{req}, no Ruby #{ceiling[:latest_stable]} support yet"
+          "requires #{runtime} #{req}, no #{runtime} #{ceiling[:latest_stable]} support yet"
         end
       fix = ceiling[:fixed_by_upgrade] && data[:latest_version] ? "; upgrade to #{data[:latest_version]} to lift it" : ""
       "#{base}#{fix}"

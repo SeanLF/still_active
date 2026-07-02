@@ -293,4 +293,102 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::EcosystemsClient).not_to(have_received(:declared_dependencies))
     end
   end
+
+  describe(".assess language ceiling (Python)") do
+    # Python support window fixture: 3.14/3.10 supported, 3.9/3.8 EOL, latest
+    # stable 3.14.6 (not fresh). Mirrors the live endoflife.date shape.
+    let(:python_range) do
+      {
+        oldest_supported: Gem::Version.new("3.10"),
+        latest_stable: Gem::Version.new("3.14.6"),
+        latest_stable_fresh: false,
+        cycles: [
+          { version: Gem::Version.new("3.14"), eol: false, eol_date: Time.parse("2030-10-31") },
+          { version: Gem::Version.new("3.10"), eol: false, eol_date: Time.parse("2026-10-31") },
+          { version: Gem::Version.new("3.9"), eol: true, eol_date: Time.parse("2025-10-31") },
+          { version: Gem::Version.new("3.8"), eol: true, eol_date: Time.parse("2024-10-14") },
+        ],
+      }
+    end
+
+    before do
+      # deps.dev default version 9.9.9 is the "latest" for the fixed_by_upgrade probe.
+      stub_version(source_repo: "https://github.com/numba/numba")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+    end
+
+    it("flags an EOL-forcing requires_python cap as a critical Python ceiling, noting the gem upgrade lifts it") do
+      allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "0.53.1").and_return(">=3.6,<3.10"))
+      allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "9.9.9").and_return(">=3.10"))
+
+      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", python_range: python_range)
+
+      ceiling = result[:language_ceiling]
+      expect(ceiling[:runtime]).to(eq("Python"))
+      expect(ceiling[:eol_forced]).to(be(true))
+      expect(ceiling[:severity]).to(eq(:critical))
+      expect(ceiling[:ceiling_version]).to(eq("3.9"))
+      expect(ceiling[:fixed_by_upgrade]).to(be(true))
+    end
+
+    it("does not claim fixed_by_upgrade when the latest version's requires_python can't be read (no over-claim on a failed fetch)") do
+      # PypiClient returns nil for BOTH "declares nothing" and "fetch failed"; the
+      # ceiling must not advise an upgrade it couldn't positively verify.
+      allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "0.53.1").and_return(">=3.6,<3.10"))
+      allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "9.9.9").and_return(nil))
+
+      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", python_range: python_range)
+
+      ceiling = result[:language_ceiling]
+      expect(ceiling[:eol_forced]).to(be(true))
+      expect(ceiling[:fixed_by_upgrade]).to(be(false))
+    end
+
+    it("flags a cap below the latest stable (but on a supported Python) as a note") do
+      allow(StillActive::PypiClient).to(receive(:requires_python).and_return(">=3.8,<3.13"))
+
+      result = described_class.assess(ecosystem: :pypi, name: "scipy", version: "1.7.3", python_range: python_range)
+
+      ceiling = result[:language_ceiling]
+      expect(ceiling[:runtime]).to(eq("Python"))
+      expect(ceiling[:eol_forced]).to(be(false))
+      expect(ceiling[:severity]).to(eq(:note))
+    end
+
+    it("does not flag a pure floor requires_python (a floor is not a ceiling)") do
+      allow(StillActive::PypiClient).to(receive(:requires_python).and_return(">=3.8"))
+
+      result = described_class.assess(ecosystem: :pypi, name: "numpy", version: "1.21.0", python_range: python_range)
+
+      expect(result).not_to(have_key(:language_ceiling))
+    end
+
+    it("does not flag when the package declares no requires_python") do
+      allow(StillActive::PypiClient).to(receive(:requires_python).and_return(nil))
+
+      result = described_class.assess(ecosystem: :pypi, name: "loose", version: "1.0.0", python_range: python_range)
+
+      expect(result).not_to(have_key(:language_ceiling))
+    end
+
+    it("does not read requires_python for a non-Python ecosystem, even with a window") do
+      allow(StillActive::PypiClient).to(receive(:requires_python))
+
+      result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1", python_range: python_range)
+
+      expect(result).not_to(have_key(:language_ceiling))
+      expect(StillActive::PypiClient).not_to(have_received(:requires_python))
+    end
+
+    it("does nothing when the Python support window is unavailable (nil range)") do
+      allow(StillActive::PypiClient).to(receive(:requires_python))
+
+      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", python_range: nil)
+
+      expect(result).not_to(have_key(:language_ceiling))
+      expect(StillActive::PypiClient).not_to(have_received(:requires_python))
+    end
+  end
 end

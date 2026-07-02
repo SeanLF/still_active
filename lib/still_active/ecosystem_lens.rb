@@ -3,8 +3,11 @@
 require_relative "deps_dev_client"
 require_relative "ecosystems_client"
 require_relative "github_client"
+require_relative "pypi_client"
 require_relative "../helpers/activity_helper"
 require_relative "../helpers/constraint_helper"
+require_relative "../helpers/pep440_helper"
+require_relative "../helpers/runtime_ceiling_helper"
 require_relative "../helpers/vulnerability_helper"
 
 module StillActive
@@ -46,7 +49,7 @@ module StillActive
     # deps.dev; silence beats a false "holds your tree hostage".
     FLAT_RESOLUTION_ECOSYSTEMS = [:rubygems, :pypi].freeze
 
-    def assess(ecosystem:, name:, version:, constraint_cache: {})
+    def assess(ecosystem:, name:, version:, constraint_cache: {}, python_range: nil)
       info = DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)
       default = DepsDevClient.default_version_info(name: name, system: ecosystem)
       # Recover the repo from the default version when the exact locked version
@@ -74,10 +77,52 @@ module StillActive
         vulnerabilities: vulnerabilities,
       }
       attach_constraints(gem_data, ecosystem: ecosystem, name: name, version: version, cache: constraint_cache)
+      attach_language_ceiling(gem_data, ecosystem: ecosystem, name: name, version: version, latest_version: default&.dig(:version), python_range: python_range)
       gem_data
     end
 
     private
+
+    # Language-runtime ceiling for the cross-ecosystem path, the sibling of the
+    # native Ruby ceiling in Workflow. Python declares its runtime constraint as a
+    # PEP 440 `requires_python`, an enforced pip install wall; translate it and run
+    # the same generic RuntimeCeilingHelper against Python's support window. Unlike
+    # poison this is NOT gated on dormancy (a cap is a fact of the resolved version
+    # whether or not the package is maintained), so it costs one PyPI read per
+    # pypi package; other ecosystems carry no ceiling here rather than a wrong one
+    # (cargo's rust_version is a soft MSRV hint, not an install wall). Best-effort:
+    # a nil range (endoflife feed down) or absent requires_python yields nothing.
+    def attach_language_ceiling(gem_data, ecosystem:, name:, version:, latest_version:, python_range:)
+      return if python_range.nil?
+      return unless ecosystem == :pypi
+
+      requirement = Pep440Helper.to_gem_requirement_string(PypiClient.requires_python(name: name, version: version))
+      finding = requirement && RuntimeCeilingHelper.analyze(requirement: requirement, support_window: python_range)
+      return if finding.nil?
+
+      finding[:runtime] = "Python"
+      finding[:fixed_by_upgrade] = python_ceiling_lifted_by_upgrade?(name: name, version: version, latest_version: latest_version, python_range: python_range)
+      gem_data[:language_ceiling] = finding
+    end
+
+    # Does upgrading the package to its latest release lift the cap? Requires
+    # POSITIVE confirmation, unlike the native ruby_ceiling_lifted_by_upgrade?
+    # whose latest requirement is read from data already in hand. Here the latest
+    # requires_python is a fresh PyPI read, and PypiClient returns nil for BOTH
+    # "declares no constraint" AND "the fetch failed" -- indistinguishable. Reading
+    # that nil as "no ceiling, safe to bump" would fabricate remediation on a
+    # transient PyPI error, the exact over-claim this tool must never make. So a
+    # nil specifier yields false (we don't advise an upgrade we couldn't verify);
+    # only a readable constraint that analyze confirms is non-capping lifts it.
+    def python_ceiling_lifted_by_upgrade?(name:, version:, latest_version:, python_range:)
+      return false if latest_version.nil? || latest_version == version
+
+      latest_specifier = PypiClient.requires_python(name: name, version: latest_version)
+      return false if latest_specifier.nil?
+
+      latest_requirement = Pep440Helper.to_gem_requirement_string(latest_specifier)
+      RuntimeCeilingHelper.analyze(requirement: latest_requirement, support_window: python_range).nil?
+    end
 
     # Poison-pill enrichment for the cross-ecosystem path, mirroring the native
     # Bundler path: gated on dormancy so a maintained package is never flagged,

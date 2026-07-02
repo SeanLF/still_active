@@ -275,7 +275,8 @@ RSpec.describe(StillActive::CLI) do
           direct: true,
           version_used: "3.0.9",
           latest_version: "4.0.0",
-          ruby_ceiling: {
+          language_ceiling: {
+            runtime: "Ruby",
             requirement: "< 3.2",
             eol_forced: true,
             severity: :critical,
@@ -790,10 +791,10 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
-  describe("--fail-if-ruby-ceiling") do
+  describe("--fail-if-language-ceiling") do
     def ceiling_gem(severity = :critical)
       gem_data(last_commit_date: recent_date).merge(
-        ruby_ceiling: { requirement: "< 3.2", eol_forced: severity == :critical, severity: severity },
+        language_ceiling: { requirement: "< 3.2", eol_forced: severity == :critical, severity: severity },
       )
     end
 
@@ -801,18 +802,18 @@ RSpec.describe(StillActive::CLI) do
     # (latest-not-yet) -- there is no :warning tier -- so the bare gate defaults to
     # :critical (the real blocker), not the :warning poison uses.
     it("exits 1 when an EOL-forcing (critical) ceiling meets the default (critical) threshold") do
-      StillActive.config.fail_if_ruby_ceiling = true
+      StillActive.config.fail_if_language_ceiling = true
       expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem(:critical) }) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 
     it("does NOT exit on a note-level ceiling under the default (critical) threshold") do
-      StillActive.config.fail_if_ruby_ceiling = true
+      StillActive.config.fail_if_language_ceiling = true
       expect { cli.send(:check_exit_status, { "somegem" => ceiling_gem(:note) }) }.not_to(raise_error)
     end
 
     it("exits on a note-level ceiling when the threshold is lowered to note") do
-      StillActive.config.fail_if_ruby_ceiling = :note
+      StillActive.config.fail_if_language_ceiling = :note
       expect { cli.send(:check_exit_status, { "somegem" => ceiling_gem(:note) }) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
@@ -821,10 +822,10 @@ RSpec.describe(StillActive::CLI) do
       expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem }) }.not_to(raise_error)
     end
 
-    it("does not exit when the gem's ruby_ceiling signal is suppressed in .still_active.yml") do
-      StillActive.config.fail_if_ruby_ceiling = true
+    it("does not exit when the gem's language_ceiling signal is suppressed in .still_active.yml") do
+      StillActive.config.fail_if_language_ceiling = true
       StillActive.config.suppressions = StillActive::Suppressions.from(
-        [{ "gem" => "cfpropertylist", "signal" => "ruby_ceiling", "reason" => "pinned on purpose" }],
+        [{ "gem" => "cfpropertylist", "signal" => "language_ceiling", "reason" => "pinned on purpose" }],
       )
       expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem }) }.not_to(raise_error)
     end
