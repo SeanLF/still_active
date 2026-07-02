@@ -199,13 +199,20 @@ module StillActive
         })
       end
 
-      attach_ruby_ceiling(
-        gem_data: result_object[gem_name],
-        used_ruby_requirement: canonical_ruby_requirement(vs, version_used),
-        latest_ruby_requirement: canonical_ruby_requirement(vs, last_release),
-        pinned: !version_used.nil?,
-        ruby_range: ruby_range,
-      )
+      # A version pinned to a now-yanked release has no resolvable ruby_version to
+      # judge, and `pinned: !version_used.nil?` would otherwise fall through to the
+      # latest version's cap and attach IT to the locked gem -- a false ceiling on a
+      # version we can't actually read. Skip; the yanked lock is already flagged.
+      yanked_lock = !gem_version.nil? && version_used.nil? && !vs.empty?
+      unless yanked_lock
+        attach_ruby_ceiling(
+          gem_data: result_object[gem_name],
+          used_ruby_requirement: canonical_ruby_requirement(vs, version_used),
+          latest_ruby_requirement: canonical_ruby_requirement(vs, last_release),
+          pinned: !version_used.nil?,
+          ruby_range: ruby_range,
+        )
+      end
     end
 
     # The ruby_version to judge a language ceiling against, read from the canonical

@@ -622,6 +622,20 @@ RSpec.describe(StillActive::Workflow) do
         expect(ceiling[:fixed_by_upgrade]).to(be(true))
       end
 
+      it("does not project the latest version's ceiling onto a pinned-but-yanked version we can't actually read") do
+        StillActive.config.gems = [{ name: "yankedcap", version: "0.9.0" }]
+        # 0.9.0 is gone from the registry (yanked); only latest 2.0.0 remains, and it
+        # caps ruby_version. Attaching 2.0.0's ceiling to the yanked 0.9.0 would be a
+        # false attribution -- we have no idea what 0.9.0's ruby_version was.
+        allow(Gems).to(receive(:versions).with("yankedcap").and_return([
+          { "number" => "2.0.0", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => "< 3.2" },
+        ]))
+        allow(Gems).to(receive(:info).with("yankedcap").and_return({ "homepage_uri" => nil, "source_code_uri" => nil }))
+
+        expect(result["yankedcap"][:version_yanked]).to(be(true))
+        expect(result["yankedcap"]).not_to(have_key(:language_ceiling))
+      end
+
       it("flags a compound floor+ceiling ruby_version end-to-end (the real registry shape)") do
         StillActive.config.gems = [{ name: "legacygem", version: "1.0.0" }]
         stub_gem_with_ruby_caps(name: "legacygem", used: "1.0.0", used_ruby: ">= 2.3.0, < 3.2", latest: "2.0.0", latest_ruby: ">= 3.3")

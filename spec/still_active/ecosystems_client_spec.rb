@@ -128,6 +128,27 @@ RSpec.describe(StillActive::EcosystemsClient) do
         .to(eq([{ package_name: "activemodel", requirements: "< 5.0" }]))
     end
 
+    it("excludes PyPI environment-marker and extra dependencies, which aren't unconditionally in the tree") do
+      # Bibliothecary (via ecosyste.ms) encodes a PyPI dep's environment marker or
+      # extra AS the `kind` -- e.g. `colorama; platform_system == "Windows"` becomes
+      # kind "platform_system==Windows", and an `[socks]` extra becomes kind "socks"
+      # (verified live on click 8.1.7 / requests). RUNTIME_KINDS admits only
+      # "runtime"/"normal", so a conditional dep can never contribute a poison cap
+      # for a package that was never installed on this interpreter/platform. This
+      # locks that immunity: the marker/extra deps must be dropped, only the
+      # unconditional runtime dep survives.
+      stub_deps({
+        "dependencies" => [
+          { "package_name" => "charset-normalizer", "requirements" => "< 4, >= 2", "kind" => "runtime" },
+          { "package_name" => "importlib-metadata", "requirements" => "*", "kind" => "python_version<3.8" },
+          { "package_name" => "colorama", "requirements" => "*", "kind" => "platform_system==Windows" },
+          { "package_name" => "PySocks", "requirements" => ">= 1.5.6", "kind" => "socks" },
+        ],
+      })
+      expect(described_class.declared_dependencies(name: "protected_attributes", version: "1.1.4"))
+        .to(eq([{ package_name: "charset-normalizer", requirements: "< 4, >= 2" }]))
+    end
+
     it("treats cargo's 'normal' kind as runtime, and excludes its dev/build kinds") do
       # cargo labels runtime deps 'normal' (not 'runtime'); a `== \"runtime\"`
       # filter silently drops every cargo dependency and never flags a cargo pill.
