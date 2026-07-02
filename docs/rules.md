@@ -45,7 +45,7 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 **Why it matters:** known CVEs against your pinned version are the most actionable signal in the catalog. One SARIF result is emitted per advisory so each can be tracked, dismissed, or remediated independently. The optional ruby-advisory-db source catches Ruby-specific advisories that the rubysec maintainers curate before they propagate to OSV/deps.dev.
 
-**SARIF level:** mapped from CVSS — `error` for ≥ 7.0, `warning` for 4.0–6.9, `note` below 4.0. **security-severity:** per-result, formatted CVSS3 (or CVSS2 fallback). **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html) (use of unmaintained third-party components, as a default — advisory-specific CWEs may also apply).
+**SARIF level:** mapped from CVSS — `error` for ≥ 7.0, `warning` for 4.0–6.9, `note` below 4.0. An **unscored but confirmed** advisory is elevated to `warning` (never an informational note) and fails *closed* against a severity gate, since a confirmed advisory we can't score could be anything up to critical. Note that deps.dev stores only CVSS 3.x, so a **CVSS-4-only advisory** arrives with a `cvss3Score` of `0`; still_active treats a score of `0` as *unscored* (a real 0.0 never appears on a published advisory), so such an advisory reads as unscored rather than "low" — otherwise a HIGH finding could silently clear a gate or export as informational. **security-severity:** per-result, formatted CVSS3 (or CVSS2 fallback); omitted when unscored. **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html) (use of unmaintained third-party components, as a default — advisory-specific CWEs may also apply).
 
 **How to fix:**
 - Upgrade to a patched version: `bundle update <gem>`.
@@ -120,7 +120,9 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 **Why it matters:** because nobody is shipping the gem, the cap will never lift, and it grows more constraining over time as the capped dependency releases new majors — the tree is held below a ceiling no upstream release will raise. This is the compatibility math across the whole tree a careful dev can't do by hand; the capped dependency is often several levels deep and transitive.
 
-**SARIF level:** `warning` · **security-severity:** none (a maintenance/resolvability finding, not a vulnerability) · **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html)
+**Security-relevant caps (the strongest case):** when the pinned dependency is *itself* known-vulnerable in the same tree — a HIGH-or-above (or unscored, fail-closed) advisory — the finding is flagged `poison_security_relevant` (and the specific cap `capped_dep_vulnerable`) in the JSON. This is the "a dead dependency is holding you on a known-vulnerable dependency, below the fix" case: a real security finding, not maintenance hygiene. still_active gates on the advisory's *severity*, not its exploitability — reachability is beyond static, metadata-only analysis and out of scope. The correlation is computed whole-tree from data already assembled (no extra fetches).
+
+**SARIF level:** `warning` (by tier), **escalated to `error` when security-relevant** (it pins a known-vulnerable dep). The human/markdown output forces it red, names the pinned vulnerable dependency, and leads with these findings. · **security-severity:** none for a plain cap (a maintenance/resolvability finding, not a vulnerability) · **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html)
 
 **How to fix:** replace or fork the dormant gem, or vendor a version that relaxes the constraint. For a transitive pill, the finding names the direct dependency that pulls it in — that's the gem you can actually act on.
 
