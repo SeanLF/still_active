@@ -319,6 +319,19 @@ RSpec.describe(StillActive::TerminalHelper) do
           .to(include("poison: caps chalk (4 behind), dateformat (3), through2 (3) +2 more"))
       end
 
+      it("names the pinned vulnerable dep and forces red when the cap is security-relevant, even at note tier") do
+        result = {
+          "google-api-core" => poison_gem(
+            [{ dependency: "protobuf", requirement: "< 5", dep_latest: "7.0.0", majors_behind: 3, kind: :ceiling, capped_dep_vulnerable: true }],
+            { poison_severity: :note, poison_security_relevant: true },
+          ),
+        }
+        out = described_class.render(result)
+        expect(out).to(include("⚠ pins vulnerable protobuf"))
+        # red (act-now) despite the :note tier, because it pins a vulnerable dep.
+        expect(out).to(match(/\e\[31m  ↳ poison:.*⚠ pins vulnerable protobuf/))
+      end
+
       it("folds the parent into a transitive poison line and suppresses the generic transitive line") do
         result = {
           "terrapin" => poison_gem(

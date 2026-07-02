@@ -139,10 +139,13 @@ module StillActive
       end
 
       if data[:poison] && !Array(data[:constraints]).empty?
-        # Level tracks the poison tier: critical -> error, warning -> warning,
-        # note -> note. The fingerprint stays (rule_id, gem_name) so a tier change
-        # as the capped dep ships majors doesn't re-alert.
-        out << mark_suppressed(result("SA008", name, poison_message(name, version, data), location, level: poison_level(data)), name, :poison)
+        # Level tracks the poison tier (critical->error, ...); a plain majors-behind
+        # tier change keeps the (rule_id, gem_name) fingerprint so it doesn't re-alert.
+        # But a note->security-relevant escalation (the cap now pins a vulnerable dep)
+        # adds a fingerprint dimension so a past dismissal of the maintenance-tier
+        # finding can't silently mute the security one -- the transition a human must see.
+        state = data[:poison_security_relevant] ? "security" : "maintenance"
+        out << mark_suppressed(result("SA008", name, poison_message(name, version, data), location, level: poison_level(data), fp_extra: state), name, :poison)
       end
 
       if data[:language_ceiling]
@@ -186,6 +189,11 @@ module StillActive
     # and the transitive parent. Note result() fingerprints on (rule_id, gem_name)
     # only, so this volatile detail never re-alerts a finding the user triaged.
     def poison_level(data)
+      # A security-relevant cap (a dormant dep pins a known-vulnerable dependency
+      # below its fix) escalates to error regardless of majors-behind: it's a real
+      # security finding, not the maintenance-tier signal poison usually is.
+      return "error" if data[:poison_security_relevant]
+
       { critical: "error", warning: "warning", note: "note" }.fetch(data[:poison_severity], "warning")
     end
 
@@ -197,7 +205,16 @@ module StillActive
       end
       remaining = top[:total] - top[:shown].length
       caps << "+#{remaining} more" if remaining.positive?
-      "#{name} #{version}: caps #{caps.join("; ")}#{transitive_suffix(data)}."
+      "#{name} #{version}: caps #{caps.join("; ")}#{transitive_suffix(data)}#{poison_security_note(data)}."
+    end
+
+    # Spells out the security escalation for a code-scanning alert: which
+    # known-vulnerable dependency this dormant cap pins you below the fix for.
+    def poison_security_note(data)
+      return "" unless data[:poison_security_relevant]
+
+      pinned = Array(data[:constraints]).select { |c| c[:capped_dep_vulnerable] }.map { |c| c[:dependency] }.uniq
+      " -- pins known-vulnerable #{pinned.join(", ")} below the fix"
     end
 
     # Attaches a SARIF native suppressions[] entry when this finding is covered
