@@ -8,7 +8,7 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 ## SA001 — Archived Repository {#sa001}
 
-**Triggers when:** the gem's upstream repository (GitHub or GitLab) is marked archived.
+**Triggers when:** the gem's upstream repository (GitHub, GitLab, or Forgejo/Gitea) is marked archived.
 
 **Why it matters:** archived repositories receive no fixes, including security patches. An archived dependency is a known-permanent risk.
 
@@ -152,4 +152,4 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 - Rule IDs are stable. New rules (SA010+) are additive. Existing rule renames/removals would be breaking changes.
 - `partialFingerprints` hash `(rule_id, gem_name, advisory_id?)` — version is **not** included, so a `bundle update` that doesn't change which gems are flagged keeps the same alert IDs (no churn in the GitHub Security UI).
-- Rule thresholds (libyear ≥ 1.0, scorecard < 4.0, abandonment ≥ 2 years) are tracked in `lib/helpers/sarif_helper.rb`.
+- Rule thresholds: libyear > 1.0 and scorecard < 4.0 live in `lib/helpers/sarif_helper.rb`; the abandonment cutoff (release older than 3 years) lives in `lib/still_active/config.rb` (`warning_range_end`).
