@@ -228,16 +228,40 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(sa008).not_to(have_key("properties"))
     end
 
-    it("escalates a security-relevant cap to error, names the pinned vulnerable dep, and mints a distinct fingerprint") do
+    it("escalates a security-relevant (patchable) cap to error, names the pinned vulnerable dep, and mints a distinct fingerprint") do
       vuln_cap = cap.merge(dependency: "protobuf", capped_dep_vulnerable: true)
       data = poison([vuln_cap], { poison_severity: :note, poison_security_relevant: true })
       sa008 = render(result: data).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
       expect(sa008["level"]).to(eq("error")) # security-relevant escalates above the :note tier
-      expect(sa008.dig("message", "text")).to(include("pins known-vulnerable protobuf below the fix"))
+      # No below-fix data: claim only that it's vulnerable, without asserting
+      # patchability (this branch also covers a no-fix advisory, which isn't patchable).
+      expect(sa008.dig("message", "text")).to(include("pins known-vulnerable protobuf"))
+      expect(sa008.dig("message", "text")).not_to(include("patchable in place"))
 
       plain = render(result: poison([cap])).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
       expect(sa008.dig("partialFingerprints", "primaryLocationLineHash"))
         .not_to(eq(plain.dig("partialFingerprints", "primaryLocationLineHash")))
+    end
+
+    it("names the CVE and its nearest fix, and mints a fresh fingerprint, when a cap holds you BELOW THE FIX") do
+      below_cap = cap.merge(
+        dependency: "protobuf",
+        capped_dep_vulnerable: true,
+        capped_below_fix: true,
+        below_fix_advisory: "GHSA-7gcm-g887-7qv7",
+        below_fix_fixed_in: "5.29.6",
+      )
+      data = poison([below_cap], { poison_severity: :note, poison_security_relevant: true, poison_below_fix: true })
+      sa008 = render(result: data).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
+      expect(sa008["level"]).to(eq("error"))
+      expect(sa008.dig("message", "text")).to(include("protobuf below the fix (GHSA-7gcm-g887-7qv7 fixed in 5.29.6, outside the cap)"))
+
+      # A security-relevant (patchable) finding escalating to below-the-fix mints a NEW
+      # alert, so a past dismissal of the weaker tier can't mute the stronger one.
+      patchable = poison([cap.merge(dependency: "protobuf", capped_dep_vulnerable: true)], { poison_severity: :note, poison_security_relevant: true })
+      patchable_fp = render(result: patchable).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
+      expect(sa008.dig("partialFingerprints", "primaryLocationLineHash"))
+        .not_to(eq(patchable_fp.dig("partialFingerprints", "primaryLocationLineHash")))
     end
 
     it("fingerprints on gem identity, NOT on majors_behind, so a growing cap is not re-alerted every run") do

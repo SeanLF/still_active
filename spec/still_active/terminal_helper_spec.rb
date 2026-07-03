@@ -332,6 +332,27 @@ RSpec.describe(StillActive::TerminalHelper) do
         expect(out).to(match(/\e\[31m  ↳ poison:.*⚠ pins vulnerable protobuf/))
       end
 
+      it("leads with the CVE and its nearest fix when the cap holds you BELOW THE FIX") do
+        result = {
+          "google-api-core" => poison_gem(
+            [{
+              dependency: "protobuf",
+              requirement: "< 5",
+              dep_latest: "7.0.0",
+              majors_behind: 3,
+              kind: :ceiling,
+              capped_dep_vulnerable: true,
+              capped_below_fix: true,
+              below_fix_advisory: "GHSA-7gcm-g887-7qv7",
+              below_fix_fixed_in: "5.29.6",
+            }],
+            { poison_severity: :note, poison_security_relevant: true, poison_below_fix: true },
+          ),
+        }
+        out = described_class.render(result)
+        expect(out).to(include("⚠ pins protobuf below the fix (GHSA-7gcm-g887-7qv7 fixed in 5.29.6)"))
+      end
+
       it("folds the parent into a transitive poison line and suppresses the generic transitive line") do
         result = {
           "terrapin" => poison_gem(

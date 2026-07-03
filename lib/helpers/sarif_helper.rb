@@ -141,10 +141,16 @@ module StillActive
       if data[:poison] && !Array(data[:constraints]).empty?
         # Level tracks the poison tier (critical->error, ...); a plain majors-behind
         # tier change keeps the (rule_id, gem_name) fingerprint so it doesn't re-alert.
-        # But a note->security-relevant escalation (the cap now pins a vulnerable dep)
-        # adds a fingerprint dimension so a past dismissal of the maintenance-tier
-        # finding can't silently mute the security one -- the transition a human must see.
-        state = data[:poison_security_relevant] ? "security" : "maintenance"
+        # But an escalation up the tiers (maintenance -> security-relevant -> below the
+        # fix) adds a fingerprint dimension so a past dismissal of a weaker tier can't
+        # silently mute the stronger one -- the transition a human must see.
+        state = if data[:poison_below_fix]
+          "below_fix"
+        elsif data[:poison_security_relevant]
+          "security"
+        else
+          "maintenance"
+        end
         out << mark_suppressed(result("SA008", name, poison_message(name, version, data), location, level: poison_level(data), fp_extra: state), name, :poison)
       end
 
@@ -208,13 +214,23 @@ module StillActive
       "#{name} #{version}: caps #{caps.join("; ")}#{transitive_suffix(data)}#{poison_security_note(data)}."
     end
 
-    # Spells out the security escalation for a code-scanning alert: which
-    # known-vulnerable dependency this dormant cap pins you below the fix for.
+    # Spells out the security escalation for a code-scanning alert. Only claims
+    # "below the fix" (with the CVE and its nearest fix, a version the cap forbids)
+    # when that is actually established. Otherwise we say only that the dep is
+    # known-vulnerable, WITHOUT asserting patchability: this branch also covers a
+    # HIGH advisory with no released fix at all (class C), which is not patchable in
+    # place, so an "(patchable in place)" claim here would be false on the worst case.
     def poison_security_note(data)
       return "" unless data[:poison_security_relevant]
 
-      pinned = Array(data[:constraints]).select { |c| c[:capped_dep_vulnerable] }.map { |c| c[:dependency] }.uniq
-      " -- pins known-vulnerable #{pinned.join(", ")} below the fix"
+      below = Array(data[:constraints]).select { |c| c[:capped_below_fix] }
+      if below.any?
+        receipts = below.map { |c| "#{c[:dependency]} below the fix (#{c[:below_fix_advisory]} fixed in #{c[:below_fix_fixed_in]}, outside the cap)" }.uniq
+        " -- pins #{receipts.join("; ")}"
+      else
+        pinned = Array(data[:constraints]).select { |c| c[:capped_dep_vulnerable] }.map { |c| c[:dependency] }.uniq
+        " -- pins known-vulnerable #{pinned.join(", ")}"
+      end
     end
 
     # Attaches a SARIF native suppressions[] entry when this finding is covered

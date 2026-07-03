@@ -23,7 +23,18 @@ module StillActive
     # name the same package in several ecosystems, so we filter `affected` to the
     # one being audited. The native Bundler path carries no ecosystem and is always
     # rubygems.
-    ECOSYSTEM_NAMES = { rubygems: "RubyGems", pypi: "PyPI", npm: "npm", cargo: "crates.io" }.freeze
+    # Every ecosystem SbomReader/deps.dev resolve, mapped to OSV's package-ecosystem
+    # casing (verified against live OSV records). Anything unmapped falls back to
+    # name-only fix filtering rather than dropping fixes.
+    ECOSYSTEM_NAMES = {
+      rubygems: "RubyGems",
+      pypi: "PyPI",
+      npm: "npm",
+      cargo: "crates.io",
+      maven: "Maven",
+      go: "Go",
+      nuget: "NuGet",
+    }.freeze
 
     # Enrich each advisory in place with the OSV severity label and the fixed
     # versions for the audited package. A missing/failed lookup is a no-op on that
