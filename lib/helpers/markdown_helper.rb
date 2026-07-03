@@ -128,7 +128,7 @@ module StillActive
       # triage-friendly order.
       ranked = flagged.sort_by do |name, data|
         [
-          data[:poison_security_relevant] ? 0 : 1, # security-relevant caps lead
+          poison_rank(data), # below-the-fix leads, then security-relevant, then the rest
           -ConstraintHelper::SEVERITY.index(data[:poison_severity] || :note),
           -Array(data[:constraints]).map { |c| c[:majors_behind].to_i }.max,
           name.to_s,
@@ -140,13 +140,31 @@ module StillActive
       lines.join("\n")
     end
 
+    # Ranks poison findings for the report: a cap that holds you BELOW THE FIX first
+    # (unpatchable without replacing the capper), then a merely security-relevant cap
+    # (vulnerable but patchable in place), then everything else.
+    def poison_rank(data)
+      return 0 if data[:poison_below_fix]
+      return 1 if data[:poison_security_relevant]
+
+      2
+    end
+
     # A prominent marker naming the known-vulnerable dependency a security-relevant
-    # cap pins you below the fix for -- the finding to act on first.
+    # cap pins you to. Leads with the stronger BELOW-THE-FIX claim (the CVE and its
+    # nearest fix, a version the cap forbids) when it applies, else the weaker
+    # "vulnerable but patchable" form.
     def poison_security_marker(data)
       return "" unless data[:poison_security_relevant]
 
-      pinned = Array(data[:constraints]).select { |c| c[:capped_dep_vulnerable] }.map { |c| c[:dependency] }.uniq
-      " ⚠ **pins vulnerable #{pinned.join(", ")}**"
+      below = Array(data[:constraints]).select { |c| c[:capped_below_fix] }
+      if below.any?
+        receipts = below.map { |c| "#{c[:dependency]} below the fix (#{c[:below_fix_advisory]} fixed in #{c[:below_fix_fixed_in]})" }.uniq
+        " ⚠ **pins #{receipts.join("; ")}**"
+      else
+        pinned = Array(data[:constraints]).select { |c| c[:capped_dep_vulnerable] }.map { |c| c[:dependency] }.uniq
+        " ⚠ **pins vulnerable #{pinned.join(", ")}**"
+      end
     end
 
     # The language-runtime ceiling: a resolved version whose declared runtime

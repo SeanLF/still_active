@@ -390,6 +390,33 @@ RSpec.describe(StillActive::MarkdownHelper) do
       expect(out.index("google-api-core")).to(be < out.index("plaingem"))
     end
 
+    it("leads with a below-the-fix cap (CVE + nearest fix) ahead of a merely-vulnerable one") do
+      result = {
+        "patchable-capper" => poison_gem(
+          [{ dependency: "jwt", requirement: "< 3", dep_latest: "5.0.0", majors_behind: 2, kind: :ceiling, capped_dep_vulnerable: true }],
+          { poison_severity: :critical, poison_security_relevant: true },
+        ),
+        "google-api-core" => poison_gem(
+          [{
+            dependency: "protobuf",
+            requirement: "< 5",
+            dep_latest: "7.0.0",
+            majors_behind: 3,
+            kind: :ceiling,
+            capped_dep_vulnerable: true,
+            capped_below_fix: true,
+            below_fix_advisory: "GHSA-7gcm-g887-7qv7",
+            below_fix_fixed_in: "5.29.6",
+          }],
+          { poison_severity: :note, poison_security_relevant: true, poison_below_fix: true },
+        ),
+      }
+      out = described_class.poison_section(result)
+      expect(out).to(include("⚠ **pins protobuf below the fix (GHSA-7gcm-g887-7qv7 fixed in 5.29.6)**"))
+      # below-the-fix leads, even over a :critical merely-vulnerable cap.
+      expect(out.index("google-api-core")).to(be < out.index("patchable-capper"))
+    end
+
     it("shows the worst 3 caps + total for a many-cap gem, worst-first with name tie-break") do
       caps = [
         { dependency: "chalk", requirement: "^1", dep_latest: "5.0.0", majors_behind: 4, kind: :ceiling },

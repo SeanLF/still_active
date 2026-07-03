@@ -201,13 +201,22 @@ module StillActive
       AnsiHelper.public_send(colour, "  ↳ poison#{via}: #{poison_receipt(constraints)}#{poison_security_suffix(data)}")
     end
 
-    # Names the vulnerable dependency a security-relevant poison cap pins you to --
-    # the actionable "you're stuck below a fix for a known-vulnerable dep" detail.
+    # Names the vulnerable dependency a security-relevant poison cap pins you to. When
+    # the cap holds you BELOW THE FIX (every patched version is a major it forbids) we
+    # lead with that stronger, enforced claim and name the CVE and its nearest fix --
+    # "you cannot patch this without replacing the dormant capper". Otherwise the
+    # weaker "pins vulnerable X" (the dep is vulnerable, but patchable in place).
     def poison_security_suffix(data)
       return "" unless data[:poison_security_relevant]
 
-      pinned = Array(data[:constraints]).select { |c| c[:capped_dep_vulnerable] }.map { |c| c[:dependency] }.uniq
-      " ⚠ pins vulnerable #{pinned.join(", ")}"
+      below = Array(data[:constraints]).select { |c| c[:capped_below_fix] }
+      if below.any?
+        receipts = below.map { |c| "#{c[:dependency]} below the fix (#{c[:below_fix_advisory]} fixed in #{c[:below_fix_fixed_in]})" }.uniq
+        " ⚠ pins #{receipts.join("; ")}"
+      else
+        pinned = Array(data[:constraints]).select { |c| c[:capped_dep_vulnerable] }.map { |c| c[:dependency] }.uniq
+        " ⚠ pins vulnerable #{pinned.join(", ")}"
+      end
     end
 
     def poison_colour(severity)

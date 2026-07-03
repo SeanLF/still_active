@@ -222,4 +222,27 @@ RSpec.describe(StillActive::ConstraintHelper) do
       expect(described_class.poison_ceiling?(requirement: "~> 8.0", dep_latest: "8.2.0")).to(be(false)) # at latest
     end
   end
+
+  describe(".reachable_within_cap?") do
+    # The real Sentry case: protobuf latest ~7.x, cap `< 5` (3 majors behind), so the
+    # highest major the cap allows is 4. A fix in major 4 is reachable; a fix in 5+ is
+    # "below the fix" -- unpatchable without replacing the capper.
+    let(:finding) { { dep_latest: "7.35.1", majors_behind: 3 } }
+
+    it("is true for a fix at or below the cap's ceiling major") do
+      expect(described_class.reachable_within_cap?(finding, "4.25.8")).to(be(true))
+      expect(described_class.reachable_within_cap?(finding, "3.20.3")).to(be(true))
+    end
+
+    it("is false for a fix in a major the cap forbids (below the fix)") do
+      expect(described_class.reachable_within_cap?(finding, "5.29.6")).to(be(false))
+      expect(described_class.reachable_within_cap?(finding, "6.33.5")).to(be(false))
+    end
+
+    it("reads false on unparseable or absent inputs (never claims a fix is reachable when unsure)") do
+      expect(described_class.reachable_within_cap?(finding, "not-a-version")).to(be(false))
+      expect(described_class.reachable_within_cap?({ dep_latest: nil, majors_behind: 3 }, "4.0.0")).to(be(false))
+      expect(described_class.reachable_within_cap?({ dep_latest: "7.0.0", majors_behind: nil }, "4.0.0")).to(be(false))
+    end
+  end
 end

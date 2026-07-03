@@ -115,6 +115,29 @@ RSpec.describe(StillActive::OsvClient) do
       expect(advisories.first[:fixed_versions]).to(eq(["2.2.6.1"]))
     end
 
+    it("maps every ecosystem still_active resolves to OSV's casing (maven/go/nuget too, for fix-data parity)") do
+      # deps.dev/SbomReader resolve 7 systems; OSV names three of them Maven/Go/NuGet.
+      # Without these, fix-version filtering for those ecosystems falls back to loose
+      # name-only matching. Verified casing against live OSV records.
+      {
+        maven: "Maven", go: "Go", nuget: "NuGet",
+      }.each do |eco, osv_name|
+        record = osv_record(affected: [
+          {
+            "package" => { "name" => "widget", "ecosystem" => osv_name },
+            "ranges" => [{ "type" => "ECOSYSTEM", "events" => [{ "introduced" => "0" }, { "fixed" => "1.2.3" }] }],
+          },
+          { "package" => { "name" => "widget", "ecosystem" => "PyPI" }, "ranges" => [] },
+        ])
+        stub_vuln("GHSA-#{eco}", body: record)
+        advisories = [{ id: "GHSA-#{eco}" }]
+
+        described_class.enrich(advisories, ecosystem: eco, name: "widget")
+
+        expect(advisories.first[:fixed_versions]).to(eq(["1.2.3"]))
+      end
+    end
+
     it("treats a nil ecosystem as rubygems (the native path carries no ecosystem)") do
       record = osv_record(affected: [
         {

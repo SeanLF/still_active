@@ -71,4 +71,76 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
       expect(result["dormantgem"][:poison_security_relevant]).to(be(true))
     end
   end
+
+  describe ".correlate below the fix" do
+    # Sentry: google-api-core caps protobuf `< 5` (3 majors behind, latest ~7). Whether
+    # the cap holds you BELOW THE FIX depends on where the CVE's fix lands.
+    def sentry_result(fixed_versions, advisory: { id: "CVE-2026-0994", cvss3_score: 8.1 })
+      {
+        "pypi/google-api-core@1.0.0" => {
+          ecosystem: :pypi,
+          name: "google-api-core",
+          constraints: [{ dependency: "protobuf", requirement: "< 5", dep_latest: "7.35.1", majors_behind: 3, kind: :ceiling }],
+        },
+        "pypi/protobuf@4.21.6" => {
+          ecosystem: :pypi,
+          name: "protobuf",
+          vulnerability_count: 1,
+          vulnerabilities: [advisory.merge(fixed_versions: fixed_versions, source: "deps.dev")],
+        },
+      }
+    end
+
+    it "marks a cap below the fix when every fix is outside the cap (class A: unpatchable in place)" do
+      result = sentry_result(["6.33.5", "5.29.6"])
+      described_class.correlate(result)
+      cap = result["pypi/google-api-core@1.0.0"]
+      constraint = cap[:constraints].first
+      expect(constraint[:capped_below_fix]).to(be(true))
+      expect(constraint[:below_fix_advisory]).to(eq("CVE-2026-0994"))
+      expect(constraint[:below_fix_fixed_in]).to(eq("5.29.6")) # nearest fix outside the cap
+      expect(cap[:poison_below_fix]).to(be(true))
+    end
+
+    it "does NOT mark below the fix when a fix is reachable within the cap (class B: patchable in place)" do
+      result = sentry_result(["4.25.8", "5.29.5"]) # 4.25.8 satisfies `< 5`
+      described_class.correlate(result)
+      cap = result["pypi/google-api-core@1.0.0"]
+      expect(cap[:constraints].first[:capped_dep_vulnerable]).to(be(true))
+      expect(cap[:constraints].first).not_to(have_key(:capped_below_fix))
+      expect(cap).not_to(have_key(:poison_below_fix))
+    end
+
+    it "does NOT establish below the fix from an advisory with no known fix (class C)" do
+      result = sentry_result([])
+      described_class.correlate(result)
+      cap = result["pypi/google-api-core@1.0.0"]
+      expect(cap[:constraints].first[:capped_dep_vulnerable]).to(be(true))
+      expect(cap[:constraints].first).not_to(have_key(:capped_below_fix))
+    end
+
+    it "does NOT establish below the fix from an UNSCORED advisory (no reliable fix analysis)" do
+      result = sentry_result(["5.29.6"], advisory: { id: "CVE-x", cvss3_score: nil })
+      described_class.correlate(result)
+      cap = result["pypi/google-api-core@1.0.0"]
+      expect(cap[:constraints].first[:capped_dep_vulnerable]).to(be(true)) # fail-closed still flags
+      expect(cap[:constraints].first).not_to(have_key(:capped_below_fix))  # but below-fix needs a real score
+    end
+
+    it "uses the OSV label to score a CVSS-4-only advisory (deps.dev 0) for below-the-fix (the flagship)" do
+      result = sentry_result(["5.29.6"], advisory: { id: "CVE-2026-0994", cvss3_score: 0, osv_severity: "HIGH" })
+      described_class.correlate(result)
+      expect(result["pypi/google-api-core@1.0.0"][:constraints].first[:capped_below_fix]).to(be(true))
+    end
+
+    it "names a clean fix in the receipt, never an epoch/garbage version when a parseable one exists" do
+      # OSV fix strings are usually clean, but a PyPI epoch (7!2.3.4, Gem-unparseable)
+      # must not be chosen as the displayed 'fixed in' over a real version. All three
+      # fixes are outside the `< 5` cap (majors 7/6/5), so below-fix fires; the receipt
+      # picks the lowest PARSEABLE one.
+      result = sentry_result(["7!2.3.4", "6.33.5", "5.29.6"])
+      described_class.correlate(result)
+      expect(result["pypi/google-api-core@1.0.0"][:constraints].first[:below_fix_fixed_in]).to(eq("5.29.6"))
+    end
+  end
 end

@@ -101,6 +101,29 @@ module StillActive
       SEVERITY.index(severity) >= SEVERITY.index(threshold)
     end
 
+    # True when `version` sits at or below the highest major the cap allows -- i.e.
+    # you could upgrade the capped dep to it WITHOUT breaking the cap. The ceiling
+    # major is recovered from the poison finding itself (dep_latest minus
+    # majors_behind), at the same major precision the poison signal already uses, so
+    # a fix that lands OUTSIDE the cap ("below the fix") is detected without
+    # re-parsing the raw requirement and its pre/dev-release quirks (`< 5.0.0dev`).
+    #
+    # Precision is MAJOR-level by design, and that errs deliberately toward reachable:
+    # a within-major cap (`~> 4.2.1`, `< 5.5`) reads a same-major fix (4.9.0, 5.29.6)
+    # as reachable even though the cap forbids it. So a genuinely-stuck within-major
+    # cap is UNDER-reported (downgraded to the still-visible "vulnerable" tier), never
+    # falsely promoted -- when this DOES return false for every fix, the below-the-fix
+    # claim is sound (every fix is in a strictly higher major than the cap allows).
+    # Unparseable/absent inputs read false (never claims reachable when we can't tell).
+    def reachable_within_cap?(finding, version)
+      fix_major = major(version)
+      latest_major = major(finding[:dep_latest])
+      behind = finding[:majors_behind]
+      return false if fix_major.nil? || latest_major.nil? || behind.nil?
+
+      fix_major <= latest_major - behind
+    end
+
     # The poison condition: a below-latest ceiling or exact pin. A permissive
     # constraint, or a cap at/above the dep's latest major, is not a pill.
     def poison_ceiling?(requirement:, dep_latest:)
