@@ -53,6 +53,29 @@ RSpec.describe(StillActive::OsvClient) do
       expect(described_class.detail(advisory_id: "GHSA-nolabel")[:severity_label]).to(be_nil)
     end
 
+    it("computes a base score from the record's CVSS vector, preferring v4 (the version deps.dev can't score)") do
+      record = osv_record.merge("severity" => [
+        { "type" => "CVSS_V3", "score" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H" },
+        { "type" => "CVSS_V4", "score" => "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N" },
+      ])
+      stub_vuln("GHSA-cvss", body: record)
+
+      detail = described_class.detail(advisory_id: "GHSA-cvss")
+
+      expect(detail[:cvss_score]).to(eq(9.3)) # the v4 score, not the v3 7.5
+      expect(detail[:cvss_version]).to(eq("4.0"))
+    end
+
+    it("leaves the cvss score nil when the record carries no usable vector") do
+      stub_vuln("GHSA-novec", body: osv_record.merge("severity" => []))
+      expect(described_class.detail(advisory_id: "GHSA-novec")[:cvss_score]).to(be_nil)
+    end
+
+    it("labels a CVSS v2-only vector via the entry type (v2 vectors carry no CVSS: prefix)") do
+      stub_vuln("GHSA-v2", body: osv_record.merge("severity" => [{ "type" => "CVSS_V2", "score" => "AV:N/AC:L/Au:N/C:P/I:P/A:P" }]))
+      expect(described_class.detail(advisory_id: "GHSA-v2")[:cvss_version]).to(eq("2.0"))
+    end
+
     it("yields no fixed versions for a versions-only advisory (enumerated, no fix boundary)") do
       record = osv_record(affected: [{
         "package" => { "name" => "protobuf", "ecosystem" => "PyPI" },
@@ -96,6 +119,19 @@ RSpec.describe(StillActive::OsvClient) do
       described_class.enrich(advisories, ecosystem: :pypi, name: "protobuf")
 
       expect(advisories.first).to(include(osv_severity: "HIGH", fixed_versions: ["3.18.3", "4.21.6"]))
+    end
+
+    it("attaches an OSV-computed v4 score, giving a CVSS-4-only advisory (deps.dev 0) a real number") do
+      record = osv_record.merge("severity" => [
+        { "type" => "CVSS_V4", "score" => "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N" },
+      ])
+      stub_vuln("GHSA-8gq9-2x98-w8hf", body: record)
+      advisories = [{ id: "GHSA-8gq9-2x98-w8hf", cvss3_score: 0 }] # deps.dev's v4-only sentinel
+
+      described_class.enrich(advisories, ecosystem: :pypi, name: "protobuf")
+
+      expect(advisories.first).to(include(osv_cvss_score: 9.3, cvss_version: "4.0"))
+      expect(StillActive::VulnerabilityHelper.effective_score(advisories.first)).to(eq(9.3))
     end
 
     it("maps our ecosystem symbols to OSV's casing when filtering affected packages") do

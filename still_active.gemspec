@@ -54,6 +54,11 @@ Gem::Specification.new do |spec|
   # carry an artificial floor.
   spec.add_runtime_dependency("async", ">= 2.2")
   spec.add_runtime_dependency("bundler", ">= 2.0")
+  # CVSS v4.0 base-score computation from an OSV advisory's vector string: deps.dev
+  # stores only CVSS 3.x, so a CVSS-4-only advisory has no numeric score (the flagship
+  # protobuf case). MIT, one dep (bigdecimal), a real MacroVector implementation vetted
+  # against FIRST's calculator. 4.1 is the floor (the rounding fixes landed there).
+  spec.add_runtime_dependency("cvss-suite", ">= 4.1")
   spec.add_runtime_dependency("faraday-retry")
   spec.add_runtime_dependency("gems")
   spec.add_runtime_dependency("octokit")

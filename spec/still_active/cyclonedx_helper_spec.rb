@@ -148,6 +148,23 @@ RSpec.describe(StillActive::CyclonedxHelper) do
       expect(rating).to(include("score" => 7.5, "severity" => "high", "method" => "CVSSv3", "vector" => "CVSS:3.1/AV:N"))
     end
 
+    it("rates a CVSS-4-only advisory from the OSV-computed v4 score and labels it CVSSv4") do
+      # deps.dev returns cvss3Score 0 for a v4-only advisory, so before the OSV v4
+      # score it had no rating at all and would have mislabelled as CVSSv2.
+      result["rack"][:vulnerabilities] = [
+        {
+          id: "GHSA-v4",
+          cvss3_score: 0,
+          osv_cvss_score: 8.2,
+          cvss_version: "4.0",
+          cvss_vector: "CVSS:4.0/AV:N/VC:H",
+          source: "deps.dev",
+        },
+      ]
+      rating = vulnerabilities.first["ratings"].first
+      expect(rating).to(include("score" => 8.2, "severity" => "high", "method" => "CVSSv4", "vector" => "CVSS:4.0/AV:N/VC:H"))
+    end
+
     it("records the advisory source") do
       expect(vulnerabilities.first["source"]).to(eq({ "name" => "merged" }))
     end

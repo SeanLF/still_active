@@ -143,14 +143,28 @@ module StillActive
 
     def rating(advisory)
       # effective_score drops deps.dev's cvss3=0 sentinel; an unscored advisory
-      # gets no numeric rating (honest) rather than a masquerading 0.0.
+      # gets no numeric rating (honest) rather than a masquerading 0.0. A CVSS-4-only
+      # advisory now carries the OSV-computed v4 score, so it gets a real rating too.
       score = VulnerabilityHelper.effective_score(advisory)
       return if score.nil?
 
-      method = advisory[:cvss3_score]&.positive? ? "CVSSv3" : "CVSSv2"
-      rating = { "score" => score, "severity" => VulnerabilityHelper.highest_severity([advisory]) || "unknown", "method" => method }
-      rating["vector"] = advisory[:cvss3_vector] if advisory[:cvss3_vector]
+      rating = { "score" => score, "severity" => VulnerabilityHelper.highest_severity([advisory]) || "unknown", "method" => rating_method(advisory) }
+      vector = advisory[:cvss3_vector] || advisory[:cvss_vector]
+      rating["vector"] = vector if vector
       rating
+    end
+
+    # Names the CVSS version behind the score so a v4-derived rating isn't mislabelled
+    # CVSSv2. deps.dev's v3/v2 win; otherwise the OSV-enriched vector's version.
+    def rating_method(advisory)
+      return "CVSSv3" if advisory[:cvss3_score]&.positive?
+      return "CVSSv2" if advisory[:cvss2_score]&.positive?
+
+      case advisory[:cvss_version]
+      when "4.0" then "CVSSv4"
+      when "2.0" then "CVSSv2"
+      else "CVSSv3"
+      end
     end
 
     def boolean_property(value)
