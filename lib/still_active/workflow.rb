@@ -3,6 +3,7 @@
 require_relative "artifactory_client"
 require_relative "ceiling_reconciler"
 require_relative "deps_dev_client"
+require_relative "osv_client"
 require_relative "poison_security_correlator"
 require_relative "ecosystems_client"
 require_relative "forgejo_client"
@@ -372,6 +373,10 @@ module StillActive
       deps_dev_vulns = advisory_keys.map { |id| DepsDevClient.advisory_detail(advisory_id: id) || { id: id, source: "deps.dev" } }
       radb_vulns = RubyAdvisoryDb.advisories_for(database: advisory_db, gem_name: gem_name, version: version)
       vulnerabilities = VulnerabilityHelper.merge_advisories(deps_dev: deps_dev_vulns, ruby_advisory_db: radb_vulns)
+      # Enrich with OSV: a real GHSA severity label (deps.dev can't score a CVSS-4-only
+      # advisory) and the fixed-version ranges the "capped below the fix" signal needs.
+      # Native path is rubygems.
+      OsvClient.enrich(vulnerabilities, ecosystem: :rubygems, name: gem_name)
       {
         scorecard_score: scorecard&.dig(:score),
         scorecard_maintained: scorecard&.dig(:maintained),

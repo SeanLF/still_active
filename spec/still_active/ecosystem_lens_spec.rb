@@ -120,6 +120,36 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:vulnerable))
     end
 
+    it("enriches a CVSS-4-only advisory (deps.dev score 0) with OSV's HIGH label and fixed versions") do
+      # deps.dev stores only CVSS 3.x, so this advisory arrives unscored (cvss3Score 0).
+      # OSV's GHSA label rescues the real HIGH and supplies the fixed ranges the
+      # below-the-fix signal needs -- the CVSS-4 deflation, end to end.
+      stub_version(advisory_keys: ["GHSA-cvss4"], source_repo: "https://github.com/protocolbuffers/protobuf")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_advisory(id: "GHSA-cvss4", cvss: 0)
+      stub_ecosystems_repo(archived: false)
+      stub_request(:get, "https://api.osv.dev/v1/vulns/GHSA-cvss4").to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          "database_specific" => { "severity" => "HIGH" },
+          "affected" => [{
+            "package" => { "name" => "protobuf", "ecosystem" => "PyPI" },
+            "ranges" => [{ "type" => "ECOSYSTEM", "events" => [{ "introduced" => "0" }, { "fixed" => "5.29.6" }] }],
+          }],
+        }.to_json,
+      )
+
+      result = described_class.assess(ecosystem: :pypi, name: "protobuf", version: "4.21.6")
+
+      vuln = result[:vulnerabilities].first
+      expect(vuln).to(include(osv_severity: "HIGH", fixed_versions: ["5.29.6"]))
+      expect(StillActive::VulnerabilityHelper.highest_severity(result[:vulnerabilities])).to(eq("high"))
+      # Without OSV this advisory (deps.dev cvss3Score 0) would be unscored and fail closed.
+      expect(StillActive::VulnerabilityHelper.unknown_severity?(vuln)).to(be(false))
+    end
+
     it("reads an archived repo that still publishes recent releases as :stale, not dead") do
       stub_version(source_repo: "https://github.com/owner/moved")
       stub_package(default_published_at: "2026-06-01T00:00:00Z")

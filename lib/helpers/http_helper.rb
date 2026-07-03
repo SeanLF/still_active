@@ -6,7 +6,7 @@ require "json"
 
 module StillActive
   module HttpHelper
-    TRUSTED_HOSTS = ["github.com", "gitlab.com", "codeberg.org", "api.deps.dev", "endoflife.date", "rubygems.pkg.github.com", "repos.ecosyste.ms", "packages.ecosyste.ms", "pypi.org"].freeze
+    TRUSTED_HOSTS = ["github.com", "gitlab.com", "codeberg.org", "api.deps.dev", "api.osv.dev", "endoflife.date", "rubygems.pkg.github.com", "repos.ecosyste.ms", "packages.ecosyste.ms", "pypi.org"].freeze
     # Transport-level failures ("host unreachable / connection broke", not an HTTP
     # error status). Every network entry point degrades to a safe empty result on
     # these rather than letting one escape and vanish a gem from the audit.

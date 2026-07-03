@@ -61,21 +61,18 @@ RSpec.describe(StillActive::Sarif::Rules) do
     end
   end
 
-  describe(".cvss_to_level") do
+  describe(".severity_to_level") do
     {
-      9.5 => "error",
-      7.0 => "error",
-      6.9 => "warning",
-      5.0 => "warning",
-      4.0 => "warning",
-      3.9 => "note",
-      0.1 => "note",
-      # A confirmed-but-unscored advisory (nil after effective_score) is elevated to
-      # warning, not an informational note -- the SARIF fail-closed (see cvss_to_level).
+      "critical" => "error",
+      "high" => "error",
+      "medium" => "warning",
+      "low" => "note",
+      # An unscored advisory (no CVSS score and no OSV label) fails closed to warning,
+      # never an informational note -- the SARIF analogue of the CLI fail-closed gate.
       nil => "warning",
-    }.each do |score, expected|
-      it("maps #{score.inspect} -> #{expected}") do
-        expect(described_class.cvss_to_level(score)).to(eq(expected))
+    }.each do |label, expected|
+      it("maps #{label.inspect} -> #{expected}") do
+        expect(described_class.severity_to_level(label)).to(eq(expected))
       end
     end
   end

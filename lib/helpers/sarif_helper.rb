@@ -238,12 +238,14 @@ module StillActive
     end
 
     def vulnerability_result(name, version, vuln, location, data = {})
-      # effective_score treats deps.dev's cvss3=0 sentinel (CVSS-4-only advisories)
-      # as unscored, so a HIGH finding can't be exported as a note/0.0 that a code-
-      # scanning gate reads as informational -- the same false-clean the CLI gate
-      # guards. An unscored-but-confirmed advisory maps to warning (see cvss_to_level).
+      # Level tracks the resolved severity LABEL (a real CVSS score OR OSV's GHSA
+      # label), so a CVSS-4-only HIGH -- which deps.dev returns as cvss3Score 0 --
+      # exports as error, not a note/warning a code-scanning gate reads as
+      # informational. The security-severity NUMBER stays tied to a real CVSS score
+      # (effective_score): a label-only advisory carries no invented number rather
+      # than a fabricated 7.0. A confirmed-but-unscored advisory still fails closed.
       score = VulnerabilityHelper.effective_score(vuln)
-      level = Sarif::Rules.cvss_to_level(score)
+      level = Sarif::Rules.severity_to_level(VulnerabilityHelper.advisory_severity(vuln))
       severity = Sarif::Rules.cvss_to_security_severity(score)
       advisory_id = vuln[:id] || Array(vuln[:aliases]).first || "unknown"
       aliases = Array(vuln[:aliases]).first(3).join(", ")

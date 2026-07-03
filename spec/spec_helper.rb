@@ -29,5 +29,11 @@ RSpec.configure do |config|
     allow(Open3).to(receive(:capture3).and_call_original)
     allow(Open3).to(receive(:capture3).with("gh", "auth", "token").and_raise(Errno::ENOENT))
     allow(Open3).to(receive(:capture3).with("glab", "auth", "status", "--hostname=gitlab.com", "--show-token").and_raise(Errno::ENOENT))
+
+    # OSV advisory enrichment (OsvClient) fires on every advisory-bearing gem. Default
+    # it to "no record" so specs that aren't about OSV stay hermetic without each
+    # stubbing it; specs that exercise enrichment register a more specific stub_request
+    # (or explicit response), which WebMock matches ahead of this catch-all.
+    stub_request(:get, %r{api\.osv\.dev/v1/vulns/}).to_return(status: 404)
   end
 end

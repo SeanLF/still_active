@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "deps_dev_client"
+require_relative "osv_client"
 require_relative "ecosystems_client"
 require_relative "github_client"
 require_relative "pypi_client"
@@ -62,6 +63,9 @@ module StillActive
       # the same resilience.
       project_id = info&.dig(:project_id) || project_id_from(name, ecosystem, default)
       vulnerabilities = vulnerabilities_for(info)
+      # Enrich with OSV: a real GHSA severity label (deps.dev can't score a CVSS-4-only
+      # advisory) and the fixed-version ranges the "capped below the fix" signal needs.
+      OsvClient.enrich(vulnerabilities, ecosystem: ecosystem, name: name)
       scorecard = DepsDevClient.project_scorecard(project_id: project_id)
       repo = repo_signals(project_id)
 
