@@ -52,3 +52,21 @@ jobs:
       run: BUNDLE_GEMFILE=Gemfile.floors bundle install
     - name: Run the suite against the floors
       run: BUNDLE_GEMFILE=Gemfile.floors bundle exec rspec
+
+  optional-cvss:
+    name: Optional cvss-suite integration (real scoring)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.4'
+    # cvss-suite is an optional runtime dependency, deliberately out of the default
+    # bundle (see lib/helpers/cvss_helper.rb). Gemfile.cvss adds the LATEST release
+    # back so the real-vector golden specs run against the actual gem -- red here
+    # means a new cvss-suite drifted the API or the math we depend on.
+    - name: Install with cvss-suite
+      run: BUNDLE_GEMFILE=Gemfile.cvss bundle install
+    - name: Run the real-scoring specs
+      run: BUNDLE_GEMFILE=Gemfile.cvss bundle exec rspec --tag real_cvss

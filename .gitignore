@@ -27,5 +27,8 @@ scratch/
 # floor-test lockfile (resolved fresh, never committed)
 Gemfile.floors.lock
 
+# optional-cvss lane lockfile (resolves latest cvss-suite fresh, never committed)
+Gemfile.cvss.lock
+
 # default output paths when a user runs still_active in-repo (--sarif/--cyclonedx)
 /still_active.sarif.json

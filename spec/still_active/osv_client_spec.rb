@@ -53,16 +53,21 @@ RSpec.describe(StillActive::OsvClient) do
       expect(described_class.detail(advisory_id: "GHSA-nolabel")[:severity_label]).to(be_nil)
     end
 
-    it("computes a base score from the record's CVSS vector, preferring v4 (the version deps.dev can't score)") do
+    it("hands the highest-priority vector to the scorer, preferring v4 (the version deps.dev can't score)") do
+      v4_vector = "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"
       record = osv_record.merge("severity" => [
         { "type" => "CVSS_V3", "score" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H" },
-        { "type" => "CVSS_V4", "score" => "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N" },
+        { "type" => "CVSS_V4", "score" => v4_vector },
       ])
       stub_vuln("GHSA-cvss", body: record)
+      # cvss-suite is an optional dependency (CvssHelper.score), so here we assert
+      # OsvClient hands the V4 vector (not the v3) to the scorer and surfaces the
+      # result -- the .with guard fails if it picked v3. The math is CvssHelper's own.
+      allow(StillActive::CvssHelper).to(receive(:score).with(v4_vector).and_return(9.3))
 
       detail = described_class.detail(advisory_id: "GHSA-cvss")
 
-      expect(detail[:cvss_score]).to(eq(9.3)) # the v4 score, not the v3 7.5
+      expect(detail[:cvss_score]).to(eq(9.3))
       expect(detail[:cvss_version]).to(eq("4.0"))
     end
 
@@ -121,12 +126,13 @@ RSpec.describe(StillActive::OsvClient) do
       expect(advisories.first).to(include(osv_severity: "HIGH", fixed_versions: ["3.18.3", "4.21.6"]))
     end
 
-    it("attaches an OSV-computed v4 score, giving a CVSS-4-only advisory (deps.dev 0) a real number") do
-      record = osv_record.merge("severity" => [
-        { "type" => "CVSS_V4", "score" => "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N" },
-      ])
+    it("attaches the scorer's v4 number, giving a CVSS-4-only advisory (deps.dev 0) a real score") do
+      v4_vector = "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"
+      record = osv_record.merge("severity" => [{ "type" => "CVSS_V4", "score" => v4_vector }])
       stub_vuln("GHSA-8gq9-2x98-w8hf", body: record)
       advisories = [{ id: "GHSA-8gq9-2x98-w8hf", cvss3_score: 0 }] # deps.dev's v4-only sentinel
+      # With the optional scorer present, the v4 vector's number fills deps.dev's gap.
+      allow(StillActive::CvssHelper).to(receive(:score).with(v4_vector).and_return(9.3))
 
       described_class.enrich(advisories, ecosystem: :pypi, name: "protobuf")
 
