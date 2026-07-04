@@ -1,15 +1,18 @@
 # frozen_string_literal: true
 
 require_relative "../helpers/http_helper"
+require_relative "../helpers/cvss_helper"
 
 module StillActive
   # OSV (api.osv.dev) enrichment for advisories deps.dev has already discovered.
   # deps.dev is the discovery source -- it lists a package version's advisory ids --
   # but it stores only CVSS 3.x (a CVSS-4-only advisory comes back with cvss3Score
   # 0, which reads as unscored) and carries no fixed-version ranges at all. OSV
-  # supplies both gaps: a GHSA severity LABEL (`database_specific.severity`) that
-  # reads correctly even for a v4-only advisory, and the per-package fixed versions
-  # the "capped below the fix" signal compares against a poison cap's ceiling.
+  # supplies all three gaps: a GHSA severity LABEL (`database_specific.severity`)
+  # that reads correctly even for a v4-only advisory, the CVSS v4 VECTOR (turned into
+  # a real score, so the finding carries a security-severity number), and the
+  # per-package fixed versions the "capped below the fix" signal compares against a
+  # poison cap's ceiling.
   #
   # Enrichment is best-effort: any failure (missing record, transport error, odd
   # shape) leaves the advisory exactly as deps.dev produced it. It must never drop
@@ -19,13 +22,11 @@ module StillActive
 
     BASE_URI = URI("https://api.osv.dev/")
 
-    # Our ecosystem symbols map to OSV's package-ecosystem casing. One advisory can
-    # name the same package in several ecosystems, so we filter `affected` to the
-    # one being audited. The native Bundler path carries no ecosystem and is always
-    # rubygems.
     # Every ecosystem SbomReader/deps.dev resolve, mapped to OSV's package-ecosystem
-    # casing (verified against live OSV records). Anything unmapped falls back to
-    # name-only fix filtering rather than dropping fixes.
+    # casing (verified against live OSV records). One advisory can name the same
+    # package in several ecosystems, so `affected` is filtered to the one being
+    # audited; the native Bundler path carries no ecosystem and is always rubygems.
+    # Anything unmapped falls back to name-only fix filtering rather than dropping fixes.
     ECOSYSTEM_NAMES = {
       rubygems: "RubyGems",
       pypi: "PyPI",
@@ -36,6 +37,13 @@ module StillActive
       nuget: "NuGet",
     }.freeze
 
+    # Prefer the newest CVSS version a record carries (v4 is the whole point: it's the
+    # one deps.dev can't score). `severity[].score` is the vector STRING, oddly named.
+    CVSS_PRIORITY = { "CVSS_V4" => 3, "CVSS_V3" => 2, "CVSS_V2" => 1 }.freeze
+    # A v2 vector has no `CVSS:X.Y` prefix, so the version can't be read from the
+    # string; fall back to the entry type so the CycloneDX rating method labels it v2.
+    TYPE_VERSIONS = { "CVSS_V4" => "4.0", "CVSS_V3" => "3.1", "CVSS_V2" => "2.0" }.freeze
+
     # Enrich each advisory in place with the OSV severity label and the fixed
     # versions for the audited package. A missing/failed lookup is a no-op on that
     # advisory (it keeps whatever deps.dev gave it), never a raise.
@@ -45,6 +53,9 @@ module StillActive
         next if record.nil?
 
         advisory[:osv_severity] = record[:severity_label]
+        advisory[:osv_cvss_score] = record[:cvss_score]
+        advisory[:cvss_version] = record[:cvss_version]
+        advisory[:cvss_vector] = record[:cvss_vector]
         advisory[:fixed_versions] = fixed_versions(record, ecosystem: ecosystem, name: name)
       rescue StandardError => e
         # Enrichment is additive and best-effort. An unexpected OSV shape must never
@@ -56,9 +67,9 @@ module StillActive
     end
 
     # Fetch and parse one OSV record by advisory id (GHSA/CVE). Returns
-    # { severity_label:, affected: [{ ecosystem:, name:, fixed: [...] }] } or nil
-    # when the id is absent or OSV has no usable record for it. A non-object body
-    # (a CDN/error envelope that parses to an array or scalar) yields nil rather
+    # { severity_label:, cvss_score:, cvss_version:, cvss_vector:, affected: [...] }
+    # or nil when the id is absent or OSV has no usable record for it. A non-object
+    # body (a CDN/error envelope that parses to an array or scalar) yields nil rather
     # than raising on `dig`.
     def detail(advisory_id:)
       return if advisory_id.nil?
@@ -66,13 +77,36 @@ module StillActive
       body = HttpHelper.get_json(BASE_URI, "/v1/vulns/#{encode(advisory_id)}")
       return unless body.is_a?(Hash)
 
+      cvss = best_cvss(body)
       {
         severity_label: body.dig("database_specific", "severity"),
+        cvss_score: cvss[:score],
+        cvss_version: cvss[:version],
+        cvss_vector: cvss[:vector],
         affected: Array(body["affected"]).filter_map { |entry| parse_affected(entry) },
       }
     end
 
     private
+
+    # The highest-version CVSS vector the record carries, as { score:, version:,
+    # vector: } (a computed base score, the "3.1"/"4.0" version, and the raw string),
+    # or all-nil. deps.dev has no v4 score, so this is what gives a CVSS-4-only
+    # advisory a real number for the security-severity/rating.
+    def best_cvss(body)
+      entry = Array(body["severity"])
+        .select { |s| s.is_a?(Hash) && CVSS_PRIORITY.key?(s["type"]) }
+        .max_by { |s| CVSS_PRIORITY[s["type"]] }
+      return {} if entry.nil?
+
+      vector = entry["score"]
+      { score: CvssHelper.score(vector), version: cvss_version(vector) || TYPE_VERSIONS[entry["type"]], vector: vector }
+    end
+
+    # The X.Y version from a "CVSS:X.Y/..." vector prefix, or nil.
+    def cvss_version(vector)
+      vector.to_s[%r{\ACVSS:(\d+\.\d+)/}, 1]
+    end
 
     # The fixed versions declared for `name` in `ecosystem` across the record's
     # affected packages (a branch-structured advisory carries one fix per maintained

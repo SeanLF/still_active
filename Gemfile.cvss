@@ -1,0 +1,16 @@
+# frozen_string_literal: true
+
+# cvss-suite is an OPTIONAL runtime dependency (see lib/helpers/cvss_helper.rb):
+# the default bundle omits it so still_active never forces the poison-pill gem on
+# users or trips its own self-audit. This Gemfile adds it back for one CI lane
+# (the "optional-cvss" job in rspec.yml) that runs the real-vector golden specs
+# (tagged :real_cvss) against the actual gem, pinning cvss-suite's API and math
+# somewhere executable. It resolves the LATEST cvss-suite deliberately, so a
+# future release that renames the API or drifts the math turns this lane red.
+#
+# This is NOT the project's audited lockfile; still_active audits Gemfile.lock.
+#
+# Run locally with:  BUNDLE_GEMFILE=Gemfile.cvss bundle exec rspec --tag real_cvss
+eval_gemfile "Gemfile"
+
+gem "cvss-suite", ">= 4.1"

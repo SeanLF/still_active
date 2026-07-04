@@ -54,6 +54,12 @@ Gem::Specification.new do |spec|
   # carry an artificial floor.
   spec.add_runtime_dependency("async", ">= 2.2")
   spec.add_runtime_dependency("bundler", ">= 2.0")
+  # cvss-suite (CVSS v4.0 base-score from an OSV vector, for the CVSS-4-only advisory
+  # deps.dev can't score) is an OPTIONAL dependency, NOT declared here: it exact-pins
+  # bundler and caps bigdecimal, the poison-pill pattern still_active flags, so we
+  # won't force it on users or trip our own audit. CvssHelper soft-requires it; absent,
+  # the OSV/GHSA severity label still carries gating + level and the number is skipped.
+  # Install cvss-suite (or run the distribution that bundles it) to light up the number.
   spec.add_runtime_dependency("faraday-retry")
   spec.add_runtime_dependency("gems")
   spec.add_runtime_dependency("octokit")
