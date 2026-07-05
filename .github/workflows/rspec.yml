@@ -29,6 +29,10 @@ jobs:
         bundler-cache: true
     - name: Execute the tests
       run: bundle exec rspec
+      env:
+        # Measure coverage and enforce the floor on one version only, so the
+        # branch-coverage floor can't flake on cross-version differences.
+        COVERAGE: ${{ matrix.ruby == '3.4' && '1' || '' }}
 
   floors:
     name: Dependency floors (min versions)
