@@ -2,7 +2,9 @@
 
 **How do you know if your Ruby dependencies are still maintained?**
 
-`bundle outdated` tells you version drift. `bundler-audit` catches known CVEs. Neither tells you whether anyone is still working on the thing. `still_active` checks maintenance activity, version freshness, security scores, vulnerabilities (flagging those with **no fixed version available** — you can't upgrade out of them), libyear drift, and archived repos for every gem in your dependency graph — direct and transitive by default (`--direct-only` to narrow), with granular, committed suppression via `.still_active.yml`.
+`bundle outdated` tells you version drift. `bundler-audit` catches known CVEs. Neither tells you whether anyone is still working on the thing. `still_active` checks maintenance activity, version freshness, security scores, vulnerabilities (flagging those with **no fixed version available**, the ones you can't upgrade out of), libyear drift, and archived repos for every gem in your dependency graph, direct and transitive by default (`--direct-only` to narrow), with granular, committed suppression via `.still_active.yml`.
+
+Ruby-first, but the maintenance lens isn't Ruby-only: point [`--sbom`](#cross-ecosystem-sbom-audit---sbom) at a CycloneDX SBOM and `still_active` audits your **npm, PyPI, Cargo, Go, Maven, and NuGet** dependencies the same way it does gems.
 
 Findings ship as **terminal / markdown / JSON / SARIF / CycloneDX** — SARIF lands in your GitHub Security tab and as inline PR annotations on `Gemfile.lock`; CycloneDX feeds Trivy / Dependency-Track / Snyk. PR mode (`--baseline=FILE`) reports only what got worse since main, so reviewers see one line ("`vcr` newly archived") instead of an absolute snapshot of every dep.
 
@@ -34,13 +36,14 @@ Ruby 4.0.1 (latest)
 |                              | `bundle outdated` | `bundler-audit`        | `libyear-bundler` | **`still_active`**       |
 | ---------------------------- | ----------------- | ---------------------- | ----------------- | ------------------------ |
 | Outdated versions            | Yes               | -                      | Yes               | Yes                      |
-| Known vulnerabilities (CVEs) | -                 | Yes (ruby-advisory-db) | -                 | Yes (deps.dev + ruby-advisory-db) |
+| Known vulnerabilities (CVEs) | -                 | Yes (ruby-advisory-db) | -                 | Yes (deps.dev + OSV + ruby-advisory-db) |
 | Libyear drift                | -                 | -                      | Yes               | Yes                      |
 | **Last commit activity**     | -                 | -                      | -                 | **Yes**                  |
 | **Archived repo detection**  | -                 | -                      | -                 | **Yes**                  |
 | **OpenSSF Scorecard**        | -                 | -                      | -                 | **Yes**                  |
 | **Yanked version detection** | -                 | -                      | -                 | **Yes**                  |
 | **Ruby version freshness**   | -                 | -                      | -                 | **Yes** (EOL + libyear)  |
+| **Cross-ecosystem** (npm/PyPI/Cargo/Go/Maven/NuGet) | - | -              | -                 | **Yes** (`--sbom`)       |
 | GitLab support               | -                 | -                      | -                 | Yes                      |
 | CI quality gates             | -                 | Exit code              | -                 | Yes (6 flags)            |
 | Output formats               | Text              | Text                   | Text              | Terminal, JSON, Markdown, SARIF, CycloneDX |
@@ -234,6 +237,23 @@ The SBOM is **untrusted input**: only ecosystem/name/version are read from it, t
 The activity (`--fail-if-critical`/`--fail-if-warning`), vulnerability (`--fail-if-vulnerable`), and libyear (`--fail-if-outdated`) gates all apply to SBOM dependencies, which carry `libyear` and `up_to_date` the same as the Ruby path. **The full poison-pill signal is scoped to flat-resolution ecosystems** (rubygems, pypi): there a dormant gem's below-latest cap forces the whole tree onto the old version. npm nests multiple versions and cargo lets majors coexist (and their caret default makes "below latest major" the norm, not a hazard), so the plain below-latest cap there is subtree-local noise and stays suppressed.
 
 **The security "below the fix" case, though, does travel to npm and cargo.** When a *dormant or archived* package pins a dependency below the version that patches a HIGH-or-critical advisory, still_active flags it — at patch precision (npm/cargo fixes are mostly same-major patch bumps), and only when *every* resolved copy the constraint governs is vulnerable (a safe copy elsewhere in the tree, or a patched copy the constraint can reach, clears it), so it stays silent unless the tree is genuinely stuck. Example: an archived `request@2.88.2` pinning `form-data ~2.3.2` below the fix for a critical CVE — you can't patch it without replacing `request`. Other Ruby-shaped policy features still don't travel to the SBOM path: `.still_active.yml` suppressions and `--ignore` key on the gem name (SBOM results key on `ecosystem/name@version`).
+
+#### Which signal covers which path
+
+Most maintenance signals apply everywhere; a few are deliberately scoped (see [`docs/rules.md`](docs/rules.md) for the full rule reference).
+
+| Signal (rule) | Ruby (native) | `--sbom` (cross-ecosystem) |
+| ------------- | ------------- | -------------------------- |
+| Archived repo (SA001) | Yes | Yes (npm, PyPI, Cargo, Go, Maven, NuGet) |
+| Abandoned / no recent release (SA002) | Yes | Yes (all of the above) |
+| Low OpenSSF Scorecard (SA005) | Yes | Yes (all of the above) |
+| Libyear drift (SA004) | Yes | Yes (all of the above) |
+| Vulnerabilities (SA003) | Yes (deps.dev + OSV + ruby-advisory-db) | Yes (deps.dev + OSV) |
+| &nbsp;&nbsp;↳ "below the fix" (dead capper pins a vulnerable dep) | Yes | npm, Cargo, PyPI (patch precision) |
+| Poison-pill / compatibility ceiling (SA008) | Yes (rubygems) | PyPI only (flat resolution; npm/Cargo suppressed) |
+| Language-runtime ceiling (SA009) | Yes (`ruby_version`) | Python only (`requires_python`) |
+| Ruby EOL (SA006) | Yes | n/a (Ruby-runtime signal) |
+| Yanked version (SA007) | Yes | n/a |
 
 ### SARIF output (GitHub Code Scanning)
 
@@ -453,7 +473,8 @@ It is **opt-in and GitHub-only**: enabling it adds one extra API call per GitHub
 
 - **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org), [GitHub Packages](https://docs.github.com/en/packages), or [JFrog Artifactory](https://jfrog.com/artifactory/) gem registries
 - **Last commit date and archived status** from the [GitHub](https://docs.github.com/en/rest), [GitLab](https://docs.gitlab.com/ee/api/), or [Forgejo/Gitea](https://forgejo.org/docs/latest/user/api-usage/) (Codeberg) API — or, for GitHub repos when no token is configured, from [ecosyste.ms](https://ecosyste.ms) ([repos API](https://repos.ecosyste.ms)). ecosyste.ms data is licensed [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
-- **OpenSSF Scorecard**, **vulnerability counts**, and **CVSS severity** from Google's [deps.dev](https://deps.dev) API
+- **OpenSSF Scorecard**, **vulnerability counts**, and **CVSS severity** from Google's [deps.dev](https://deps.dev) API (also the cross-ecosystem source on the `--sbom` path)
+- **Advisory severity labels and fixed-version ranges** from [OSV](https://osv.dev) (`api.osv.dev`), which drive the "below the fix" signal. An advisory that publishes only a CVSS **4.0** vector stays unscored unless you install the optional [`cvss-suite`](https://rubygems.org/gems/cvss-suite) gem (`gem install cvss-suite`), which computes its 4.0 base score; without it the gate still fires on the OSV/GHSA severity label, it just skips the number.
 - **Additional advisories** from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db), merged in when `bundler-audit` is installed alongside (run `bundle audit update` to keep its checkout current)
 - **Ruby version freshness** from [endoflife.date](https://endoflife.date)
 - **Alternative gem leads** (with `--alternatives`) from the [rubytoolbox/catalog](https://github.com/rubytoolbox/catalog) category data

@@ -8,17 +8,22 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Sean Floyd"]
   spec.email         = ["contact@seanfloyd.dev"]
 
-  spec.summary       = "Audit your Ruby dependencies for maintenance health, outdated versions, vulnerabilities, and abandoned gems."
+  spec.summary       = "Audit your dependencies for maintenance health, abandonment, and below-the-fix vulnerabilities. " \
+    "Ruby gems natively; npm, PyPI, Cargo, Go, Maven, and NuGet via a CycloneDX SBOM."
   spec.description   = "Analyses your Gemfile.lock for dependency health across the full transitive graph: " \
     "whether each gem is actively maintained (last activity on GitHub, GitLab, or Codeberg/Forgejo, plus " \
     "release recency), outdated versions, archived repos, OpenSSF Scorecard scores, known vulnerabilities " \
-    "(deps.dev merged with ruby-advisory-db), and libyear drift. Ruby version freshness with EOL detection. " \
+    "(deps.dev and OSV, merged with ruby-advisory-db, flagging advisories with no fix and pins that sit below " \
+    "the fix), poison-pill compatibility ceilings, and libyear drift. Ruby version freshness with EOL detection. " \
+    "The same maintenance lens travels cross-ecosystem: point --sbom at a CycloneDX SBOM to assess npm, PyPI, " \
+    "Cargo, Go, Maven, and NuGet packages via deps.dev and ecosyste.ms. " \
     "Handles rubygems, git, path, GitHub Packages, and JFrog Artifactory sources. " \
     "Outputs coloured terminal tables, markdown, JSON (with a versioned, contract-tested schema), " \
     "SARIF for GitHub code scanning, and a CycloneDX SBOM. " \
-    "CI quality gates (--fail-if-critical / -warning / -vulnerable / -outdated) with granular, committed " \
-    "suppression via .still_active.yml. " \
-    "A comprehensive alternative to running bundle outdated, bundler-audit, and libyear-bundler separately."
+    "CI quality gates (--fail-if-critical / -warning / -vulnerable / -outdated / -poison / -language-ceiling) " \
+    "with granular, committed suppression via .still_active.yml. " \
+    "Complements bundle outdated, bundler-audit, and libyear-bundler by adding the maintenance signal they " \
+    "don't, and folds their version, CVE, and libyear checks into one report."
   spec.homepage      = "https://github.com/SeanLF/still_active"
   spec.license       = "MIT"
   spec.required_ruby_version = ">= 3.3.0"
