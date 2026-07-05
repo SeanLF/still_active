@@ -85,6 +85,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
         "pypi/protobuf@4.21.6" => {
           ecosystem: :pypi,
           name: "protobuf",
+          version_used: "4.21.6",
           vulnerability_count: 1,
           vulnerabilities: [advisory.merge(fixed_versions: fixed_versions, source: "deps.dev")],
         },
@@ -131,6 +132,27 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
       result = sentry_result(["5.29.6"], advisory: { id: "CVE-2026-0994", cvss3_score: 0, osv_severity: "HIGH" })
       described_class.correlate(result)
       expect(result["pypi/google-api-core@1.0.0"][:constraints].first[:capped_below_fix]).to(be(true))
+    end
+
+    it "ignores a downgrade fix from another release line (multi-range advisory), so a real below-the-fix cap still fires" do
+      # OSV lists a fix per affected range: the used 4.21.6 is fixed by 5.29.6, but an
+      # OLDER line (< 4) was fixed at 3.19.6. A downgrade to 3.19.6 does not patch
+      # 4.21.6 -- it's a different, lower branch -- yet it sits within the `< 5` cap.
+      # Reading it as "patchable in place" would false-negative a genuine stuck cap.
+      result = sentry_result(["3.19.6", "5.29.6"])
+      described_class.correlate(result)
+      constraint = result["pypi/google-api-core@1.0.0"][:constraints].first
+      expect(constraint[:capped_below_fix]).to(be(true))
+      expect(constraint[:below_fix_fixed_in]).to(eq("5.29.6")) # the applicable fix, never the downgrade
+    end
+
+    it "names the applicable fix in the receipt, not a lower-line downgrade" do
+      # Both 5.29.6 and 6.33.5 are outside the cap and above the used 4.21.6, but a
+      # 3.19.6 fix for an older line must never be chosen as 'fixed in': it's below
+      # the version we're on, so naming it would tell the user to downgrade.
+      result = sentry_result(["3.19.6", "6.33.5", "5.29.6"])
+      described_class.correlate(result)
+      expect(result["pypi/google-api-core@1.0.0"][:constraints].first[:below_fix_fixed_in]).to(eq("5.29.6"))
     end
 
     it "names a clean fix in the receipt, never an epoch/garbage version when a parseable one exists" do
