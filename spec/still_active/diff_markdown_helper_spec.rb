@@ -15,6 +15,33 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
     )
   end
 
+  describe(".render with accepted regressions") do
+    let(:accepted) do
+      [StillActive::Diff::Accepted.new(
+        regression: StillActive::Diff::Regression.new(kind: :new_gem_archived, gem: "simplecov-html", detail: "added gem points at archived repo"),
+        reason: "dev-only coverage reporter",
+      )]
+    end
+
+    it("lists them under an Accepted section with the reason, not as CI-failable") do
+      md = described_class.render(empty_result, accepted: accepted)
+      expect(md).to(include("Accepted (suppressed via .still_active.yml)"))
+      expect(md).to(include("simplecov-html"))
+      expect(md).to(include("dev-only coverage reporter"))
+      expect(md).not_to(include("Regressions (CI-failable)"))
+    end
+
+    it("counts them separately in the summary line") do
+      md = described_class.render(empty_result, accepted: accepted)
+      expect(md).to(include("0 regressions"))
+      expect(md).to(include("1 accepted"))
+    end
+
+    it("omits the accepted count when there are none") do
+      expect(described_class.render(empty_result)).not_to(include("accepted"))
+    end
+  end
+
   describe(".render") do
     it("starts with a still_active diff heading") do
       expect(described_class.render(empty_result)).to(start_with("## still_active diff"))

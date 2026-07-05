@@ -15,6 +15,19 @@ module StillActive
     NEW_GEM_LIBYEAR_THRESHOLD = 0.5     # added gems already this far behind regress
     LIBYEAR_DELTA_THRESHOLD = 0.01      # floating-point fuzz
 
+    # Maps a maintenance regression kind to the .still_active.yml signal that
+    # accepts it, so a committed suppression mutes the diff exactly as it already
+    # mutes the audit and SARIF gates. Only kinds a bare gem+signal entry can
+    # cover appear here: vulnerability regressions require an explicit advisory id
+    # (which the diff regression doesn't carry) and stay CI-failable, and
+    # scorecard/yanked/ruby-EOL are not gateable signals.
+    SUPPRESSIBLE_REGRESSION_SIGNALS = {
+      new_gem_archived: :activity,
+      archived: :activity,
+      new_gem_stale: :libyear,
+      libyear_worsened: :libyear,
+    }.freeze
+
     class UnsupportedSchemaError < StandardError; end
 
     Added = Struct.new(:name, :data, keyword_init: true)
@@ -22,9 +35,18 @@ module StillActive
     Bumped = Struct.new(:name, :before_version, :after_version, :kind, :before, :after, keyword_init: true)
     SignalChange = Struct.new(:name, :changes, :before, :after, keyword_init: true)
     Regression = Struct.new(:kind, :gem, :detail, keyword_init: true)
+    # A regression a committed .still_active.yml knowingly accepts: carried out of
+    # the CI-failable set so the diff render can show it as suppressed-with-reason.
+    Accepted = Struct.new(:regression, :reason, keyword_init: true)
     Result = Struct.new(:added, :removed, :bumped, :signal_changes, :regressions, :ruby, keyword_init: true)
 
     extend self
+
+    # The suppression signal that accepts this regression kind, or nil when the
+    # kind is not suppressible by a bare gem+signal .still_active.yml entry.
+    def suppressible_signal(kind)
+      SUPPRESSIBLE_REGRESSION_SIGNALS[kind]
+    end
 
     def call(baseline:, current:)
       validate_schema!(baseline, "baseline")
