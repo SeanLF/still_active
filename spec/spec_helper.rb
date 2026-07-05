@@ -1,5 +1,19 @@
 # frozen_string_literal: true
 
+# Coverage is opt-in (COVERAGE=1) so a normal local run isn't slowed; CI sets it.
+# Must start before still_active loads so every file is instrumented. The floor is a
+# regression ratchet (fail if coverage drops), not a target to chase.
+if ENV["COVERAGE"] == "1"
+  require "simplecov"
+  SimpleCov.start do
+    add_filter "/spec/"
+    enable_coverage :branch
+    # Measured 96.3% line / 87.3% branch; floor sits a few points below as a
+    # regression ratchet, loose enough not to flake on a legitimate change.
+    minimum_coverage line: 92, branch: 82
+  end
+end
+
 require "still_active"
 require "vcr"
 require "webmock/rspec"

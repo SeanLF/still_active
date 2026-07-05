@@ -224,90 +224,205 @@ RSpec.describe(StillActive::CLI) do
       expect(payload.dig("ruby", "release_date")).to(eq("2026-01-02T01:04:05Z"))
     end
 
-    it("emits JSON that validates against the published JSON Schema and carries a summary digest") do
+    # #128 shipped a schema that rejected any real --json output carrying a
+    # vulnerability: OSV enrichment adds keys the strict `additionalProperties:
+    # false` schema didn't list, and the old contract test passed only because its
+    # fixture was minimal. The guard against that class of drift is a fixture that
+    # is EXHAUSTIVE -- it must exercise every field the emitters can produce, so
+    # validating it makes any emitted-but-unschema'd key fail. The tests below both
+    # validate that exhaustive output and prove the fixture is actually exhaustive
+    # (schema property <=> emitted key, in both directions).
+    describe("published JSON Schema conformance (exhaustive)") do
       require "json_schemer"
-      schema_path = File.expand_path("../../docs/still_active.schema.json", __dir__)
-      rich = {
-        "rails" => {
-          source_type: :rubygems,
-          direct: true,
-          version_used: "7.0.0",
-          latest_version: "7.1.0",
-          # Real Time objects, as the Workflow produces; the JSON layer must
-          # normalize them to ISO8601 UTC strings (don't pre-stringify here).
-          latest_version_release_date: Time.new(2026, 1, 1, 0, 0, 0, "+00:00"),
-          latest_pre_release_version: nil,
-          latest_pre_release_version_release_date: nil,
-          repository_url: "https://github.com/rails/rails",
-          last_commit_date: recent_date,
-          archived: false,
-          scorecard_score: 8.5,
-          vulnerability_count: 0,
-          vulnerabilities: [],
-          ruby_gems_url: "https://rubygems.org/gems/rails",
-          up_to_date: false,
-          version_used_release_date: Time.new(2025, 1, 1, 0, 0, 0, "+00:00"),
-          version_yanked: false,
-          license: "MIT",
-          libyear: 1.2,
-          unreleased_commits: 17,
-        },
-        "rack" => {
-          source_type: :rubygems,
-          direct: false,
-          dependency_path: ["rails", "actionpack", "rack"],
-          last_commit_date: recent_date,
-          vulnerability_count: 1,
-          alternatives: ["foo"],
-          # A fully OSV-enriched advisory: these keys are added in place by OsvClient
-          # and emitted verbatim, so the schema must validate them (else real output
-          # with any vulnerability fails its own published contract).
-          vulnerabilities: [{ id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "merged", osv_severity: "MODERATE", osv_cvss_score: nil, cvss_version: "3.0", cvss_vector: "CVSS:3.0/AV:N/AC:L", fixed_versions: ["2.0.6", "1.6.11"], no_fix_available: false }],
-        },
-        # A poison-pill gem and a language-ceiling gem, so the published schema is
-        # actually validated against those compatibility-signal shapes -- including
-        # the security below-the-fix keys the correlator sets.
-        "protected_attributes" => {
-          source_type: :rubygems,
-          direct: true,
-          poison: true,
-          poison_severity: :critical,
-          poison_security_relevant: true,
-          poison_below_fix: true,
-          constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling, capped_dep_vulnerable: true, capped_below_fix: true, below_fix_advisory: "CVE-2024-9", below_fix_fixed_in: "5.0.0" }],
-        },
-        "cfpropertylist" => {
-          source_type: :rubygems,
-          direct: true,
-          version_used: "3.0.9",
-          latest_version: "4.0.0",
-          language_ceiling: {
-            runtime: "Ruby",
-            requirement: "< 3.2",
-            eol_forced: true,
-            severity: :critical,
-            ceiling_version: "3.1",
-            ceiling_eol_date: Time.new(2025, 3, 31, 0, 0, 0, "+00:00"),
-            oldest_supported: "3.3",
-            latest_stable: "4.0.5",
-            fixed_by_upgrade: true,
+
+      # Plain methods (not `let`) to stay under RSpec/MultipleMemoizedHelpers; the
+      # file reads are cheap and run a handful of times.
+      def schema_path = File.expand_path("../../docs/still_active.schema.json", __dir__)
+      def schema_md_path = File.expand_path("../../docs/schema.md", __dir__)
+      def schema = JSON.parse(File.read(schema_path))
+
+      # Ruby freshness carrying every `ruby` schema field.
+      def exhaustive_ruby
+        {
+          version: "3.4.0",
+          release_date: Time.new(2025, 1, 1, 0, 0, 0, "+00:00"),
+          eol_date: Time.new(2028, 1, 1, 0, 0, 0, "+00:00"),
+          eol: false,
+          latest_version: "3.4.1",
+          latest_release_date: Time.new(2026, 1, 1, 0, 0, 0, "+00:00"),
+          libyear: 0.1,
+        }
+      end
+
+      # A bot context carrying every `pr_context` field (bot, bumps, and a bump's
+      # gem/from/to).
+      def exhaustive_pr_context
+        { bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] }
+      end
+
+      # A result that exercises EVERY per-gem / vulnerability / constraint /
+      # language_ceiling field the schema defines, spread across four gems. Values
+      # are real Time objects where the emitters produce them (the JSON layer
+      # normalizes those to ISO8601 UTC strings). Field provenance is cross-checked
+      # against the code that emits each key: workflow.rb (scorecard_maintained),
+      # osv_client.rb (osv_severity/osv_cvss_score/cvss_version/cvss_vector/
+      # fixed_versions), vulnerability_helper.rb (no_fix_available via merge),
+      # poison_security_correlator.rb (poison_security_relevant/poison_below_fix and
+      # the constraint below-fix keys) and ceiling_reconciler.rb (upgrade_blocked).
+      def exhaustive_result
+        {
+          "rails" => {
+            source_type: :rubygems,
+            direct: true,
+            version_used: "7.0.0",
+            latest_version: "7.1.0",
+            latest_version_release_date: Time.new(2026, 1, 1, 0, 0, 0, "+00:00"),
+            latest_pre_release_version: "7.2.0.beta1",
+            latest_pre_release_version_release_date: Time.new(2026, 2, 1, 0, 0, 0, "+00:00"),
+            repository_url: "https://github.com/rails/rails",
+            last_commit_date: recent_date,
+            archived: false,
+            scorecard_score: 8.5,
+            # deps.dev's Maintained sub-check, attached alongside scorecard_score;
+            # absent from the pre-#128 fixture, so the schema's own field went
+            # unvalidated by real output.
+            scorecard_maintained: 7.0,
+            vulnerability_count: 0,
+            vulnerabilities: [],
+            ruby_gems_url: "https://rubygems.org/gems/rails",
+            up_to_date: false,
+            version_used_release_date: Time.new(2025, 1, 1, 0, 0, 0, "+00:00"),
+            version_yanked: false,
+            license: "MIT",
+            libyear: 1.2,
+            unreleased_commits: 17,
           },
-        },
-      }
-      allow(StillActive::Workflow).to(receive_messages(
-        call: rich,
-        ruby_freshness: { version: "3.4.0", release_date: Time.new(2025, 1, 1, 0, 0, 0, "+00:00"), eol_date: Time.new(2028, 1, 1, 0, 0, 0, "+00:00"), eol: false, latest_version: "3.4.1", latest_release_date: Time.new(2026, 1, 1, 0, 0, 0, "+00:00"), libyear: 0.1 },
-      ))
-      allow(StillActive::BotContext).to(receive(:detect).and_return({ bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] }))
+          "rack" => {
+            source_type: :rubygems,
+            direct: false,
+            dependency_path: ["rails", "actionpack", "rack"],
+            last_commit_date: recent_date,
+            # up_to_date as null (unknown), the other half of its boolean|null type;
+            # rails covers the boolean half.
+            up_to_date: nil,
+            vulnerability_count: 1,
+            alternatives: ["foo"],
+            # A fully OSV-enriched advisory: every vulnerability key the emitters can
+            # attach (deps.dev's cvss3/cvss2/source, OSV's osv_severity/osv_cvss_score/
+            # cvss_version/cvss_vector/fixed_versions, ruby-advisory-db's
+            # no_fix_available). osv_cvss_score is a real number here (the null half is
+            # implicit for un-enriched advisories) so both branches of its type hold.
+            vulnerabilities: [{ id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "merged", osv_severity: "MODERATE", osv_cvss_score: 8.1, cvss_version: "3.0", cvss_vector: "CVSS:3.0/AV:N/AC:L", fixed_versions: ["2.0.6", "1.6.11"], no_fix_available: false }],
+          },
+          # A poison-pill gem: every constraint field including the security below-
+          # the-fix keys the correlator sets.
+          "protected_attributes" => {
+            source_type: :rubygems,
+            direct: true,
+            poison: true,
+            poison_severity: :critical,
+            poison_security_relevant: true,
+            poison_below_fix: true,
+            constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling, capped_dep_vulnerable: true, capped_below_fix: true, below_fix_advisory: "CVE-2024-9", below_fix_fixed_in: "5.0.0" }],
+          },
+          # A language-ceiling gem: every language_ceiling field, including
+          # upgrade_blocked (set by CeilingReconciler when a poison cap blocks the
+          # very upgrade that would lift the ceiling), which fixed_by_upgrade flips to
+          # false alongside.
+          "cfpropertylist" => {
+            source_type: :rubygems,
+            direct: true,
+            version_used: "3.0.9",
+            latest_version: "4.0.0",
+            language_ceiling: {
+              runtime: "Ruby",
+              requirement: "< 3.2",
+              eol_forced: true,
+              severity: :critical,
+              ceiling_version: "3.1",
+              ceiling_eol_date: Time.new(2025, 3, 31, 0, 0, 0, "+00:00"),
+              oldest_supported: "3.3",
+              latest_stable: "4.0.5",
+              fixed_by_upgrade: false,
+              upgrade_blocked: true,
+            },
+          },
+        }
+      end
 
-      captured = nil
-      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
-      cli.run(["--gems=rails", "--json"])
-      payload = JSON.parse(captured)
+      def emit_payload(result: exhaustive_result, ruby_info: exhaustive_ruby, pr_context: exhaustive_pr_context)
+        allow(StillActive::Workflow).to(receive_messages(call: result, ruby_freshness: ruby_info))
+        allow(StillActive::BotContext).to(receive(:detect).and_return(pr_context))
+        captured = nil
+        allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+        cli.run(["--gems=rails", "--json"])
+        JSON.parse(captured)
+      end
 
-      errors = JSONSchemer.schema(Pathname.new(schema_path)).validate(payload).to_a
-      expect(errors).to(be_empty, errors.map { |e| "#{e["data_pointer"]}: #{e["type"]} (#{e["data"].inspect})" }.join("\n"))
-      expect(payload["summary"]).to(include("total_gems" => 4, "direct" => 3, "transitive" => 1, "vulnerable_gems" => 1, "ruby_eol" => false))
+      it("emits JSON that validates against the published JSON Schema and carries a summary digest") do
+        payload = emit_payload
+        errors = JSONSchemer.schema(Pathname.new(schema_path)).validate(payload).to_a
+        expect(errors).to(be_empty, errors.map { |e| "#{e["data_pointer"]}: #{e["type"]} (#{e["data"].inspect})" }.join("\n"))
+        expect(payload["summary"]).to(include("total_gems" => 4, "direct" => 3, "transitive" => 1, "vulnerable_gems" => 1, "ruby_eol" => false))
+      end
+
+      # Proves the fixture above is genuinely exhaustive: every property the schema
+      # defines is actually present in the emitted output. Without this, a new
+      # emitted field could be added to both code and schema while the fixture never
+      # exercises it -- and an unschema'd sibling of that field would then slip past
+      # additionalProperties:false unnoticed, exactly the #128 hole. When this fails,
+      # add the named field to exhaustive_result so real output guards it.
+      it("exercises every field the schema defines (so additionalProperties:false actually guards each one)") do
+        payload = emit_payload
+        gems = payload.fetch("gems").values
+        emitted = {
+          "gem" => gems.flat_map(&:keys),
+          "vulnerability" => gems.flat_map { |g| g["vulnerabilities"] || [] }.flat_map(&:keys),
+          "constraint" => gems.flat_map { |g| g["constraints"] || [] }.flat_map(&:keys),
+          "language_ceiling" => gems.filter_map { |g| g["language_ceiling"] }.flat_map(&:keys),
+          "ruby" => payload.fetch("ruby").keys,
+          "summary" => payload.fetch("summary").keys,
+          "pr_context" => payload.fetch("pr_context").keys,
+        }
+        emitted.each do |defn, keys|
+          missing = schema.dig("$defs", defn, "properties").keys - keys.uniq
+          expect(missing).to(be_empty, "the exhaustive fixture never exercises #{defn} field(s): #{missing.join(", ")} -- add them so additionalProperties:false is actually tested against real emitted output")
+        end
+        top_missing = schema.fetch("properties").keys - payload.keys
+        expect(top_missing).to(be_empty, "the exhaustive fixture never exercises top-level field(s): #{top_missing.join(", ")}")
+      end
+
+      # The direct #128 regression: a key the emitters produce but the schema does
+      # not list must fail validation, not pass silently. Injecting a bogus key into
+      # the exhaustive (otherwise-valid) output confirms additionalProperties:false
+      # bites -- if this ever passes, the schema has stopped catching emitted drift.
+      it("rejects a gem carrying a key the schema does not list") do
+        poisoned = exhaustive_result
+        poisoned["rails"] = poisoned["rails"].merge(bogus_unschema_key: "x")
+        payload = emit_payload(result: poisoned)
+        errors = JSONSchemer.schema(Pathname.new(schema_path)).validate(payload).to_a
+        offending = errors.find { |e| e["data_pointer"] == "/gems/rails/bogus_unschema_key" }
+        expect(offending).not_to(be_nil, "additionalProperties:false did not reject an unschema'd gem key; errors: #{errors.map { |e| e["data_pointer"] }.inspect}")
+        expect(offending["schema_pointer"]).to(include("additionalProperties"))
+      end
+
+      # schema.json and schema.md drifted apart before #128. Keep them in step: every
+      # field schema.json defines for these object types must be documented in the
+      # prose table. Scoped to the object types schema.md documents field-by-field.
+      # LIMITATIONS: (1) language_ceiling is excluded -- schema.md documents it as a
+      # single "See SA009" row, not per sub-field, so its keys (ceiling_version,
+      # upgrade_blocked, ...) are a known, accepted doc gap rather than drift. (2) The
+      # reverse direction (every backticked token in schema.md maps to a schema
+      # property) isn't asserted: schema.md backticks example values, flags and
+      # literals too, so exact matching there is too noisy to be reliable.
+      it("documents every schema.json field in schema.md (they drifted before #128)") do
+        md = File.read(schema_md_path)
+        ["gem", "vulnerability", "constraint", "ruby", "summary"].each do |defn|
+          schema.dig("$defs", defn, "properties").each_key do |prop|
+            expect(md).to(match(/\b#{Regexp.escape(prop)}\b/), "schema.json defines #{defn}.#{prop} but schema.md never documents it")
+          end
+        end
+      end
     end
 
     it("omits ruby key when ruby info is nil") do

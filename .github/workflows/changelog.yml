@@ -1,0 +1,41 @@
+name: Changelog
+
+# A PR that changes lib/ must add a CHANGELOG entry, so the release notes can't
+# silently fall behind the code (they had drifted ~44 commits before 3.0). Pure
+# refactors and internal-only changes are exempt via the `skip-changelog` label;
+# dependency bumps and docs-only PRs are exempt automatically.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    name: Require a CHANGELOG entry for code changes
+    runs-on: ubuntu-latest
+    if: >-
+      !contains(github.event.pull_request.labels.*.name, 'skip-changelog') &&
+      !contains(github.event.pull_request.labels.*.name, 'dependencies') &&
+      !contains(github.event.pull_request.labels.*.name, 'documentation')
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check that lib changes come with a CHANGELOG entry
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed="$(git diff --name-only "$BASE" "$HEAD")"
+          if echo "$changed" | grep -qE '^lib/'; then
+            if ! echo "$changed" | grep -qxF 'CHANGELOG.md'; then
+              echo "::error::This PR changes lib/ but does not update CHANGELOG.md."
+              echo "Add an entry under ## [Unreleased], or apply the 'skip-changelog' label for a pure refactor / internal-only change."
+              exit 1
+            fi
+          fi
+          echo "Changelog check passed."
