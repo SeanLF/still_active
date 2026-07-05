@@ -152,7 +152,12 @@ module StillActive
       else
         [:unassessable, { ecosystem: type, name: name, reason: :unsupported_ecosystem }]
       end
-    rescue PackageURL::InvalidPackageURL
+    rescue ArgumentError
+      # InvalidPackageURL is a subclass of ArgumentError, but PackageURL.parse also
+      # raises a BARE ArgumentError on an empty name-after-namespace (`pkg:npm/@1.0.0`)
+      # or bad percent-encoding, both common in real Syft/Trivy output. Catch both so
+      # one malformed component degrades to unassessable, never a backtrace that drops
+      # every other dependency's verdict (SbomReader's documented "never raises").
       [:unassessable, { ecosystem: nil, name: name, reason: :malformed_purl }]
     end
 

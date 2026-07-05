@@ -109,7 +109,7 @@ module StillActive
         title: body["title"],
         # deps.dev's v3alpha returns aliases as bare id strings (["CVE-..."]);
         # tolerate the legacy object shape ({"id":...}) too since it's an alpha API.
-        aliases: Array(body["aliases"]).filter_map { |a| a.is_a?(Hash) ? a["id"] : a },
+        aliases: Array(body["aliases"]).filter_map { |a| normalize_alias(a) },
         cvss3_score: body["cvss3Score"],
         cvss3_vector: body["cvss3Vector"],
         cvss2_score: body["cvss2Score"],
@@ -118,6 +118,27 @@ module StillActive
     end
 
     private
+
+    # Coerce an advisory alias to a string id. A BARE non-string alias is deps.dev
+    # ALPHA-API schema drift: coerce it (a non-string alias makes the advisory-merge
+    # sort raise, which strips a gem of ALL its signals and reads a vulnerable gem
+    # clean) but warn once so the drift surfaces rather than passing invisibly, the
+    # same "loud on schema drift" stance as the advisory-count canary.
+    def normalize_alias(raw)
+      return raw["id"]&.to_s if raw.is_a?(Hash)
+      return raw if raw.is_a?(String) || raw.nil?
+
+      warn_alias_drift(raw)
+      raw.to_s
+    end
+
+    # Warn once per run (not per alias), matching CvssHelper's warn-once stance.
+    def warn_alias_drift(raw)
+      return if @alias_drift_warned
+
+      @alias_drift_warned = true
+      $stderr.puts("warning: deps.dev returned a non-string advisory alias (#{raw.class}); the ALPHA API schema may have drifted")
+    end
 
     # The OpenSSF "Maintained" check score (0-10), or nil when it's absent. A
     # malformed (non-array) `checks` payload also yields nil rather than raising:
