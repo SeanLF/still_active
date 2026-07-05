@@ -67,4 +67,11 @@ Gem::Specification.new do |spec|
   # maven group:artifact, qualifiers). 0.1 is the verified floor; the official
   # package-url org gem (vetted via still_active itself: maintained, no advisories).
   spec.add_runtime_dependency("packageurl-ruby", ">= 0.1.0")
+  # node-semver range satisfaction for the npm/cargo below-the-fix signal: deciding
+  # whether a CVE's fixed version escapes a package's declared constraint needs
+  # PATCH precision (their fixes are mostly same-major patch bumps), and hand-rolling
+  # node-semver's prerelease + caret-on-0.x rules is the correctness minefield this
+  # composes away. Vetted via still_active itself: maintained (2026 release), MIT,
+  # zero runtime dependencies. cargo reuses it behind a bare-version->caret shim.
+  spec.add_runtime_dependency("semantic_range", ">= 3.0")
 end
