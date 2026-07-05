@@ -973,6 +973,26 @@ RSpec.describe(StillActive::CLI) do
       expect(payload.dig("dependencies", "pypi/flask@2.0.0", "activity_level")).to(eq("ok"))
     end
 
+    it("surfaces a dependency's production flag in the JSON when the SBOM marked it") do
+      allow(StillActive::SbomWorkflow).to(receive(:call)
+        .and_return(outcome({ "pypi/flask@2.0.0" => lens_data.merge(production: false) })))
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--sbom=sbom.json"])
+      # A dev/test-only dep stays labelled through serialization, so a consumer can
+      # separate prod risk from test debt (false must survive as false, not vanish).
+      expect(JSON.parse(captured).dig("dependencies", "pypi/flask@2.0.0", "production")).to(be(false))
+    end
+
+    it("omits the production key when the SBOM left prod/dev unknown") do
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+      cli.run(["--sbom=sbom.json"])
+      # The default lens_data carries no production key (syft-style unknown); the
+      # JSON must not invent one, so unknown stays unknown rather than a false all-clear.
+      expect(JSON.parse(captured).dig("dependencies", "pypi/flask@2.0.0")).not_to(have_key("production"))
+    end
+
     it("summarizes assessed vs unassessable and the worst status") do
       captured = nil
       allow($stdout).to(receive(:puts)) { |arg| captured = arg }

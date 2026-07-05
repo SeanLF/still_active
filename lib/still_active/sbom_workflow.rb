@@ -56,13 +56,21 @@ module StillActive
         completed = 0
         dependencies.each do |dep|
           semaphore.async do
+            # Carry the SBOM's prod-vs-dev/test verdict onto the assessment so the
+            # output can separate prod risk from test debt. `slice` copies it only
+            # when the SBOM actually marked it (SbomReader leaves the key absent
+            # otherwise): absent stays "unknown", never a false that reads as test-only.
             result["#{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}"] =
               EcosystemLens.assess(ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], constraint_cache: constraint_cache, python_range: python_range)
+                .merge(dep.slice(:production))
           rescue StandardError => e
             # One dependency's failure must not abort the audit, but it must not
             # disappear either: record it as an unassessable entry (same shape as
             # the reader's, with a distinct reason) so it's counted and reported.
+            # production rides along (when known, via slice) so a failed prod dep
+            # stays distinguishable from a failed dev one.
             failures << { ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], reason: :assessment_error, error: "#{e.class}: #{e.message}" }
+              .merge(dep.slice(:production))
             $stderr.puts("error assessing #{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}: #{e.class}\n\t#{e.message}")
           ensure
             completed += 1

@@ -101,6 +101,46 @@ RSpec.describe(StillActive::SbomWorkflow) do
       expect(out.failures.first[:error]).to(include("kaboom"))
     end
 
+    it("threads a dependency's production flag through to its assessed entry") do
+      # SbomReader marks production vs dev/test when the SBOM says so; that verdict
+      # has to reach the output so a consumer can separate prod risk from test debt.
+      deps = [
+        { ecosystem: :npm, name: "express", version: "5.2.1", production: true },
+        { ecosystem: :npm, name: "jest", version: "29.7.0", production: false },
+      ]
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
+
+      out = described_class.call(result_with(deps))
+
+      expect(out.assessed["npm/express@5.2.1"]).to(include(production: true))
+      expect(out.assessed["npm/jest@29.7.0"]).to(include(production: false))
+    end
+
+    it("omits the production key entirely when the SBOM never marked prod/dev (unknown, not false)") do
+      # A syft-style SBOM carries no scope: SbomReader leaves the key absent. The
+      # workflow must not invent a `production: nil` -- absent means unknown, and a
+      # false would wrongly read as "test-only".
+      deps = [{ ecosystem: :npm, name: "lodash", version: "4.17.21" }]
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
+
+      out = described_class.call(result_with(deps))
+
+      expect(out.assessed["npm/lodash@4.17.21"]).not_to(have_key(:production))
+    end
+
+    it("preserves the production flag on a dependency whose lens raises") do
+      # A failed prod dependency must stay distinguishable from a failed dev one, so
+      # the failure entry carries the same production verdict as an assessed one.
+      deps = [{ ecosystem: :cargo, name: "boom", version: "0.1.0", production: true }]
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { raise "kaboom" }
+
+      out = described_class.call(result_with(deps))
+
+      expect(out.failures).to(contain_exactly(
+        include(ecosystem: :cargo, name: "boom", version: "0.1.0", reason: :assessment_error, production: true),
+      ))
+    end
+
     it("reports progress as each dependency completes") do
       deps = [{ ecosystem: :npm, name: "a", version: "1" }, { ecosystem: :npm, name: "b", version: "1" }]
       allow(StillActive::EcosystemLens).to(receive(:assess).and_return({}))
