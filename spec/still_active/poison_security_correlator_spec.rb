@@ -165,4 +165,159 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
       expect(result["pypi/google-api-core@1.0.0"][:constraints].first[:below_fix_fixed_in]).to(eq("5.29.6"))
     end
   end
+
+  describe ".correlate npm/cargo below the fix (nested, patch-precision)" do
+    def high(id, fixed_versions)
+      { id: id, cvss3_score: 8.1, fixed_versions: fixed_versions, source: "osv" }
+    end
+
+    # A dormant npm capper declaring `requirement` on `dep`, plus one tree entry per
+    # resolved copy of `dep` (each with its own version-specific advisories). Mirrors
+    # what SbomWorkflow assembles: keys ecosystem/name@version, capped_deps candidates
+    # attached by the lens, resolved copies as sibling entries.
+    def nested_result(requirement:, copies:, eco: :npm)
+      result = {
+        "#{eco}/capper@1.0.0" => {
+          ecosystem: eco,
+          name: "capper",
+          capped_deps: [{ dependency: "dep", requirement: requirement }],
+        },
+      }
+      copies.each do |version, vulns|
+        result["#{eco}/dep@#{version}"] = {
+          ecosystem: eco,
+          name: "dep",
+          version_used: version,
+          vulnerability_count: vulns.length,
+          vulnerabilities: vulns,
+        }
+      end
+      result
+    end
+
+    it "flags a same-major patch wall a coexisting patched copy does NOT clear (the braces case)" do
+      # capper caps dep `^2.3.1`; the tree carries the vulnerable 2.3.2 AND a patched
+      # 3.0.3 elsewhere. The patched copy is OUTSIDE the caret, so it can't lift 2.3.2;
+      # the tree still ships the vulnerable copy. A coexistence filter would wrongly
+      # suppress this -- patch-precision + the in-constraint view is what gets it right.
+      result = nested_result(requirement: "^2.3.1", copies: [
+        ["2.3.2", [high("GHSA-braces", ["3.0.3"])]],
+        ["3.0.3", []],
+      ])
+      described_class.correlate(result)
+
+      capper = result["npm/capper@1.0.0"]
+      expect(capper[:poison]).to(be(true))
+      expect(capper[:poison_below_fix]).to(be(true))
+      constraint = capper[:constraints].first
+      expect(constraint).to(include(dependency: "dep", capped_below_fix: true, below_fix_advisory: "GHSA-braces", below_fix_fixed_in: "3.0.3"))
+    end
+
+    it "suppresses the flag when a SAFE in-constraint copy exists (condition 5)" do
+      # capper caps dep `^1.0.0`; the tree carries a vulnerable 1.7.0 but ALSO a safe
+      # 1.2.0 that satisfies the same constraint. You are not stuck: resolving to 1.2.0
+      # is possible within the cap, so the capper doesn't force a vulnerable version.
+      result = nested_result(requirement: "^1.0.0", copies: [
+        ["1.2.0", []],
+        ["1.7.0", [high("GHSA-y", ["2.0.0"])]],
+      ])
+      described_class.correlate(result)
+
+      capper = result["npm/capper@1.0.0"]
+      expect(capper).not_to(have_key(:poison))
+      expect(capper).not_to(have_key(:constraints))
+    end
+
+    it "does NOT flag when a fix is reachable within the constraint at patch precision" do
+      # Fix 1.5.0 satisfies `^1.0.0`, so the CVE is patchable in place without touching
+      # the capper -- not below the fix. (Major precision would agree here; the point is
+      # the patch-precision path returns the right answer.)
+      result = nested_result(requirement: "^1.0.0", copies: [
+        ["1.2.0", [high("GHSA-z", ["1.5.0"])]],
+      ])
+      described_class.correlate(result)
+
+      capper = result["npm/capper@1.0.0"]
+      expect(capper).not_to(have_key(:poison))
+      expect(capper).not_to(have_key(:constraints))
+    end
+
+    it "flags a same-major patch wall major precision would MISS (tilde caps below a patch fix)" do
+      # `~1.2.0` = [1.2.0, 1.3.0); the fix 1.3.0 is a same-major patch bump OUTSIDE it.
+      # The old major-precision reachable check reads 1.3.0 as reachable (same major) and
+      # misses this; patch precision catches it -- the case the PoC said dominates npm.
+      result = nested_result(requirement: "~1.2.0", copies: [
+        ["1.2.5", [high("GHSA-tilde", ["1.3.0"])]],
+      ])
+      described_class.correlate(result)
+
+      capper = result["npm/capper@1.0.0"]
+      expect(capper[:poison_below_fix]).to(be(true))
+      expect(capper[:constraints].first).to(include(below_fix_advisory: "GHSA-tilde", below_fix_fixed_in: "1.3.0"))
+    end
+
+    it "applies the cargo bare-version caret when deciding reachability" do
+      # cargo `0.10.38` is a caret [0.10.38, 0.11.0). Fix 0.11.0 is outside -> below fix.
+      result = nested_result(eco: :cargo, requirement: "0.10.38", copies: [
+        ["0.10.39", [high("RUSTSEC-x", ["0.11.0"])]],
+      ])
+      described_class.correlate(result)
+
+      expect(result["cargo/capper@1.0.0"][:poison_below_fix]).to(be(true))
+      expect(result["cargo/capper@1.0.0"][:constraints].first[:below_fix_fixed_in]).to(eq("0.11.0"))
+    end
+
+    it "does not flag on a low/medium advisory (only HIGH+ establishes below-the-fix)" do
+      result = nested_result(requirement: "^1.0.0", copies: [
+        ["1.2.0", [{ id: "GHSA-low", cvss3_score: 4.2, fixed_versions: ["2.0.0"], source: "osv" }]],
+      ])
+      described_class.correlate(result)
+
+      expect(result["npm/capper@1.0.0"]).not_to(have_key(:poison))
+    end
+
+    it "stays silent when the constraint is unparseable (never a false wall)" do
+      result = nested_result(requirement: "not-a-range", copies: [
+        ["1.2.0", [high("GHSA-x", ["2.0.0"])]],
+      ])
+      described_class.correlate(result)
+
+      expect(result["npm/capper@1.0.0"]).not_to(have_key(:poison))
+    end
+
+    it "does not flag when the advisory has no known fix (no wall to establish)" do
+      result = nested_result(requirement: "^1.0.0", copies: [
+        ["1.2.0", [high("GHSA-nofix", [])]],
+      ])
+      described_class.correlate(result)
+
+      expect(result["npm/capper@1.0.0"]).not_to(have_key(:poison))
+    end
+
+    it "does not fabricate a flag on a cargo PARTIAL-bare cap when a safe higher copy satisfies it" do
+      # Regression for the partial-bare caret: cargo `1.2` = ^1.2 = [1.2.0, 2.0.0), so
+      # the safe 1.9.0 both satisfies the constraint and is a reachable fix. A shim that
+      # read `1.2` as the narrow 1.2.x would drop 1.9.0, wall it, and fabricate a
+      # below-fix. The correct caret + condition 5 keep it silent.
+      result = nested_result(eco: :cargo, requirement: "1.2", copies: [
+        ["1.2.1", [high("RUSTSEC-y", ["1.9.0"])]],
+        ["1.9.0", []],
+      ])
+      described_class.correlate(result)
+
+      expect(result["cargo/capper@1.0.0"]).not_to(have_key(:poison))
+    end
+
+    it "consumes the internal :capped_deps work-list so it never leaks into the JSON output" do
+      # capped_deps is an internal candidate list; whether or not it promotes, it must
+      # be gone after correlation (emit_sbom_json serializes the raw data hash).
+      flagged = nested_result(requirement: "^2.3.1", copies: [["2.3.2", [high("GHSA-x", ["3.0.3"])]]])
+      unflagged = nested_result(requirement: "^1.0.0", copies: [["1.2.0", []]])
+      described_class.correlate(flagged)
+      described_class.correlate(unflagged)
+
+      expect(flagged["npm/capper@1.0.0"]).not_to(have_key(:capped_deps))
+      expect(unflagged["npm/capper@1.0.0"]).not_to(have_key(:capped_deps))
+    end
+  end
 end
