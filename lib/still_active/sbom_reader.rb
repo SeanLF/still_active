@@ -53,19 +53,46 @@ module StillActive
       components = doc.is_a?(Hash) ? doc["components"] : nil
       return Result.new(dependencies: [], unassessable: []) unless components.is_a?(Array)
 
+      # Only trust the prod/dev split when the generator actually marks it
+      # somewhere (scope, or a dev property). syft-style SBOMs mark nothing, so an
+      # unmarked component is genuinely unknown -- never assume it's production.
+      # Scoped to library components: scope/properties are legal on any component
+      # type (application/file/...), and a dev signal on one of those is unrelated
+      # to whether the dependency library components are marked.
+      marks_dev = components.any? { |c| c.is_a?(Hash) && c["type"] == "library" && dev_signal?(c) }
+
       deps = []
       unassessable = []
       components.each do |component|
         kind, entry = classify(component)
+        entry[:production] = !dev_signal?(component) if kind == :dependency && marks_dev
         deps << entry if kind == :dependency
         unassessable << entry if kind == :unassessable
       end
+      # uniq collapses a package that a generator lists more than once (e.g. Syft's
+      # per-location entries); `production` is derived from each component's own
+      # signal, so duplicates of the same name+version dedup cleanly unless a
+      # generator marks the copies inconsistently (malformed; not observed).
       Result.new(dependencies: deps.uniq, unassessable: unassessable.uniq)
     rescue JSON::ParserError
       Result.new(dependencies: [], unassessable: [])
     end
 
     private
+
+    # Whether a component is marked dev/test-only. CycloneDX `scope` (excluded =
+    # not part of the product, optional = not needed at runtime) is the standard;
+    # tools that don't set scope may instead emit a property (cyclonedx-npm's
+    # `cdx:npm:package:development=true`). Absent both, this is false -- the caller
+    # only trusts a false when the document marks dev somewhere.
+    def dev_signal?(component)
+      scope = component["scope"]
+      return true if scope == "excluded" || scope == "optional"
+
+      Array(component["properties"]).any? do |p|
+        p.is_a?(Hash) && p["value"] == "true" && p["name"].to_s.match?(/(\A|:)dev(elopment)?\z/)
+      end
+    end
 
     # [:dependency, {...}] | [:unassessable, {...}] | nil (non-package noise).
     def classify(component)

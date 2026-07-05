@@ -5,6 +5,8 @@ RSpec.describe(StillActive::SbomReader) do
 
   let(:fixture) { "spec/fixtures/sbom/sample.cdx.json" }
 
+  def sbom(*components) = { "bomFormat" => "CycloneDX", "components" => components }.to_json
+
   it("extracts only the mappable library components (drops file/application, github, generic, null-purl)") do
     names = deps.map { |d| [d[:ecosystem], d[:name]] }
     expect(names).to(contain_exactly(
@@ -73,8 +75,6 @@ RSpec.describe(StillActive::SbomReader) do
   end
 
   describe("edge cases") do
-    def sbom(*components) = { "bomFormat" => "CycloneDX", "components" => components }.to_json
-
     it("classifies a package from a non-public repository_url as private (never substitutes public-registry data)") do
       # A repository_url qualifier means a non-default (private/alternative)
       # registry per the purl spec. We still never dial the URL -- we use its
@@ -123,6 +123,53 @@ RSpec.describe(StillActive::SbomReader) do
 
     it("skips an unmapped ecosystem (e.g. cocoapods/conan/swift)") do
       expect(described_class.read_string(sbom({ "type" => "library", "purl" => "pkg:cocoapods/Alamofire@5.0.0" }))).to(eq([]))
+    end
+  end
+
+  # Production vs dev/test separation. The signal is only trustworthy when the
+  # generator marks it (CycloneDX `scope: excluded/optional`, or a tool property
+  # like `cdx:npm:package:development`). syft-style SBOMs mark nothing, so we must
+  # NOT assume unmarked == production: `production` is set only when the document
+  # carries a dev signal somewhere, and left absent (unknown) otherwise.
+  describe("dev/prod scope") do
+    def lib(name, extra = {})
+      { "type" => "library", "name" => name, "purl" => "pkg:npm/#{name}@1.0.0" }.merge(extra)
+    end
+
+    it("marks a scope:excluded component as not production and unmarked siblings as production") do
+      deps = described_class.read_string(sbom(lib("jest", "scope" => "excluded"), lib("lodash")))
+      expect(deps.find { |d| d[:name] == "jest" }[:production]).to(be(false))
+      expect(deps.find { |d| d[:name] == "lodash" }[:production]).to(be(true))
+    end
+
+    it("reads the cyclonedx-npm development property as not production") do
+      body = sbom(
+        lib("jest", "properties" => [{ "name" => "cdx:npm:package:development", "value" => "true" }]),
+        lib("lodash"),
+      )
+      deps = described_class.read_string(body)
+      expect(deps.find { |d| d[:name] == "jest" }[:production]).to(be(false))
+      expect(deps.find { |d| d[:name] == "lodash" }[:production]).to(be(true))
+    end
+
+    it("treats scope:optional as not production, scope:required as production") do
+      deps = described_class.read_string(sbom(lib("opt", "scope" => "optional"), lib("req", "scope" => "required")))
+      expect(deps.find { |d| d[:name] == "opt" }[:production]).to(be(false))
+      expect(deps.find { |d| d[:name] == "req" }[:production]).to(be(true))
+    end
+
+    it("leaves production unknown (key absent) when the SBOM marks nothing (e.g. syft)") do
+      dep = described_class.read_string(sbom(lib("lodash"))).first
+      expect(dep).not_to(have_key(:production))
+    end
+
+    it("ignores dev signals on NON-library components (an excluded app/file must not flip every dep to production)") do
+      # scope/properties are legal on any component type; a self-`application`
+      # marked excluded must not be read as "this SBOM marks dev" and silently
+      # promote every unmarked library to production.
+      body = sbom({ "type" => "application", "name" => "self", "scope" => "excluded" }, lib("lodash"))
+      dep = described_class.read_string(body).find { |d| d[:name] == "lodash" }
+      expect(dep).not_to(have_key(:production))
     end
   end
 end
