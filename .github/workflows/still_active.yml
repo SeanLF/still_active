@@ -22,10 +22,23 @@ jobs:
         with:
           ruby-version: '4.0'
           bundler-cache: true
-      - uses: SeanLF/still_active-action@v0
-        with:
-          github-token: ${{ github.token }}
-          sarif: still_active.sarif.json
+
+      # Dogfood the code on THIS ref, not a published gem. The published-gem
+      # path (the SeanLF/still_active-action@v0 install) lags main by a release,
+      # so it never exercised what main is about to ship; `bundle exec` runs the
+      # local still_active. The action is validated separately (its own repo).
+      #
+      # Fetch rubysec/ruby-advisory-db first so still_active's dual-source merge
+      # is active (bundler-audit is a dev dependency; the DB ships separately).
+      # Best-effort: on failure still_active falls back to deps.dev only.
+      - name: Update ruby-advisory-db (enables dual-source vulnerabilities)
+        run: bundle exec bundle-audit update || echo "::warning::bundle-audit update failed; still_active will use deps.dev only"
+
+      - name: Audit still_active's own dependencies -> SARIF
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bundle exec still_active --sarif=still_active.sarif.json
+
       - uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
