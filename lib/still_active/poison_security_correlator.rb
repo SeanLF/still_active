@@ -2,6 +2,7 @@
 
 require_relative "../helpers/vulnerability_helper"
 require_relative "../helpers/constraint_helper"
+require_relative "../helpers/semver_satisfaction"
 
 module StillActive
   # Whole-tree correlation, run once after the fan-out: a poison cap is far more
@@ -32,40 +33,141 @@ module StillActive
     BELOW_FIX_LABELS = ["high", "critical"].freeze
 
     def correlate(result_object)
-      # Ecosystem-qualified map of each tree package's advisories AND the version
-      # it's pinned at. A capped dep resolves in its capper's ecosystem, so match
-      # "ecosystem/name" on both sides; native results carry no :ecosystem (nil on
-      # both) and still match. The used version is kept so "below the fix" ignores
-      # fixes that land BELOW it: an OSV advisory lists a fix per affected range, and
-      # a fix for an older line is a downgrade, not a patch for the version in hand.
-      advisories = result_object.each_with_object({}) do |(key, data), map|
-        next unless data[:vulnerability_count].to_i.positive?
-
-        name = data[:name] || key
-        map["#{data[:ecosystem]}/#{name}"] = { vulns: data[:vulnerabilities] || [], used_version: data[:version_used] }
-      end
+      advisories = flat_advisories(result_object)
+      copies = copy_index(result_object)
 
       result_object.each_value do |data|
+        # FLAT (rubygems/pypi): mark below-fix on the poison caps already attached.
+        mark_flat_constraints(data, advisories)
+        # NESTED (npm/cargo): promote a genuine below-fix candidate into :constraints.
+        promote_nested_below_fix(data, copies) if data[:capped_deps]
+
         constraints = data[:constraints]
         next if constraints.nil? || constraints.empty?
 
-        eco = data[:ecosystem]
-        constraints.each do |constraint|
-          entry = advisories["#{eco}/#{constraint[:dependency]}"]
-          next if entry.nil?
-
-          vulns = entry[:vulns]
-          next unless VulnerabilityHelper.severity_at_or_above?(vulns, SECURITY_THRESHOLD)
-
-          constraint[:capped_dep_vulnerable] = true
-          mark_below_fix(constraint, vulns, entry[:used_version])
-        end
         data[:poison_security_relevant] = true if constraints.any? { |c| c[:capped_dep_vulnerable] }
         data[:poison_below_fix] = true if constraints.any? { |c| c[:capped_below_fix] }
       end
     end
 
     private
+
+    # Ecosystem-qualified map of each tree package's advisories AND the version it's
+    # pinned at, for the FLAT path (one resolved version per name). A capped dep
+    # resolves in its capper's ecosystem, so match "ecosystem/name" on both sides;
+    # native results carry no :ecosystem (nil on both) and still match. The used
+    # version is kept so "below the fix" ignores fixes that land BELOW it: an OSV
+    # advisory lists a fix per affected range, and a fix for an older line is a
+    # downgrade, not a patch for the version in hand.
+    def flat_advisories(result_object)
+      result_object.each_with_object({}) do |(key, data), map|
+        next unless data[:vulnerability_count].to_i.positive?
+
+        name = data[:name] || key
+        map["#{data[:ecosystem]}/#{name}"] = { vulns: data[:vulnerabilities] || [], used_version: data[:version_used] }
+      end
+    end
+
+    # Every RESOLVED copy of each package, keyed "ecosystem/name", for the NESTED
+    # path: npm nests versions and cargo coexists majors, so one name maps to several
+    # copies. The full set (vulnerable AND not) is what the condition-5 soundness
+    # guard needs -- "is there a SAFE copy within the cap" can't be answered from the
+    # vulnerable copies alone.
+    def copy_index(result_object)
+      result_object.each_with_object({}) do |(key, data), map|
+        name = data[:name] || key
+        (map["#{data[:ecosystem]}/#{name}"] ||= []) << { version: data[:version_used], vulns: data[:vulnerabilities] || [] }
+      end
+    end
+
+    def mark_flat_constraints(data, advisories)
+      constraints = data[:constraints]
+      return if constraints.nil? || constraints.empty?
+
+      eco = data[:ecosystem]
+      constraints.each do |constraint|
+        entry = advisories["#{eco}/#{constraint[:dependency]}"]
+        next if entry.nil?
+
+        vulns = entry[:vulns]
+        next unless VulnerabilityHelper.severity_at_or_above?(vulns, SECURITY_THRESHOLD)
+
+        constraint[:capped_dep_vulnerable] = true
+        mark_below_fix(constraint, vulns, entry[:used_version])
+      end
+    end
+
+    # NESTED below-the-fix (npm/cargo). The pure poison cap is suppressed for these
+    # ecosystems (caret default + nested copies over-claim), so a candidate is
+    # promoted ONLY when it genuinely holds a vulnerable copy below its fix, checked
+    # at PATCH precision. When one is, it takes the same shape the flat path renders,
+    # and :poison is set here (the only npm/cargo poison there is is a below-fix).
+    def promote_nested_below_fix(data, copies)
+      eco = data[:ecosystem]
+      # Consume the candidates: they are an internal work-list, never serialized.
+      promoted = data.delete(:capped_deps).filter_map do |candidate|
+        dep_copies = copies["#{eco}/#{candidate[:dependency]}"] || []
+        nested_below_fix(eco, candidate[:dependency], candidate[:requirement], dep_copies)
+      end
+      return if promoted.empty?
+
+      data[:constraints] = promoted
+      data[:poison] = true
+      data[:poison_severity] = :critical
+    end
+
+    # A below-fix finding for one capped dep, or nil. The claim holds only when
+    # EVERY resolved copy the constraint governs is vulnerable to the same HIGH+
+    # advisory (condition 5: no safe in-constraint copy to resolve to), AND no fix
+    # of that advisory satisfies the constraint (the wall, at patch precision). A
+    # patched copy sitting OUTSIDE the constraint elsewhere in the tree is irrelevant
+    # -- it can't lift the copy this capper pins -- so it never enters this view.
+    def nested_below_fix(ecosystem, dependency, requirement, dep_copies)
+      in_constraint = dep_copies.select { |copy| satisfies?(requirement, copy[:version], ecosystem) }
+      return if in_constraint.empty?
+
+      oldest = in_constraint.map { |copy| copy[:version] }.min_by { |version| gem_version(version) }
+      stuck = candidate_advisories(in_constraint).select do |advisory|
+        walls?(requirement, advisory, ecosystem, oldest) && every_copy_affected?(in_constraint, advisory)
+      end
+      return if stuck.empty?
+
+      receipt = stuck.min_by { |advisory| gem_version(nearest_fix(advisory, oldest)) }
+      {
+        dependency: dependency,
+        requirement: requirement,
+        capped_dep_vulnerable: true,
+        capped_below_fix: true,
+        below_fix_advisory: receipt[:id],
+        below_fix_fixed_in: nearest_fix(receipt, oldest),
+      }
+    end
+
+    def satisfies?(requirement, version, ecosystem)
+      SemverSatisfaction.evaluate(requirement: requirement, version: version, ecosystem: ecosystem) == true
+    end
+
+    # HIGH+ advisories with a known fix, deduped by id, across the in-constraint copies.
+    def candidate_advisories(copies)
+      copies.flat_map { |copy| copy[:vulns] }
+        .select { |vuln| BELOW_FIX_LABELS.include?(VulnerabilityHelper.advisory_severity(vuln)) && Array(vuln[:fixed_versions]).any? }
+        .uniq { |vuln| vuln[:id] }
+    end
+
+    # The wall: NO applicable fix satisfies the constraint at patch precision. Every
+    # fix must be a DEFINITE non-match (evaluate == false); an undecidable fix (nil,
+    # unparseable) blocks the claim rather than counting as unreachable, so we never
+    # fabricate a wall from input we couldn't parse.
+    def walls?(requirement, advisory, ecosystem, oldest_affected)
+      fixes = applicable_fixes(advisory, oldest_affected)
+      fixes.any? && fixes.all? { |fix| SemverSatisfaction.evaluate(requirement: requirement, version: fix, ecosystem: ecosystem) == false }
+    end
+
+    # Condition 5: every governed copy is vulnerable to THIS advisory (none is a safe
+    # version you could resolve to within the cap).
+    def every_copy_affected?(copies, advisory)
+      copies.all? { |copy| copy[:vulns].any? { |vuln| vuln[:id] == advisory[:id] } }
+    end
 
     # The sharper claim on a security-relevant cap: does it hold you BELOW THE FIX?
     # A HIGH+ advisory with a known fix establishes it only when EVERY fixed version

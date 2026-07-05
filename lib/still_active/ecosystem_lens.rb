@@ -140,17 +140,33 @@ module StillActive
       RuntimeCeilingHelper.analyze(requirement: latest_requirement, support_window: python_range).nil?
     end
 
-    # Poison-pill enrichment for the cross-ecosystem path, mirroring the native
-    # Bundler path: gated on dormancy so a maintained package is never flagged,
-    # each finding carrying its receipt. Resolves a capped dep's latest via
-    # deps.dev in the SAME ecosystem (a runtime dep of an npm package is npm).
+    # Constraint enrichment for the cross-ecosystem path, gated on dormancy so a
+    # maintained package is never flagged. Two shapes by ecosystem:
+    #
+    # FLAT (rubygems/pypi): the poison-pill signal as-is -- a below-latest cap holds
+    # the whole tree hostage, so it renders directly (`constraints` + `poison`).
+    #
+    # NESTED (npm/cargo): the pure below-latest cap is subtree-local noise (nested
+    # copies, caret default), so no poison here. Instead keep every declared dep as a
+    # security CANDIDATE (`capped_deps`); the correlator, which alone sees the tree's
+    # resolved versions and advisories, promotes only the ones that pin a vulnerable
+    # copy below its fix. Candidates are NOT filtered to below-latest-major (npm/cargo
+    # fixes are mostly same-major patch bumps that filter would miss) and need no
+    # dep_latest fetch (the wall test is patch-precise on the requirement itself).
     def attach_constraints(gem_data, ecosystem:, name:, version:, cache:)
       registry = ECOSYSTEM_REGISTRIES[ecosystem]
       return if registry.nil?
-      return unless FLAT_RESOLUTION_ECOSYSTEMS.include?(ecosystem)
       return unless [:critical, :archived].include?(ActivityHelper.activity_level(gem_data))
 
       declared = EcosystemsClient.declared_dependencies(name: name, version: version, registry: registry)
+      if FLAT_RESOLUTION_ECOSYSTEMS.include?(ecosystem)
+        attach_flat_poison(gem_data, ecosystem, declared, cache)
+      else
+        attach_nested_candidates(gem_data, declared)
+      end
+    end
+
+    def attach_flat_poison(gem_data, ecosystem, declared, cache)
       findings = ConstraintHelper.poison_findings(declared) do |dep_name|
         latest_version_for(ecosystem, dep_name, cache)
       end
@@ -159,6 +175,15 @@ module StillActive
       gem_data[:constraints] = findings
       gem_data[:poison] = findings.any? { |finding| finding[:kind] == :ceiling }
       gem_data[:poison_severity] = ConstraintHelper.worst_severity(findings) if gem_data[:poison]
+    end
+
+    def attach_nested_candidates(gem_data, declared)
+      candidates = declared.filter_map do |dep|
+        next if dep[:package_name].to_s.empty? || dep[:requirements].to_s.empty?
+
+        { dependency: dep[:package_name], requirement: dep[:requirements] }
+      end
+      gem_data[:capped_deps] = candidates unless candidates.empty?
     end
 
     # A capped dep's current latest version in `ecosystem`, via deps.dev's default
