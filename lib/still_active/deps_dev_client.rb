@@ -107,7 +107,9 @@ module StillActive
         id: body.dig("advisoryKey", "id"),
         url: body["url"],
         title: body["title"],
-        aliases: body["aliases"]&.filter_map { |a| a["id"] } || [],
+        # deps.dev's v3alpha returns aliases as bare id strings (["CVE-..."]);
+        # tolerate the legacy object shape ({"id":...}) too since it's an alpha API.
+        aliases: Array(body["aliases"]).filter_map { |a| a.is_a?(Hash) ? a["id"] : a },
         cvss3_score: body["cvss3Score"],
         cvss3_vector: body["cvss3Vector"],
         cvss2_score: body["cvss2Score"],

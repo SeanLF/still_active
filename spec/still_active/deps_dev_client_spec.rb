@@ -160,7 +160,7 @@ RSpec.describe(StillActive::DepsDevClient) do
         "advisoryKey" => { "id" => "GHSA-test-1234" },
         "url" => "https://github.com/advisories/GHSA-test-1234",
         "title" => "Test vulnerability",
-        "aliases" => [{ "id" => "CVE-2024-1234" }],
+        "aliases" => ["CVE-2024-1234"],
         "cvss3Score" => 9.8,
         "cvss3Vector" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
       }
@@ -178,16 +178,32 @@ RSpec.describe(StillActive::DepsDevClient) do
       ))
     end
 
-    it("drops alias entries with no id, so aliases stays a clean string array") do
+    it("surfaces deps.dev's real string-array aliases (the live v3alpha API returns [\"CVE-...\"], not objects)") do
+      # Verified against api.deps.dev: aliases is an array of bare id strings. The
+      # previous object-shape stubs never matched reality, so every CVE alias was
+      # silently dropped and findings arrived with an empty aliases list.
       body = {
-        "advisoryKey" => { "id" => "GHSA-nullalias" },
-        "aliases" => [{ "id" => "CVE-2024-9" }, { "foo" => "bar" }, {}],
+        "advisoryKey" => { "id" => "GHSA-real-shape" },
+        "aliases" => ["CVE-2026-54906", "GHSA-xj5v-6v4g-jfw6"],
       }
       stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/}).to_return(
         status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" },
       )
 
-      expect(described_class.advisory_detail(advisory_id: "GHSA-nullalias")[:aliases]).to(eq(["CVE-2024-9"]))
+      expect(described_class.advisory_detail(advisory_id: "GHSA-real-shape")[:aliases])
+        .to(eq(["CVE-2026-54906", "GHSA-xj5v-6v4g-jfw6"]))
+    end
+
+    it("still tolerates the legacy object shape defensively (alpha API could regress)") do
+      body = {
+        "advisoryKey" => { "id" => "GHSA-nullalias" },
+        "aliases" => [{ "id" => "CVE-2024-9" }, { "foo" => "bar" }, {}, "CVE-2024-10"],
+      }
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/}).to_return(
+        status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" },
+      )
+
+      expect(described_class.advisory_detail(advisory_id: "GHSA-nullalias")[:aliases]).to(eq(["CVE-2024-9", "CVE-2024-10"]))
     end
 
     it("extracts cvss2_score when present") do
