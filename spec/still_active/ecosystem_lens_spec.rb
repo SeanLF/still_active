@@ -287,18 +287,32 @@ RSpec.describe(StillActive::EcosystemLens) do
       ]))
     end
 
-    it("suppresses poison on subtree-local ecosystems (npm/cargo): a transitive cap pins a duplicate copy, it does not hold the tree hostage") do
-      # npm nests versions and cargo coexists majors, so a below-latest cap is
-      # subtree-local, not a tree-wide block; the blocking case (peerDependencies)
-      # isn't visible in ecosyste.ms data. Suppress rather than over-claim.
+    it("keeps a dormant npm/cargo package's declared deps as security CANDIDATES, not rendered poison") do
+      # npm nests versions and cargo coexists majors, so the pure below-latest cap is
+      # subtree-local noise (caret is the default): the `poison`/`constraints` signal
+      # stays suppressed. But we keep every declared dep as a `capped_deps` CANDIDATE
+      # for the security below-the-fix path -- the correlator alone sees the tree's
+      # resolved versions + advisories and promotes only the ones pinning a vulnerable
+      # copy below its fix. No dep_latest fetch here: the wall test is patch-precise.
       stub_latest("oldpkg" => "2017-01-01T00:00:00Z")
       allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
+        .and_return([{ package_name: "vulndep", requirements: "^1.2.0" }])
 
       [:npm, :cargo].each do |eco|
         result = described_class.assess(ecosystem: eco, name: "oldpkg", version: "1.0.0")
         expect(result).not_to(have_key(:poison))
         expect(result).not_to(have_key(:constraints))
+        expect(result[:capped_deps]).to(eq([{ dependency: "vulndep", requirement: "^1.2.0" }]))
       end
+    end
+
+    it("does not fetch or attach candidates for a MAINTAINED npm package (dormancy-gated)") do
+      stub_latest("fresh" => "2026-05-01T00:00:00Z")
+      allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
+
+      result = described_class.assess(ecosystem: :npm, name: "fresh", version: "1.0.0")
+
+      expect(result).not_to(have_key(:capped_deps))
       expect(StillActive::EcosystemsClient).not_to(have_received(:declared_dependencies))
     end
 
