@@ -294,6 +294,20 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
       expect(result["npm/capper@1.0.0"]).not_to(have_key(:poison))
     end
 
+    it "does not fabricate a flag on a cargo PARTIAL-bare cap when a safe higher copy satisfies it" do
+      # Regression for the partial-bare caret: cargo `1.2` = ^1.2 = [1.2.0, 2.0.0), so
+      # the safe 1.9.0 both satisfies the constraint and is a reachable fix. A shim that
+      # read `1.2` as the narrow 1.2.x would drop 1.9.0, wall it, and fabricate a
+      # below-fix. The correct caret + condition 5 keep it silent.
+      result = nested_result(eco: :cargo, requirement: "1.2", copies: [
+        ["1.2.1", [high("RUSTSEC-y", ["1.9.0"])]],
+        ["1.9.0", []],
+      ])
+      described_class.correlate(result)
+
+      expect(result["cargo/capper@1.0.0"]).not_to(have_key(:poison))
+    end
+
     it "consumes the internal :capped_deps work-list so it never leaks into the JSON output" do
       # capped_deps is an internal candidate list; whether or not it promotes, it must
       # be gone after correlation (emit_sbom_json serializes the raw data hash).
