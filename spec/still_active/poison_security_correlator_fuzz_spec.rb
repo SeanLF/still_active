@@ -108,26 +108,22 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
     end
   end
 
-  # FOUND -- robustness gaps, NOT reachable from the current pipeline. correlate is
-  # the one consumer that does NOT Array()-wrap data[:constraints] / data[:capped_deps]
-  # the way markdown_helper, sarif_helper and terminal_helper all do, and it assumes
-  # each vulnerabilities element is a Hash. The pipeline only ever assigns arrays of
-  # hashes, so these are unreachable today -- but correlate runs unguarded, so the
-  # asymmetry is worth a marker. These are `pending`: they raise now; the day someone
-  # adds the Array()/Hash guard, RSpec flips them green and flags the pending removal.
-  describe "structural invariant violations (pending: documented robustness gap)" do
+  # Structural invariants, NOT reachable from the current pipeline (producers only
+  # ever assign arrays of hashes) but guarded anyway: correlate now Array()-wraps
+  # data[:constraints] / data[:capped_deps] and skips non-hash elements, matching the
+  # defensive wrapping markdown_helper, sarif_helper and terminal_helper already apply.
+  # Since correlate runs OUTSIDE the per-gem rescue, a malformed shape must degrade
+  # that entry's enrichment rather than crash the whole audit.
+  describe "structural invariant violations (guarded: robustness)" do
     it "does not raise when :constraints is a non-array" do
-      pending("FOUND: correlate iterates data[:constraints] without Array()-wrapping (siblings do). Unreachable from the pipeline; crashes the unguarded pass if it ever occurs.")
       expect { described_class.correlate({ "a" => { constraints: "nope", vulnerability_count: 1, vulnerabilities: [] } }) }.not_to(raise_error)
     end
 
     it "does not raise when :capped_deps is a non-array" do
-      pending("FOUND: promote_nested_below_fix calls data.delete(:capped_deps).filter_map without Array()-wrapping.")
       expect { described_class.correlate({ "a" => { ecosystem: :npm, name: "x", capped_deps: "nope" } }) }.not_to(raise_error)
     end
 
     it "does not raise when a :vulnerabilities element is a non-hash" do
-      pending("FOUND: candidate/every_copy_affected index vuln[:id] assuming each element is a Hash.")
       object = {
         "a" => { ecosystem: :pypi, name: "x", constraints: [{ dependency: "dep", requirement: "< 5" }] },
         "b" => { ecosystem: :pypi, name: "dep", vulnerability_count: 1, vulnerabilities: ["notahash", nil, 5], version_used: "1.0.0" },

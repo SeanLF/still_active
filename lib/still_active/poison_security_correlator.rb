@@ -42,8 +42,8 @@ module StillActive
         # NESTED (npm/cargo): promote a genuine below-fix candidate into :constraints.
         promote_nested_below_fix(data, copies) if data[:capped_deps]
 
-        constraints = data[:constraints]
-        next if constraints.nil? || constraints.empty?
+        constraints = hashes(data[:constraints])
+        next if constraints.empty?
 
         data[:poison_security_relevant] = true if constraints.any? { |c| c[:capped_dep_vulnerable] }
         data[:poison_below_fix] = true if constraints.any? { |c| c[:capped_below_fix] }
@@ -51,6 +51,15 @@ module StillActive
     end
 
     private
+
+    # This runs OUTSIDE the per-gem rescue (a whole-tree pass after the barrier),
+    # so a malformed shape must degrade that one entry's enrichment, never raise and
+    # crash the audit after every fetch is paid for. The pipeline always assigns
+    # arrays of hashes here, so these guards are unreachable today, but they match the
+    # defensive Array()-wrapping the sibling consumers (markdown/sarif/terminal) apply.
+    def hashes(value)
+      Array(value).grep(Hash)
+    end
 
     # Ecosystem-qualified map of each tree package's advisories AND the version it's
     # pinned at, for the FLAT path (one resolved version per name). A capped dep
@@ -64,7 +73,7 @@ module StillActive
         next unless data[:vulnerability_count].to_i.positive?
 
         name = data[:name] || key
-        map["#{data[:ecosystem]}/#{name}"] = { vulns: data[:vulnerabilities] || [], used_version: data[:version_used] }
+        map["#{data[:ecosystem]}/#{name}"] = { vulns: hashes(data[:vulnerabilities]), used_version: data[:version_used] }
       end
     end
 
@@ -76,13 +85,13 @@ module StillActive
     def copy_index(result_object)
       result_object.each_with_object({}) do |(key, data), map|
         name = data[:name] || key
-        (map["#{data[:ecosystem]}/#{name}"] ||= []) << { version: data[:version_used], vulns: data[:vulnerabilities] || [] }
+        (map["#{data[:ecosystem]}/#{name}"] ||= []) << { version: data[:version_used], vulns: hashes(data[:vulnerabilities]) }
       end
     end
 
     def mark_flat_constraints(data, advisories)
-      constraints = data[:constraints]
-      return if constraints.nil? || constraints.empty?
+      constraints = hashes(data[:constraints])
+      return if constraints.empty?
 
       eco = data[:ecosystem]
       constraints.each do |constraint|
@@ -105,7 +114,7 @@ module StillActive
     def promote_nested_below_fix(data, copies)
       eco = data[:ecosystem]
       # Consume the candidates: they are an internal work-list, never serialized.
-      promoted = data.delete(:capped_deps).filter_map do |candidate|
+      promoted = hashes(data.delete(:capped_deps)).filter_map do |candidate|
         dep_copies = copies["#{eco}/#{candidate[:dependency]}"] || []
         nested_below_fix(eco, candidate[:dependency], candidate[:requirement], dep_copies)
       end
