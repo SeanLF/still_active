@@ -81,6 +81,7 @@ module StillActive
 
       used_release_date = info&.dig(:published_at)
       latest_release_date = default&.dig(:published_at)
+      latest_version = default&.dig(:version)
       gem_data = {
         ecosystem: ecosystem,
         name: name,
@@ -94,6 +95,10 @@ module StillActive
           version_used_release_date: parse_time(used_release_date),
           latest_version_release_date: parse_time(latest_release_date),
         ),
+        # Whether the pinned version is at or ahead of deps.dev's latest stable, so a
+        # prerelease or an ahead-of-stable pin reads current (true), not "behind" --
+        # parity with the native path's `>=` comparison. nil when latest is unknown.
+        up_to_date: version_current?(version, latest_version),
         repository_url: project_id && "https://#{project_id}",
         last_commit_date: repo[:last_commit_date],
         archived: repo[:archived],
@@ -248,6 +253,19 @@ module StillActive
     # 60), so an untokened cross-ecosystem run still resolves a large SBOM.
     def repo_provider
       StillActive.config.github_oauth_token ? GithubClient : EcosystemsClient
+    end
+
+    # Is the pinned version at or ahead of latest stable? nil when latest is unknown.
+    # Gem::Version handles semver prereleases (`16.3.0-canary.7` sorts as a prerelease
+    # of 16.3.0, so ahead of a 16.2.x stable -> current), so a beta/ahead pin reads
+    # true, not "behind". Versions Gem::Version can't parse (pypi epoch `1!2.3`, build
+    # metadata, a `v` prefix) fall back to exact match -- ahead reads false there, the
+    # safe direction, and libyear still carries the real magnitude.
+    def version_current?(version, latest)
+      return false if latest.nil?
+      return version == latest unless Gem::Version.correct?(version) && Gem::Version.correct?(latest)
+
+      Gem::Version.new(version) >= Gem::Version.new(latest)
     end
 
     # deps.dev renders dates as ISO8601 strings; libyear needs Time to subtract.
