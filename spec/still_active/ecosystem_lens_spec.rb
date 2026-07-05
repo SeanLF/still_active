@@ -121,6 +121,20 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
     end
 
+    it("reports up_to_date via a >= comparison, so a prerelease/ahead-of-stable pin reads current, not behind") do
+      stub_version(source_repo: "https://github.com/owner/pkg")
+      stub_package(default_published_at: "2026-05-01T00:00:00Z") # latest stable 9.9.9
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+      assess = ->(v) { described_class.assess(ecosystem: :npm, name: "pkg", version: v) }
+
+      expect(assess.call("9.9.9")[:up_to_date]).to(be(true))   # exactly latest stable
+      expect(assess.call("1.0.0")[:up_to_date]).to(be(false))  # genuinely behind
+      expect(assess.call("10.0.0")[:up_to_date]).to(be(true))  # ahead of stable
+      expect(assess.call("10.0.0-canary.7")[:up_to_date]).to(be(true))  # prerelease of a higher major
+      expect(assess.call("9.9.9-beta.1")[:up_to_date]).to(be(false))    # prerelease BEFORE the stable
+    end
+
     it("surfaces a vulnerability at the locked version and counts it") do
       stub_version(advisory_keys: ["GHSA-xxxx"], source_repo: "https://github.com/owner/leaky")
       stub_package(default_published_at: "2026-06-01T00:00:00Z")
