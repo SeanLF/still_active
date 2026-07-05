@@ -304,8 +304,9 @@ module StillActive
       current = current_snapshot(result, ruby_info)
       baseline = JSON.parse(File.read(baseline_path))
       diff = Diff.call(baseline: baseline, current: current)
+      accepted = partition_accepted_regressions!(diff)
       puts "> **#{BotContext.summary(pr_context)}**\n\n" if pr_context
-      puts DiffMarkdownHelper.render(diff)
+      puts DiffMarkdownHelper.render(diff, accepted: accepted)
       exit(1) if diff.regressions.any?
     rescue JSON::ParserError => e
       $stderr.puts("error: --baseline file is not valid JSON: #{e.message}")
@@ -316,6 +317,27 @@ module StillActive
     rescue Errno::ENOENT, Errno::EACCES, Errno::EISDIR => e
       $stderr.puts("error: cannot read baseline file: #{e.message}")
       exit(2)
+    end
+
+    # Drops regressions a committed .still_active.yml accepts from the CI-failable
+    # set (mutating diff.regressions in place) and returns them as accepted
+    # entries so the render can show them as knowingly-suppressed rather than
+    # silently vanishing. Mirrors the audit/SARIF gates, which already honour the
+    # same suppression list; the diff was the only gate that ignored it.
+    def partition_accepted_regressions!(diff)
+      suppressions = StillActive.config.suppressions
+      accepted = []
+      diff.regressions = diff.regressions.reject do |reg|
+        signal = Diff.suppressible_signal(reg.kind)
+        next false unless signal
+
+        entry = suppressions.match(gem: reg.gem, signal: signal)
+        next false unless entry
+
+        accepted << Diff::Accepted.new(regression: reg, reason: entry.reason)
+        true
+      end
+      accepted
     end
 
     def current_snapshot(result, ruby_info)

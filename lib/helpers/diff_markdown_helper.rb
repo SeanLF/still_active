@@ -19,13 +19,14 @@ module StillActive
       unknown: nil,
     }.freeze
 
-    def render(diff)
+    def render(diff, accepted: [])
       sections = [
         "## still_active diff",
         "",
-        summary_line(diff),
+        summary_line(diff, accepted),
         "",
         regressions_section(diff.regressions),
+        accepted_section(accepted),
         added_section(diff.added),
         removed_section(diff.removed),
         bumps_section(diff.bumped),
@@ -38,14 +39,16 @@ module StillActive
 
     private
 
-    def summary_line(diff)
-      [
+    def summary_line(diff, accepted)
+      parts = [
         ["regressions", diff.regressions.size],
         ["added", diff.added.size],
         ["removed", diff.removed.size],
         ["bumped", diff.bumped.size],
         ["signal-changes", diff.signal_changes.size],
-      ].map { |label, n| "#{n} #{label}" }.join(" · ")
+      ]
+      parts << ["accepted", accepted.size] unless accepted.empty?
+      parts.map { |label, n| "#{n} #{label}" }.join(" · ")
     end
 
     def regressions_section(regressions)
@@ -53,6 +56,19 @@ module StillActive
 
       lines = regressions.map { |r| "- **#{r.kind}** #{MarkdownEscape.code_span(r.gem)} — #{MarkdownEscape.inline(r.detail)}" }
       section("Regressions (CI-failable)", lines)
+    end
+
+    # Regressions a committed .still_active.yml knowingly accepts: shown so the
+    # acceptance is visible in the PR comment, but excluded from the CI-failable
+    # count above.
+    def accepted_section(accepted)
+      return "" if accepted.empty?
+
+      lines = accepted.map do |a|
+        reason = a.reason ? " — #{MarkdownEscape.inline(a.reason)}" : ""
+        "- **#{a.regression.kind}** #{MarkdownEscape.code_span(a.regression.gem)}#{reason}"
+      end
+      section("Accepted (suppressed via .still_active.yml)", lines)
     end
 
     def added_section(added)

@@ -7,6 +7,25 @@ RSpec.describe(StillActive::Diff) do
   let(:baseline) { JSON.parse(File.read(File.expand_path("../fixtures/diff/baseline.json", __dir__))) }
   let(:current) { JSON.parse(File.read(File.expand_path("../fixtures/diff/current.json", __dir__))) }
 
+  describe(".suppressible_signal") do
+    it("maps archived regressions to the activity signal") do
+      expect(described_class.suppressible_signal(:new_gem_archived)).to(eq(:activity))
+      expect(described_class.suppressible_signal(:archived)).to(eq(:activity))
+    end
+
+    it("maps staleness regressions to the libyear signal") do
+      expect(described_class.suppressible_signal(:new_gem_stale)).to(eq(:libyear))
+      expect(described_class.suppressible_signal(:libyear_worsened)).to(eq(:libyear))
+    end
+
+    it("returns nil for kinds a bare gem+signal suppression cannot cover") do
+      expect(described_class.suppressible_signal(:new_gem_with_vulns)).to(be_nil)
+      expect(described_class.suppressible_signal(:new_vulnerability)).to(be_nil)
+      expect(described_class.suppressible_signal(:scorecard_dropped)).to(be_nil)
+      expect(described_class.suppressible_signal(:version_yanked)).to(be_nil)
+    end
+  end
+
   describe(".call") do
     subject(:diff) { described_class.call(baseline: baseline, current: current) }
 

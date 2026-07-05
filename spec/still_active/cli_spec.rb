@@ -71,6 +71,51 @@ RSpec.describe(StillActive::CLI) do
       end
     end
 
+    def stub_config_ignore(entries)
+      allow(StillActive::ConfigFile).to(receive(:load).and_return({ "ignore" => entries }))
+    end
+
+    it("does not exit when the only regression is accepted by a .still_active.yml suppression") do
+      allow($stdout).to(receive(:puts))
+      stub_config_ignore([{ "gem" => "rails", "signal" => "activity", "reason" => "vendored" }])
+      Tempfile.create(["baseline", ".json"]) do |f|
+        write_baseline(f.path, {})
+        allow(StillActive::Workflow).to(receive(:call).and_return({
+          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true),
+        }))
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }.not_to(raise_error)
+      end
+    end
+
+    it("still exits 1 when the suppression targets a different gem than the regression") do
+      allow($stdout).to(receive(:puts))
+      stub_config_ignore([{ "gem" => "other", "signal" => "activity" }])
+      Tempfile.create(["baseline", ".json"]) do |f|
+        write_baseline(f.path, {})
+        allow(StillActive::Workflow).to(receive(:call).and_return({
+          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true),
+        }))
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+    end
+
+    it("still exits 1 on a new-vulnerability regression even under a whole-gem ignore (diff is stricter than the audit gate)") do
+      allow($stdout).to(receive(:puts))
+      stub_config_ignore(["rails"]) # bare whole-gem entry mutes the audit gate, but must not mute a new vuln in the diff
+      Tempfile.create(["baseline", ".json"]) do |f|
+        write_baseline(f.path, {})
+        allow(StillActive::Workflow).to(receive(:call).and_return({
+          "rails" => gem_data(last_commit_date: recent_date).merge(
+            vulnerability_count: 1,
+            vulnerabilities: [{ id: "CVE-9999-0001", aliases: [] }],
+          ),
+        }))
+        expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+    end
+
     it("exits 2 with a friendly error on invalid JSON baseline") do
       allow($stderr).to(receive(:puts))
       Tempfile.create(["baseline", ".json"]) do |f|
