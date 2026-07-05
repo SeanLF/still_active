@@ -16,6 +16,13 @@ RSpec.describe(StillActive::StatusHelper) do
       expect(described_class.gem_status(data)).to(eq(:vulnerable))
     end
 
+    it("is :unknown when the pinned version doesn't resolve (never :ok on a nonexistent/yanked version)") do
+      # A pinned version the registry has no record of can't be assessed: package-level
+      # health must not read a nonexistent version as :ok. Absence of data stays :unknown.
+      data = { version_unresolved: true, latest_version_release_date: recent, vulnerability_count: 0 }
+      expect(described_class.gem_status(data)).to(eq(:unknown))
+    end
+
     it("is :dead for a dormant gem with an unpatched vulnerability (no one is fixing it)") do
       data = { latest_version_release_date: ancient, vulnerability_count: 1 }
       expect(described_class.gem_status(data)).to(eq(:dead))

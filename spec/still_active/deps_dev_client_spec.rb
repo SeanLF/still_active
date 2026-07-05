@@ -334,6 +334,29 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(project_id("https://github.com/rails/rails.git")).to(eq("github.com/rails/rails"))
     end
 
+    it("normalizes a git:// scheme URL (deps.dev returns these for many npm packages)") do
+      # Left unstripped, `git://github.com/gruntjs/grunt.git` mis-parses to
+      # `git:/github.com/gruntjs`, which then 400s the deps.dev projects lookup (noise)
+      # and drops the repo signals. Normalizing recovers the clean id and the data.
+      expect(project_id("git://github.com/gruntjs/grunt.git")).to(eq("github.com/gruntjs/grunt"))
+    end
+
+    it("normalizes git+https and git+ssh scheme URLs") do
+      expect(project_id("git+https://github.com/owner/repo.git")).to(eq("github.com/owner/repo"))
+      expect(project_id("git+ssh://git@github.com/owner/repo.git")).to(eq("github.com/owner/repo"))
+    end
+
+    it("strips ssh userinfo before the host") do
+      expect(project_id("ssh://git@github.com/owner/repo.git")).to(eq("github.com/owner/repo"))
+    end
+
+    it("handles the scp-style git remote (host:owner/repo), but not a port") do
+      expect(project_id("git@github.com:owner/repo.git")).to(eq("github.com/owner/repo"))
+      expect(project_id("git+ssh://git@github.com:owner/repo.git")).to(eq("github.com/owner/repo"))
+      # a real port after the host is not a path separator
+      expect(project_id("https://gitlab.example.com:8443/group/project")).to(eq("gitlab.example.com:8443/group/project"))
+    end
+
     it("returns nil when there is no SOURCE_REPO link") do
       expect(described_class.send(:extract_project_id, { "links" => [] })).to(be_nil)
     end

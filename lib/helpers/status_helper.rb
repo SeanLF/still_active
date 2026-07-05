@@ -24,6 +24,14 @@ module StillActive
     # Returns :dead, :vulnerable, :archived, :legacy, :stale, :ok, or :unknown.
     def gem_status(gem_data)
       vulnerable = gem_data[:vulnerability_count].to_i.positive?
+
+      # A pinned version the registry can't resolve (yanked, typo, or nonexistent)
+      # has no version-specific data to judge, so package-level health must not read
+      # it as :ok. Absence of data is :unknown, never a false all-clear. Guarded on
+      # `!vulnerable` so a detected advisory always wins, in case a future source
+      # ever attaches one to an otherwise-unresolved version.
+      return :unknown if gem_data[:version_unresolved] && !vulnerable
+
       level = ActivityHelper.activity_level(gem_data)
 
       if vulnerable

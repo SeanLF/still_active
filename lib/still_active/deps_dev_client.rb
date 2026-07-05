@@ -135,7 +135,17 @@ module StillActive
       url = body.dig("links")&.find { |l| l["label"] == "SOURCE_REPO" }&.dig("url")
       return if url.nil?
 
-      host, *segments = url.sub(%r{\Ahttps?://}, "").split("/")
+      # deps.dev returns SOURCE_REPO in many shapes: `https://`, but also `git://`,
+      # `git+https://`, `git+ssh://git@...`, `ssh://git@...`. Strip the `git+` prefix,
+      # any `scheme://`, and ssh userinfo (`git@`) so what remains is host/owner/repo.
+      # Left unnormalized, a git-scheme URL mis-parses (host becomes `git:`), which
+      # 400s the projects lookup and drops the repo signals.
+      cleaned = url.strip.delete_prefix("git+").sub(%r{\A[a-z][a-z0-9+.-]*://}i, "").sub(%r{\A[^/@]+@}, "")
+      # scp-style git remotes separate host from path with a colon (`host:owner/repo`)
+      # rather than a slash. Convert it so the split yields host/owner/repo, but leave
+      # a real port (`host:443/...`) alone -- a colon before a digit isn't a path.
+      cleaned = cleaned.sub(%r{\A([^/:]+):(?=\D)}, '\1/')
+      host, *segments = cleaned.split("/")
       segments = repo_path_segments(host, segments)
       return if host.nil? || segments.empty?
 
