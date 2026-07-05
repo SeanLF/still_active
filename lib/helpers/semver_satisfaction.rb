@@ -12,17 +12,21 @@ module StillActive
   # port) rather than reimplement them.
   #
   # npm ranges are node-semver as-is. cargo's VersionReq agrees with node-semver on
-  # every operator form AND on partial bare versions (`1`, `1.2`), diverging in ONE
-  # place: a bare FULL version (`1.2.3`) is an exact pin in npm but a caret in cargo
-  # (`^1.2.3`). That single rule is the whole cargo shim; getting it wrong would
-  # read a reachable same-minor fix as unreachable and fabricate a security finding.
+  # every operator form, and diverges on ANY operator-less bare version: cargo treats
+  # a bare version as a caret (`1.2.3` = `^1.2.3`, `1.2` = `^1.2` = `>=1.2.0 <2.0.0`,
+  # `1` = `^1`), while node-semver reads a bare full version as an exact pin and a
+  # partial `1.2` as the narrower `1.2.x` (`<1.3.0`). Per the Cargo Book's caret
+  # table, node-semver's caret expands identically to cargo's for every one of these
+  # forms, so the whole shim is: prefix `^` to a bare version before evaluating.
+  # Getting it wrong (e.g. leaving `1.2` unshimmed) reads a reachable fix as
+  # unreachable and fabricates a below-the-fix security finding.
   module SemverSatisfaction
     extend self
 
-    # A bare full version with no leading operator: `1.2.3`, `0.10.38`, optionally a
-    # prerelease and/or build tail (`1.2.3-alpha+001`). Cargo reads this as a caret;
-    # npm as an exact pin.
-    BARE_FULL_VERSION = /\A\s*v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?\s*\z/
+    # An operator-less bare version, 1 to 3 numeric components, optional prerelease
+    # and/or build tail (`1`, `1.2`, `1.2.3`, `0.10.38`, `1.2.3-alpha+001`). cargo
+    # reads any of these as a caret; node-semver does not, so cargo shims them.
+    BARE_VERSION = /\A\s*v?\d+(?:\.\d+){0,2}(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?\s*\z/
 
     # Does `version` satisfy `requirement`? true / false when decidable; nil when the
     # requirement or version isn't valid semver for the ecosystem, or the ecosystem
@@ -41,7 +45,7 @@ module StillActive
     private
 
     # The node-semver range string for this ecosystem's requirement, or nil if it
-    # isn't a valid range (or the ecosystem is unmodelled). cargo's bare-full-version
+    # isn't a valid range (or the ecosystem is unmodelled). cargo's bare-version
     # caret is applied BEFORE validation so the shimmed form is what gets checked.
     def range_for(requirement, ecosystem)
       requirement = requirement.to_s.strip
@@ -58,7 +62,7 @@ module StillActive
 
     # `requirement` arrives already stripped from range_for.
     def cargo_normalize(requirement)
-      requirement.match?(BARE_FULL_VERSION) ? "^#{requirement}" : requirement
+      requirement.match?(BARE_VERSION) ? "^#{requirement}" : requirement
     end
   end
 end

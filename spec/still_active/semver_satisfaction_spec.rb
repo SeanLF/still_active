@@ -68,11 +68,24 @@ RSpec.describe(StillActive::SemverSatisfaction) do
       expect(satisfies?("0.10.38", "0.10.40", :cargo)).to(be(true))
     end
 
-    it "agrees with npm on explicit caret (including 0.x) and on partial bares" do
+    it "reads a PARTIAL bare version as a caret too (Cargo Book: 1.2 := >=1.2.0 <2.0.0)" do
+      # The divergence that isn't just full versions: cargo `1.2` is `^1.2` (up to the
+      # next MAJOR), where node-semver reads a bare `1.2` as the narrower `1.2.x`. A
+      # dormant crate declaring `dep = "1.2"` must NOT read a 1.9.0 fix as unreachable.
+      expect(satisfies?("1.2", "1.2.9", :cargo)).to(be(true))
+      expect(satisfies?("1.2", "1.3.0", :cargo)).to(be(true))  # ^1.2 spans to <2.0.0
+      expect(satisfies?("1.2", "1.9.0", :cargo)).to(be(true))
+      expect(satisfies?("1.2", "2.0.0", :cargo)).to(be(false))
+      expect(satisfies?("1", "1.9.0", :cargo)).to(be(true))    # ^1 = >=1.0.0 <2.0.0
+      # The npm contrast: a bare `1.2` there is the narrower X-range, so 1.3.0 misses.
+      expect(satisfies?("1.2", "1.3.0", :npm)).to(be(false))
+    end
+
+    it "keeps cargo's 0.x caret on a partial bare (0.2 := >=0.2.0 <0.3.0)" do
+      expect(satisfies?("0.2", "0.2.9", :cargo)).to(be(true))
+      expect(satisfies?("0.2", "0.3.0", :cargo)).to(be(false))
       expect(satisfies?("^0.2.0", "0.2.3", :cargo)).to(be(true))
       expect(satisfies?("^0.2.0", "0.3.0", :cargo)).to(be(false))
-      expect(satisfies?("1.2", "1.2.9", :cargo)).to(be(true))
-      expect(satisfies?("1.2", "1.3.0", :cargo)).to(be(false))
     end
 
     it "honours an explicit exact requirement" do
