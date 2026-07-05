@@ -78,6 +78,12 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `version_yanked` | bool \| absent | `true` if `version_used` has been yanked. |
 | `license` | string \| nil | SPDX license identifier(s) for `version_used`, comma-joined when more than one. `nil` when unknown (e.g. git/path sources). |
 | `libyear` | float \| nil | Years between `version_used` and `latest_version`. |
+| `poison` | bool \| absent | `true` when a dormant gem caps a dependency below its latest major (a below-latest ceiling). See SA008. |
+| `poison_severity` | string \| absent | `note` / `warning` / `critical`, scaling with majors-behind. |
+| `poison_security_relevant` | bool \| absent | `true` when a capped dependency is itself known-vulnerable in the tree. |
+| `poison_below_fix` | bool \| absent | `true` when the cap holds a vulnerable dependency below its security fix (the strongest poison case). |
+| `constraints` | array \| absent | The poison caps: each `{ dependency, requirement, dep_latest, majors_behind, kind }`, plus `capped_dep_vulnerable` / `capped_below_fix` / `below_fix_advisory` / `below_fix_fixed_in` when security-relevant. |
+| `language_ceiling` | object \| absent | The runtime (Ruby) EOL ceiling a pinned gem forces. See SA009. |
 
 ### Vulnerability fields
 
@@ -91,6 +97,12 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `cvss3_vector` | string \| nil | CVSS v3 vector string. (Always `nil` for `ruby-advisory-db`-only advisories — bundler-audit exposes no vector.) |
 | `cvss2_score` | float \| nil | CVSS v2 fallback for older advisories. |
 | `source` | string | Which source reported the advisory: `"deps.dev"`, `"ruby-advisory-db"`, or `"merged"` (both). `ruby-advisory-db` entries appear only when `bundler-audit` is installed with a current advisory checkout. |
+| `osv_severity` | string \| nil | OSV/GHSA qualitative label (`HIGH`, etc.), used when deps.dev can't score a CVSS-4-only advisory. |
+| `osv_cvss_score` | float \| nil | CVSS base score from OSV enrichment. |
+| `cvss_version` | string \| nil | CVSS version of the scored vector (e.g. `3.1`, `4.0`). |
+| `cvss_vector` | string \| nil | The scored CVSS vector string. |
+| `fixed_versions` | array | Versions that patch the advisory (empty when none is published). |
+| `no_fix_available` | bool | `true` when no fixed version exists — you can't upgrade out of it. |
 
 ## Ruby fields
 

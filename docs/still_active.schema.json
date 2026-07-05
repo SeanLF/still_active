@@ -82,7 +82,7 @@
         "vulnerabilities": { "type": "array", "items": { "$ref": "#/$defs/vulnerability" } },
         "alternatives": { "type": "array", "items": { "type": "string" } },
         "ruby_gems_url": { "type": "string" },
-        "up_to_date": { "type": "boolean" },
+        "up_to_date": { "type": ["boolean", "null"] },
         "version_used_release_date": { "type": ["string", "null"], "format": "date-time" },
         "version_yanked": { "type": "boolean" },
         "license": { "type": ["string", "null"] },
@@ -90,6 +90,7 @@
         "poison": { "type": "boolean" },
         "poison_severity": { "type": "string", "enum": ["note", "warning", "critical"] },
         "poison_security_relevant": { "type": "boolean" },
+        "poison_below_fix": { "type": "boolean", "description": "True when a cap holds a vulnerable dependency below its security fix (the strongest poison case)." },
         "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
         "language_ceiling": { "$ref": "#/$defs/language_ceiling" }
       }
@@ -104,7 +105,10 @@
         "dep_latest": { "type": ["string", "null"] },
         "majors_behind": { "type": "integer", "minimum": 0 },
         "kind": { "type": "string", "enum": ["ceiling", "exact_pin", "permissive"] },
-        "capped_dep_vulnerable": { "type": "boolean" }
+        "capped_dep_vulnerable": { "type": "boolean" },
+        "capped_below_fix": { "type": "boolean", "description": "True when every fix for the capped dep's advisory lies outside this cap: you can't patch without replacing the dormant capper." },
+        "below_fix_advisory": { "type": "string", "description": "The advisory id the cap holds you below the fix for." },
+        "below_fix_fixed_in": { "type": "string", "description": "The nearest fixed version, which the cap forbids." }
       }
     },
     "language_ceiling": {
@@ -136,7 +140,13 @@
         "cvss3_score": { "type": ["number", "null"] },
         "cvss3_vector": { "type": ["string", "null"] },
         "cvss2_score": { "type": ["number", "null"] },
-        "source": { "type": "string", "enum": ["deps.dev", "ruby-advisory-db", "merged"] }
+        "source": { "type": "string", "enum": ["deps.dev", "ruby-advisory-db", "merged"] },
+        "osv_severity": { "type": ["string", "null"], "description": "OSV/GHSA qualitative severity label (e.g. HIGH), used when deps.dev can't score a CVSS-4-only advisory." },
+        "osv_cvss_score": { "type": ["number", "null"] },
+        "cvss_version": { "type": ["string", "null"], "description": "CVSS version of the scored vector (e.g. 3.1, 4.0)." },
+        "cvss_vector": { "type": ["string", "null"] },
+        "fixed_versions": { "type": "array", "items": { "type": "string" }, "description": "Versions that patch the advisory (from OSV ranges); empty when no fix is published." },
+        "no_fix_available": { "type": "boolean", "description": "True when the advisory has no published fixed version, so you can't upgrade out of it." }
       }
     },
     "ruby": {

@@ -259,16 +259,22 @@ RSpec.describe(StillActive::CLI) do
           last_commit_date: recent_date,
           vulnerability_count: 1,
           alternatives: ["foo"],
-          vulnerabilities: [{ id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "merged" }],
+          # A fully OSV-enriched advisory: these keys are added in place by OsvClient
+          # and emitted verbatim, so the schema must validate them (else real output
+          # with any vulnerability fails its own published contract).
+          vulnerabilities: [{ id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "merged", osv_severity: "MODERATE", osv_cvss_score: nil, cvss_version: "3.0", cvss_vector: "CVSS:3.0/AV:N/AC:L", fixed_versions: ["2.0.6", "1.6.11"], no_fix_available: false }],
         },
         # A poison-pill gem and a language-ceiling gem, so the published schema is
-        # actually validated against those compatibility-signal shapes.
+        # actually validated against those compatibility-signal shapes -- including
+        # the security below-the-fix keys the correlator sets.
         "protected_attributes" => {
           source_type: :rubygems,
           direct: true,
           poison: true,
           poison_severity: :critical,
-          constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling }],
+          poison_security_relevant: true,
+          poison_below_fix: true,
+          constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling, capped_dep_vulnerable: true, capped_below_fix: true, below_fix_advisory: "CVE-2024-9", below_fix_fixed_in: "5.0.0" }],
         },
         "cfpropertylist" => {
           source_type: :rubygems,

@@ -121,6 +121,7 @@ Usage: still_active [options]
         --gitlab-token=TOKEN         GitLab personal access token for API calls
         --artifactory-token=TOKEN    Artifactory token for private gem registry API calls
         --artifactory-host=HOST      Artifactory host allowed to receive the global token (e.g. my-org.jfrog.io)
+        --ecosystems-email=EMAIL     Contact email to join the ecosyste.ms polite pool (higher rate limit)
         --simultaneous-requests=QTY  Number of simultaneous requests made
         --safe-range-end=YEARS       maximum years since last release considered safe, no warning (default 1.5)
         --warning-range-end=YEARS    maximum years since last release that triggers a warning, beyond this is critical (default 3)
@@ -280,7 +281,7 @@ jobs:
         with: { sarif_file: still_active.sarif.json }
 ```
 
-Rule reference (SA001–SA008) and how to suppress: see [`docs/rules.md`](docs/rules.md).
+Rule reference (SA001–SA009) and how to suppress: see [`docs/rules.md`](docs/rules.md).
 
 ### Baseline diff (PR review)
 
