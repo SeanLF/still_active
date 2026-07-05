@@ -52,6 +52,24 @@ RSpec.describe(StillActive::SbomReader) do
     expect { expect(described_class.read_string("not json")).to(eq([])) }.not_to(raise_error)
   end
 
+  it("surfaces a malformed PURL as unassessable instead of backtracing the whole audit") do
+    # PackageURL.parse raises a BARE ArgumentError (not only InvalidPackageURL) on an
+    # empty name-after-namespace (`pkg:npm/@1.0.0`) or bad percent-encoding (`%zz`),
+    # both common in real Syft/Trivy output. One bad component must not crash and drop
+    # every other dependency's verdict.
+    body = {
+      components: [
+        { type: "library", name: "good", purl: "pkg:npm/lodash@4.17.21" },
+        { type: "library", name: "bad", purl: "pkg:npm/@1.0.0" },
+        { type: "library", name: "bad2", purl: "pkg:npm/%zz@1.0.0" },
+      ],
+    }.to_json
+    result = nil
+    expect { result = described_class.parse_string(body) }.not_to(raise_error)
+    expect(result.dependencies.map { |d| d[:name] }).to(eq(["lodash"]))
+    expect(result.unassessable.map { |u| u[:reason] }).to(all(eq(:malformed_purl)))
+  end
+
   describe(".parse — surfacing unassessable components (never silently drop a real dep)") do
     subject(:result) { described_class.parse(fixture) }
 
