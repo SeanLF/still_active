@@ -55,12 +55,22 @@ module StillActive
     def assess(ecosystem:, name:, version:, constraint_cache: {}, python_range: nil)
       info = DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)
       default = DepsDevClient.default_version_info(name: name, system: ecosystem)
+      # Retry the version lookup once when it came back empty but the package DID
+      # resolve: HttpHelper collapses a genuine 404 and a transient network blip to
+      # the same nil, and a healthy version must not be mis-flagged as unresolved
+      # (below) on a one-off miss. A real 404 stays nil; a blip recovers the data.
+      info ||= DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem) if default
       # Recover the repo from the default version when the exact locked version
       # isn't indexed (yanked/normalization mismatch): otherwise its project link
       # vanishes and a still-fresh package date would read a false :ok with
       # archived/scorecard silently dropped. The native Bundler path resolves the
       # repo independently of deps.dev's per-version record; this gives the lens
       # the same resilience.
+      # The pinned version isn't indexed by deps.dev (info nil) while the package IS
+      # (default present, so the feed is up): the version is yanked/nonexistent, not a
+      # transient miss. Flag it so status reads :unknown rather than letting the still-
+      # fresh PACKAGE date report a nonexistent version as :ok.
+      version_unresolved = info.nil? && !default.nil?
       project_id = info&.dig(:project_id) || project_id_from(name, ecosystem, default)
       vulnerabilities = vulnerabilities_for(info)
       # Enrich with OSV: a real GHSA severity label (deps.dev can't score a CVSS-4-only
@@ -92,6 +102,7 @@ module StillActive
         vulnerability_count: vulnerabilities.length,
         vulnerabilities: vulnerabilities,
       }
+      gem_data[:version_unresolved] = true if version_unresolved
       attach_constraints(gem_data, ecosystem: ecosystem, name: name, version: version, cache: constraint_cache)
       attach_language_ceiling(gem_data, ecosystem: ecosystem, name: name, version: version, latest_version: default&.dig(:version), python_range: python_range)
       gem_data

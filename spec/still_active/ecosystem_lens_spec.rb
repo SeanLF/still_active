@@ -106,6 +106,21 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:legacy))
     end
 
+    it("flags a pinned version deps.dev can't resolve, so a nonexistent version reads :unknown not :ok") do
+      # The version endpoint 404s (version doesn't exist) but the package endpoint
+      # resolves (fresh package). Without the flag, package-level health would report
+      # this nonexistent version as :ok -- a confident wrong answer.
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/[^/]+/packages/.+/versions/.+}).to_return(status: 404)
+      stub_package(default_published_at: "2026-05-01T00:00:00Z")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+
+      result = described_class.assess(ecosystem: :pypi, name: "requests", version: "999.999.999")
+
+      expect(result[:version_unresolved]).to(be(true))
+      expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
+    end
+
     it("surfaces a vulnerability at the locked version and counts it") do
       stub_version(advisory_keys: ["GHSA-xxxx"], source_repo: "https://github.com/owner/leaky")
       stub_package(default_published_at: "2026-06-01T00:00:00Z")

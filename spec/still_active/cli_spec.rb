@@ -637,9 +637,10 @@ RSpec.describe(StillActive::CLI) do
       end
     end
 
-    it("rejects an unsupported spec version") do
+    it("exits 2 with a friendly error on an unsupported spec version (not a backtrace)") do
+      allow($stderr).to(receive(:puts))
       expect { cli.run(["--gems=rack", "--cyclonedx", "--cyclonedx-version=2.0"]) }
-        .to(raise_error(ArgumentError, /1\.6.*1\.7/))
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
     end
   end
 
@@ -1047,14 +1048,15 @@ RSpec.describe(StillActive::CLI) do
       ))
     end
 
-    it("rejects combining --sbom with --gems") do
+    it("exits 2 with a friendly error when combining --sbom with --gems (not a backtrace)") do
+      allow($stderr).to(receive(:puts))
       expect { cli.run(["--sbom=sbom.json", "--gems=rails"]) }
-        .to(raise_error(ArgumentError, /only one of/))
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
     end
 
-    it("errors when the SBOM file does not exist") do
+    it("exits 2 with a friendly error when the SBOM file does not exist (not a backtrace)") do
       expect { cli.run(["--sbom=/no/such/sbom.json"]) }
-        .to(raise_error(ArgumentError, /SBOM file not found/))
+        .to(output(/error: SBOM file not found/).to_stderr.and(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) }))
     end
 
     it("exits 2 on a present-but-unparseable SBOM instead of reporting a silent empty audit") do

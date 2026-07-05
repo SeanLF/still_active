@@ -32,7 +32,15 @@ module StillActive
       # win over it: CLI flag > env var > config file > default.
       config_data = ConfigFile.load
       ConfigFile.apply(StillActive.config, config_data).each { |warning| $stderr.puts("warning: #{warning}") }
-      options = Options.new.parse!(args)
+      options = begin
+        Options.new.parse!(args)
+      rescue ArgumentError, OptionParser::ParseError => e
+        # Bad CLI input (conflicting flags, a missing file, an unknown flag, a bad
+        # enum value) is a user error: print it and exit 2, matching the SBOM/baseline
+        # paths, rather than letting the raise bubble into a Ruby backtrace.
+        $stderr.puts("error: #{e.message}")
+        exit(2)
+      end
       # After CLI flags resolve, nudge (don't auto-inherit) an un-imported
       # bundler-audit ignore list when the vulnerability gate is on.
       hint = ConfigFile.import_hint(config_data)
