@@ -1,54 +1,45 @@
 # `still_active`
 
-**How do you know if your Ruby dependencies are still maintained?**
+**How do you know the dependencies you ship are still maintained?**
 
-`bundle outdated` tells you version drift. `bundler-audit` catches known CVEs. Neither tells you whether anyone is still working on the thing. `still_active` checks maintenance activity, version freshness, security scores, vulnerabilities (flagging those with **no fixed version available**, the ones you can't upgrade out of), libyear drift, and archived repos for every gem in your dependency graph, direct and transitive by default (`--direct-only` to narrow), with granular, committed suppression via `.still_active.yml`.
+[Install](#installation) · [Quick start](#quick-start) · [GitHub Action & CI](#github-action--ci) · [Cross-ecosystem](#cross-ecosystem-audit) · [Configuration](#configuration) · [Rules](docs/rules.md)
 
-Ruby-first, but the maintenance lens isn't Ruby-only: point [`--sbom`](#cross-ecosystem-sbom-audit---sbom) at a CycloneDX SBOM and `still_active` audits your **npm, PyPI, Cargo, Go, Maven, and NuGet** dependencies the same way it does gems.
+Your package manager tells you what's outdated and what has a known CVE. Neither tells you whether anyone's still working on the thing. An abandoned dependency is a quiet liability: when it finally breaks or a vulnerability lands, there's no release coming and no one to ping, and you find out at the worst time.
 
-Findings ship as **terminal / markdown / JSON / SARIF / CycloneDX** — SARIF lands in your GitHub Security tab and as inline PR annotations on `Gemfile.lock`; CycloneDX feeds Trivy / Dependency-Track / Snyk. PR mode (`--baseline=FILE`) reports only what got worse since main, so reviewers see one line ("`vcr` newly archived") instead of an absolute snapshot of every dep.
-
-[![Gem Version](https://badge.fury.io/rb/still_active.svg)](https://badge.fury.io/rb/still_active)
-[![GitHub Action](https://img.shields.io/badge/Marketplace-still__active--action-2ea44f?logo=github)](https://github.com/marketplace/actions/still_active)
-![Code Quality analysis](https://github.com/SeanLF/still_active/actions/workflows/codeql-analysis.yml/badge.svg)
-![RSpec](https://github.com/SeanLF/still_active/actions/workflows/rspec.yml/badge.svg)
-![Rubocop analysis](https://github.com/SeanLF/still_active/actions/workflows/rubocop-analysis.yml/badge.svg)
+`still_active` flags that risk before it bites, across your whole dependency graph: archived repos, no release in years, low OpenSSF scores, unfixable vulnerabilities, and the poison-pill case where a dormant package holds one of your deps below its own security patch. Native on **Ruby** gems; **npm, PyPI, Cargo, Go, Maven, and NuGet** via a CycloneDX SBOM.
 
 ```
-Name                    Version          Activity  OpenSSF  Vulns  License
-──────────────────────────────────────────────────────────────────────────────
-async                   2.36.0 (latest)  ok        7.1/10   0      MIT
-backbone-rails          1.2.3 (latest)   archived  3.6/10   0      MIT
-bootstrap-slider-rails  9.8.0 (latest)   critical  -        0      MIT
-gitlab-markup           2.0.0 (latest)   ok        -        0      MIT
-local_gem               0.1.0 (path)     -         -        0      -
-nested_form             0.3.2 (git)      archived  3.3/10   0      MIT
-remotipart              1.4.4 (git)      critical  3.1/10   0      MIT
+Name            Version          Activity  OpenSSF  Vulns  License
+────────────────────────────────────────────────────────────────────
+backbone-rails  1.2.3 (latest)   archived  2.6/10   0      -
+nokogiri        1.19.4 (latest)  ok        5.9/10   0      MIT
+paperclip       6.1.0 (latest)   archived  2/10     0      MIT
+  ↳ poison: caps terrapin ~> 0.6.0 (1 major behind, latest 1.x)
+rake            13.4.2 (latest)  ok        5.5/10   0      MIT
 
-7 gems: 4 up to date, 0 outdated · 2 active, 2 stale, 2 archived · 0 vulnerabilities
-Ruby 4.0.1 (latest)
+4 gems: 4 up to date · 2 active, 2 archived · 0 vulnerabilities · 1 poison-pill
+Ruby 4.0.5 (latest)
 ```
 
 ## Why `still_active`?
 
-`still_active` is **complementary to** -- not a replacement for -- the established Ruby tooling. `bundle outdated`, `bundler-audit`, and `libyear-bundler` are purpose-built and battle-tested at what they do. `still_active` answers a different question: **is anyone still maintaining this gem?** -- and folds in the version/CVE/libyear signals so you get one report instead of three.
+No package ecosystem's standard tooling answers "is anyone still maintaining this?" `npm audit`, `cargo audit`, `pip-audit`, and `bundler-audit` find known CVEs; the `outdated` commands find version drift. None tell you a dependency's upstream is archived, hasn't shipped in three years, or is holding one of your deps below its security fix. That maintenance gap is what `still_active` fills. It's **complementary to**, not a replacement for, the tools you already run.
+
+On Ruby, where it runs natively:
 
 |                              | `bundle outdated` | `bundler-audit`        | `libyear-bundler` | **`still_active`**       |
 | ---------------------------- | ----------------- | ---------------------- | ----------------- | ------------------------ |
 | Outdated versions            | Yes               | -                      | Yes               | Yes                      |
 | Known vulnerabilities (CVEs) | -                 | Yes (ruby-advisory-db) | -                 | Yes (deps.dev + OSV + ruby-advisory-db) |
 | Libyear drift                | -                 | -                      | Yes               | Yes                      |
-| **Last commit activity**     | -                 | -                      | -                 | **Yes**                  |
+| **Last-commit activity**     | -                 | -                      | -                 | **Yes**                  |
 | **Archived repo detection**  | -                 | -                      | -                 | **Yes**                  |
 | **OpenSSF Scorecard**        | -                 | -                      | -                 | **Yes**                  |
-| **Yanked version detection** | -                 | -                      | -                 | **Yes**                  |
-| **Ruby version freshness**   | -                 | -                      | -                 | **Yes** (EOL + libyear)  |
+| **Poison-pill / below-the-fix** | -              | -                      | -                 | **Yes**                  |
 | **Cross-ecosystem** (npm/PyPI/Cargo/Go/Maven/NuGet) | - | -              | -                 | **Yes** (`--sbom`)       |
-| GitLab support               | -                 | -                      | -                 | Yes                      |
-| CI quality gates             | -                 | Exit code              | -                 | Yes (6 flags)            |
-| Output formats               | Text              | Text                   | Text              | Terminal, JSON, Markdown, SARIF, CycloneDX |
+| CI quality gates             | -                 | Exit code              | -                 | Yes (6 gate flags)       |
 
-The bolded rows are the gap `still_active` fills: nobody else answers "is the maintainer still around?" The CVE column is worth a closer look: `bundler-audit` reads `ruby-advisory-db` and `still_active` reads `deps.dev`, which sometimes diverge. **If `bundler-audit` is installed alongside `still_active`, we read its `ruby-advisory-db` checkout too and merge the results** (deduplicated, each advisory tagged with its `source`) — so running both no longer means reconciling two different vuln counts by hand.
+With `bundler-audit` installed alongside, `still_active` merges its `ruby-advisory-db` advisories with its own deps.dev + OSV sources, so running both no longer means reconciling two vuln counts by hand.
 
 ## Installation
 
@@ -56,218 +47,29 @@ The bolded rows are the gap `still_active` fills: nobody else answers "is the ma
 gem install still_active
 ```
 
-**Requires an actively-maintained Ruby.** The gemspec's `required_ruby_version` floor tracks Ruby's [EOL schedule](https://endoflife.date/ruby); running a maintenance auditor on an unmaintained runtime would be a bit rich. You don't have to run it *on* the Ruby you're auditing, though: still_active reports on the version your project pins in `Gemfile.lock`, so run it from any current Ruby (locally, in CI, or via the [`still_active-action`](https://github.com/SeanLF/still_active-action)) and it will still flag an EOL target.
+Requires an actively-maintained Ruby (the gemspec floor tracks Ruby's [EOL schedule](https://endoflife.date/ruby)). You don't have to run it *on* the Ruby you audit: it reports on the version pinned in `Gemfile.lock`, so run it from any current Ruby and it still flags an EOL target.
 
-## Quick Start
+## Quick start
 
 ```bash
 # audit your Gemfile (auto-detects output format)
 still_active
 
-# check specific gems
-still_active --gems=rails,nokogiri,sidekiq
+# cross-ecosystem: audit any CycloneDX SBOM (npm, PyPI, Cargo, Go, Maven, NuGet)
+syft dir:. -o cyclonedx-json > sbom.json && still_active --sbom=sbom.json
 
-# CI pipeline: fail if any gem is critically stale or has vulnerabilities
+# fail CI if any gem is critically stale or vulnerable
 still_active --fail-if-critical --fail-if-vulnerable
 
-# ignore specific gems in CI checks
-still_active --fail-if-warning --ignore=legacy_gem,internal_gem
-
-# markdown table for pull requests or documentation
+# markdown table for a pull request
 still_active --markdown
 ```
 
-## Usage
+Full flags: [`docs/cli.md`](docs/cli.md). Tokens for private registries and self-hosted forges: [`docs/authentication.md`](docs/authentication.md).
 
-### Authentication
+## GitHub Action & CI
 
-`still_active` discovers a GitHub token in this order:
-
-1. `--github-oauth-token=TOKEN` CLI flag
-2. `GITHUB_TOKEN` environment variable (CI convention)
-3. `GH_TOKEN` environment variable (`gh` CLI convention)
-4. `gh auth token` (if `gh` is installed and authenticated)
-
-With a token, GitHub repo signals (archived, last commit) come from the GitHub API (limit 5000 requests/hour). When a rate-limit response comes back with a reset that's near (within 60 seconds, typically a secondary/burst limit that the concurrent fan-out can trip even with a token), still_active waits it out and retries rather than dropping that gem's signals; a far-off reset (you've exhausted the hourly limit) isn't waited out, so run less often.
-
-**Without a token**, the unauthenticated GitHub API is capped at 60 requests/hour — unusable past a handful of gems. So still_active falls back to [ecosyste.ms](https://ecosyste.ms) for GitHub repo signals (5000 anonymous requests/hour), which keeps a large Gemfile working with no token at all. The fallback is GitHub-only: ecosyste.ms doesn't track commit recency for GitLab/Codeberg, so those hosts still need their own token (or report `unknown`) when unauthenticated. A token still gives the freshest data and unlocks `--unreleased-commits`, so prefer one in CI. To be a good citizen of the free ecosyste.ms service, you can join its "polite pool" (a higher rate limit, and they can reach you) by passing a contact email via `--ecosystems-email=you@example.com` or `STILL_ACTIVE_ECOSYSTEMS_EMAIL` — optional, since the anonymous limit already covers a typical lockfile.
-
-GitLab cascade mirrors GitHub: `--gitlab-token` → `GITLAB_TOKEN` → `glab auth status --show-token`. Optional for public repos, required for private ones.
-
-Forgejo/Codeberg (the rare gem whose canonical `source_code_uri` is `codeberg.org`) is read anonymously by default; set `STILL_ACTIVE_FORGEJO_TOKEN` (or `CODEBERG_TOKEN`) only to raise the rate limit or reach a private repo. There is no CLI flag, since Codeberg has no ubiquitous CLI to borrow a token from the way `gh`/`glab` do.
-
-Artifactory auth looks for Bundler configuration's credentials first so that private registries work without extra configuration if they are already configured in Bundler. To set those credentials in Bundler, run `bundle config set credentials.my-org.jfrog.io user:pass`. If no credentials are set there, still_active falls back using a token provided via `--artifactory-token` or `STILL_ACTIVE_ARTIFACTORY_TOKEN`. Authentication expects a `user:password` format for Basic auth, otherwise it will be treated as a bare token for Bearer auth. Valid authentication is required for private JFrog gem registries (`*.jfrog.io`).
-
-When providing the artifactory token via flag or env, you must also set `--artifactory-host` or `STILL_ACTIVE_ARTIFACTORY_HOST` to the expected registry hostname (e.g. `my-org.jfrog.io`). still_active only sends the credentials to that host, ensuring that a lockfile containing other Artifactory hosts will not leak the token (a security risk). Providing a token/host in this manner will work only for a single host. To support multiple Artifactory hosts, use Bundler's configuration for per-host credentials.
-
-### CLI options
-
-```text
-Usage: still_active [options]
-
-        all flags are optional
-
-        --gemfile=GEMFILE            path to gemfile
-        --gems=GEM,GEM2,...          Gem(s)
-        --sbom=PATH                  audit a CycloneDX SBOM cross-ecosystem (npm/pypi/cargo/go/maven/nuget); JSON output
-        --terminal                   Coloured terminal output (default in TTY)
-        --markdown                   Markdown table output
-        --json                       JSON output (default when piped)
-        --alternatives               Suggest maintained alternatives (Ruby Toolbox leads) for archived/critical gems
-        --unreleased-commits         Count commits on the default branch since the latest release (GitHub only; opt-in)
-        --direct-only                Audit only direct (declared) deps, not the full transitive graph
-        --sarif[=PATH]               SARIF 2.1.0 output for GitHub Code Scanning
-        --cyclonedx[=PATH]           CycloneDX SBOM output (stdout, or a file path)
-        --cyclonedx-version=VERSION  CycloneDX spec version: 1.6 (default) or 1.7
-        --baseline=PATH              Compare current state to baseline JSON; emit markdown deltas
-        --github-oauth-token=TOKEN   GitHub OAuth token to make API calls
-        --gitlab-token=TOKEN         GitLab personal access token for API calls
-        --artifactory-token=TOKEN    Artifactory token for private gem registry API calls
-        --artifactory-host=HOST      Artifactory host allowed to receive the global token (e.g. my-org.jfrog.io)
-        --ecosystems-email=EMAIL     Contact email to join the ecosyste.ms polite pool (higher rate limit)
-        --simultaneous-requests=QTY  Number of simultaneous requests made
-        --safe-range-end=YEARS       maximum years since last release considered safe, no warning (default 1.5)
-        --warning-range-end=YEARS    maximum years since last release that triggers a warning, beyond this is critical (default 3)
-        --fail-if-critical           Exit 1 if any gem has critical activity warning
-        --fail-if-warning            Exit 1 if any gem has warning or critical activity warning
-        --fail-if-vulnerable[=SEVERITY]
-                                     Exit 1 if any gem has vulnerabilities (optionally at or above SEVERITY)
-        --fail-if-outdated=LIBYEARS  Exit 1 if any gem exceeds LIBYEARS behind latest
-        --fail-if-poison[=TIER]      Exit 1 on a poison-pill at or above TIER (note|warning|critical; default warning)
-        --fail-if-language-ceiling[=TIER]
-                                     Exit 1 on a language-runtime ceiling (Ruby/Python; default: EOL-forced only; =note also gates latest-not-yet)
-        --ignore=GEM,GEM2,...        Exclude gems from pass/fail checks (still shown in output)
-        --critical-warning-emoji=EMOJI
-        --futurist-emoji=EMOJI
-        --success-emoji=EMOJI
-        --unsure-emoji=EMOJI
-        --warning-emoji=EMOJI
-    -h, --help                       Show this message
-    -v, --version                    Show version
-```
-
-### Output formats
-
-**Terminal** (default on TTY) -- coloured table with summary line. Shown above.
-
-**JSON** (default when piped) -- structured data for automation:
-
-```bash
-still_active --json --gemfile=spec/still_active/edge_case_gemfile/Gemfile
-```
-
-```json
-{
-  "gems": {
-    "async": {
-      "source_type": "rubygems",
-      "version_used": "2.36.0",
-      "latest_version": "2.36.0",
-      "repository_url": "https://github.com/socketry/async",
-      "last_commit_date": "2026-01-22 04:09:48 UTC",
-      "archived": false,
-      "scorecard_score": 7.1,
-      "vulnerability_count": 0,
-      "license": "MIT",
-      "libyear": 0.0
-    },
-    "nested_form": {
-      "source_type": "git",
-      "version_used": "0.3.2",
-      "repository_url": "https://github.com/ryanb/nested_form",
-      "last_commit_date": "2021-12-11 21:47:02 UTC",
-      "archived": true,
-      "scorecard_score": 3.3,
-      "vulnerability_count": 0
-    },
-    "local_gem": {
-      "source_type": "path",
-      "version_used": "0.1.0",
-      "scorecard_score": null,
-      "vulnerability_count": 0
-    }
-  },
-  "ruby": {
-    "version": "4.0.1",
-    "eol": false,
-    "latest_version": "4.0.1",
-    "libyear": 0.0
-  }
-}
-```
-
-**Markdown** -- table for pull requests, documentation, or wikis:
-
-```bash
-still_active --markdown
-```
-
-| activity | up to date? | OpenSSF | vulns | name                                                         | version used                                                               | latest version                                                             | latest pre-release | last commit                                           | libyear | license |
-| -------- | ----------- | ------- | ----- | ------------------------------------------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------- | ------- | ------- |
-|          | ✅          | 7.1/10  | ✅    | [async](https://github.com/socketry/async)                   | [2.36.0](https://rubygems.org/gems/async/versions/2.36.0) (2026/01)        | [2.36.0](https://rubygems.org/gems/async/versions/2.36.0) (2026/01)        | ❓                 | [2026/01](https://github.com/socketry/async)          | 0.0y    | MIT     |
-| 🚩       | ✅          | 3.6/10  | ✅    | [backbone-rails](https://github.com/aflatter/backbone-rails) | [1.2.3](https://rubygems.org/gems/backbone-rails/versions/1.2.3) (2016/02) | [1.2.3](https://rubygems.org/gems/backbone-rails/versions/1.2.3) (2016/02) | ❓                 | [2016/02](https://github.com/aflatter/backbone-rails) | 0.0y    | MIT     |
-| ❓       | ❓          | ❓      | ✅    | local_gem                                                    | 0.1.0 (path)                                                               | ❓                                                                         | ❓                 | ❓                                                    | -       | -       |
-| 🚩       | ❓          | 3.3/10  | ✅    | [nested_form](https://github.com/ryanb/nested_form)          | 0.3.2 (git)                                                                | ❓                                                                         | ❓                 | [2021/12](https://github.com/ryanb/nested_form)       | -       | MIT     |
-
-**Ruby 4.0.1** (latest) ✅
-
-**CycloneDX** -- a standards-track SBOM so your dependency graph and still_active's signals flow into Trivy, Dependency-Track, or Snyk:
-
-```bash
-still_active --cyclonedx                 # CycloneDX 1.6 to stdout
-still_active --cyclonedx=sbom.json       # write to a file
-still_active --cyclonedx --cyclonedx-version=1.7
-```
-
-Emits **1.6 by default** — the version mainstream consumers ingest today (`cyclonedx-core-java`/Dependency-Track and `cyclonedx-go`/Trivy both cap at 1.6 as of 2026); `--cyclonedx-version=1.7` opts into the latest. Gem name/version/`purl`/licenses and vulnerabilities map to native CycloneDX fields; maintenance signals with no native home (archived, OpenSSF score, libyear, last commit, yanked) ride in `still_active:`-namespaced `properties`. The `serialNumber` is content-derived, so two SBOMs of the same lockfile differ only by their generation timestamp.
-
-### Cross-ecosystem SBOM audit (`--sbom`)
-
-still_active is Ruby-first, but the maintenance lens isn't Ruby-only. Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft), Trivy, or any producer) and it assesses `npm`, `pypi`, `cargo`, `go`, `maven`, and `nuget` packages the same way it does gems, sourcing signals from [deps.dev](https://deps.dev) and ecosyste.ms instead of Bundler:
-
-```bash
-syft dir:. -o cyclonedx-json > sbom.json
-still_active --sbom=sbom.json            # JSON report, keyed "ecosystem/name@version"
-```
-
-Each dependency carries the same `activity_level` and lifecycle `status` as the Ruby path, and the `summary` reports the worst status across the SBOM. When the SBOM marks dev-vs-prod scope (CycloneDX `scope`, or a `cyclonedx-npm`-style development property), each dependency also carries a `production` boolean so a consumer can separate prod risk from test debt; generators that don't mark it (Syft drops the label) leave the key absent, which reads as unknown rather than a false all-clear. `--sbom` is mutually exclusive with `--gemfile`/`--gems` and always emits JSON (its shape differs from the Ruby audit, so it omits the `$schema` contract).
-
-The SBOM is **untrusted input**: only ecosystem/name/version are read from it, the repository is resolved from deps.dev (never a URL the SBOM supplies, so a hostile SBOM can't redirect a lookup), and anything deps.dev doesn't index degrades to `unknown` rather than a fabricated `ok`. Packages it can't assess (unsupported ecosystems, a component with no version or PURL, or one whose lookup failed against a rate-limited/flaky deps.dev) are surfaced in an `unassessable` list plus a stderr count, never silently dropped, so an audit can't read "all clear" while ignoring what it skipped; a present-but-unreadable SBOM errors rather than reporting a clean empty audit. OS packages land in `unassessable` too: the differentiated play is **maintenance**, not vulnerability scanning, so compose Trivy/Grype for CVEs.
-
-The activity (`--fail-if-critical`/`--fail-if-warning`), vulnerability (`--fail-if-vulnerable`), and libyear (`--fail-if-outdated`) gates all apply to SBOM dependencies, which carry `libyear` and `up_to_date` the same as the Ruby path. **The full poison-pill signal is scoped to flat-resolution ecosystems** (rubygems, pypi): there a dormant gem's below-latest cap forces the whole tree onto the old version. npm nests multiple versions and cargo lets majors coexist (and their caret default makes "below latest major" the norm, not a hazard), so the plain below-latest cap there is subtree-local noise and stays suppressed.
-
-**The security "below the fix" case, though, does travel to npm and cargo.** When a *dormant or archived* package pins a dependency below the version that patches a HIGH-or-critical advisory, still_active flags it — at patch precision (npm/cargo fixes are mostly same-major patch bumps), and only when *every* resolved copy the constraint governs is vulnerable (a safe copy elsewhere in the tree, or a patched copy the constraint can reach, clears it), so it stays silent unless the tree is genuinely stuck. Example: an archived `request@2.88.2` pinning `form-data ~2.3.2` below the fix for a critical CVE — you can't patch it without replacing `request`. Other Ruby-shaped policy features still don't travel to the SBOM path: `.still_active.yml` suppressions and `--ignore` key on the gem name (SBOM results key on `ecosystem/name@version`).
-
-#### Which signal covers which path
-
-Most maintenance signals apply everywhere; a few are deliberately scoped (see [`docs/rules.md`](docs/rules.md) for the full rule reference).
-
-| Signal (rule) | Ruby (native) | `--sbom` (cross-ecosystem) |
-| ------------- | ------------- | -------------------------- |
-| Archived repo (SA001) | Yes | Yes (npm, PyPI, Cargo, Go, Maven, NuGet) |
-| Abandoned / no recent release (SA002) | Yes | Yes (all of the above) |
-| Low OpenSSF Scorecard (SA005) | Yes | Yes (all of the above) |
-| Libyear drift (SA004) | Yes | Yes (all of the above) |
-| Vulnerabilities (SA003) | Yes (deps.dev + OSV + ruby-advisory-db) | Yes (deps.dev + OSV) |
-| &nbsp;&nbsp;↳ "below the fix" (dead capper pins a vulnerable dep) | Yes | npm, Cargo, PyPI (patch precision) |
-| Poison-pill / compatibility ceiling (SA008) | Yes (rubygems) | PyPI only (flat resolution; npm/Cargo suppressed) |
-| Language-runtime ceiling (SA009) | Yes (`ruby_version`) | Python only (`requires_python`) |
-| Ruby EOL (SA006) | Yes | n/a (Ruby-runtime signal) |
-| Yanked version (SA007) | Yes | n/a |
-
-### SARIF output (GitHub Code Scanning)
-
-Emit findings as SARIF 2.1.0 — they show up in the GitHub Security tab and as inline annotations on `Gemfile.lock` in pull requests.
-
-> **See it live:** this repo audits itself on every push. Browse the current open findings in the [Code Scanning Security tab](https://github.com/SeanLF/still_active/security/code-scanning?query=tool%3Astill_active+is%3Aopen).
-
-```bash
-still_active --sarif                       # writes still_active.sarif.json
-still_active --sarif=path/to/out.sarif.json
-still_active --sarif=-                     # stdout
-```
-
-**Easy mode** — use the [`still_active-action`](https://github.com/SeanLF/still_active-action) wrapper:
+The [`still_active-action`](https://github.com/SeanLF/still_active-action) uploads findings to your **GitHub Security tab** as SARIF, with inline PR annotations on `Gemfile.lock`:
 
 ```yaml
 permissions:
@@ -290,216 +92,114 @@ jobs:
         with: { sarif_file: still_active.sarif.json }
 ```
 
-**Plain bundle exec** if you'd rather pin still_active in your Gemfile:
+Gate the build on what you care about (all off by default, so nothing breaks until you opt in), and use `--baseline` for PR review.
 
-```yaml
-      - run: bundle exec still_active --sarif
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with: { sarif_file: still_active.sarif.json }
-```
-
-Rule reference (SA001–SA009) and how to suppress: see [`docs/rules.md`](docs/rules.md).
-
-### Baseline diff (PR review)
-
-`--baseline=FILE` compares the current run against a previously captured JSON snapshot and emits a markdown delta report. Designed for the PR question reviewers actually ask: **what got worse?**
+<details>
+<summary>CI gate flags and PR-review diff</summary>
 
 ```bash
-# Locally — capture from main, compare to your branch
-git checkout main && still_active --json > /tmp/main.json
-git checkout my-branch && still_active --baseline=/tmp/main.json
+still_active --fail-if-critical              # upstream critically stale or archived
+still_active --fail-if-vulnerable            # any known vulnerability (or =low|medium|high|critical)
+still_active --fail-if-outdated=3            # more than 3 libyears behind latest
+still_active --fail-if-poison                # a dormant package caps a dep below its latest major
+still_active --fail-if-language-ceiling      # a pin strands you on an EOL language runtime
+
+# PR review: report only what got worse since a saved snapshot, exit 1 on any regression
+still_active --json > /tmp/main.json && still_active --baseline=/tmp/main.json
+```
+</details>
+
+Rule reference (SA001-SA009), suppression, and composing with `dependency-review-action`: [`docs/rules.md`](docs/rules.md), [`docs/ci.md`](docs/ci.md). This repo audits itself every push, so you can browse live findings in its [Code Scanning tab](https://github.com/SeanLF/still_active/security/code-scanning?query=tool%3Astill_active+is%3Aopen).
+
+## Cross-ecosystem audit
+
+Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft), Trivy, or any producer) and `still_active` assesses `npm`, `pypi`, `cargo`, `go`, `maven`, and `nuget` packages the same way it does gems, via [deps.dev](https://deps.dev) and [ecosyste.ms](https://ecosyste.ms). The SBOM is treated as **untrusted input** (only ecosystem/name/version are read, repositories resolve from deps.dev, and anything unassessable is surfaced rather than faked as `ok`). Most signals apply everywhere; a few are deliberately scoped.
+
+<details>
+<summary>Which signal covers which ecosystem</summary>
+
+| Signal (rule) | Ruby (native) | `--sbom` (cross-ecosystem) |
+| ------------- | ------------- | -------------------------- |
+| Archived (SA001), no recent release (SA002), low OpenSSF (SA005), libyear (SA004) | Yes | Yes (all six ecosystems) |
+| Vulnerabilities (SA003) | deps.dev + OSV + ruby-advisory-db | deps.dev + OSV |
+| &nbsp;&nbsp;↳ "below the fix" (a dead package pins a vulnerable dep) | Yes | npm, Cargo, PyPI |
+| Poison-pill (SA008) | rubygems | PyPI (flat resolution only) |
+| Language-runtime ceiling (SA009) | Ruby | Python |
+| Ruby EOL (SA006), yanked (SA007) | Yes | n/a |
+
+Full rule detail in [`docs/rules.md`](docs/rules.md).
+</details>
+
+The play is **maintenance**, not CVE scanning, so compose Trivy/Grype for full vulnerability coverage.
+
+## Output formats
+
+Auto-detected: a coloured terminal table on a TTY (above), JSON when piped. Or ask explicitly.
+
+<details>
+<summary><strong>JSON</strong> (<code>--json</code>): a versioned, contract-tested schema for automation</summary>
+
+```json
+{
+  "gems": {
+    "nested_form": {
+      "source_type": "git",
+      "version_used": "0.3.2",
+      "repository_url": "https://github.com/ryanb/nested_form",
+      "archived": true,
+      "scorecard_score": 3.3,
+      "vulnerability_count": 0,
+      "status": "archived"
+    }
+  },
+  "ruby": { "version": "4.0.5", "eol": false, "latest_version": "4.0.5" }
+}
 ```
 
-In CI, capture a baseline on main and compare on PR branches. Exits 1 if any regression is detected (new vulns, newly-archived deps, scorecard drops crossing 7.0, libyear growth on unchanged versions, Ruby newly EOL, etc.).
+Fields are documented in [`docs/schema.md`](docs/schema.md).
+</details>
 
-The diff supersedes `--sarif`, `--terminal`, `--markdown`, and `--json` when set.
+<details>
+<summary><strong>Markdown</strong> (<code>--markdown</code>): a table for pull requests, docs, or wikis</summary>
 
-When a run is detected as Dependabot- or Renovate-authored (via `GITHUB_ACTOR`, a `dependabot/`/`renovate/` branch, or the commit subject), the report leads with a one-line narrative — "Dependabot bump: `rack` 2.0.0 → 2.0.6" — and `--json` gains a top-level `pr_context`. Detection is best-effort and conservative: it never produces a false positive on an ordinary commit, and a miss costs only the narrative line.
+| activity | up to date? | OpenSSF | vulns | name | version | last commit |
+| -------- | ----------- | ------- | ----- | ---- | ------- | ----------- |
+|          | ✅          | 5.9/10  | ✅    | [nokogiri](https://github.com/sparklemotion/nokogiri) | 1.19.4 | 2026/06 |
+| 🚩       | ✅          | 2/10    | ✅    | [paperclip](https://github.com/thoughtbot/paperclip) | 6.1.0 | 2021/03 |
+</details>
 
-### Alongside `dependency-review-action`
+**SARIF** feeds GitHub Code Scanning (see [GitHub Action & CI](#github-action--ci)). **CycloneDX** (`--cyclonedx`) emits a standards-track SBOM so your graph and `still_active`'s signals flow into Trivy, Dependency-Track, or Snyk.
 
-GitHub's first-party [`dependency-review-action`](https://github.com/actions/dependency-review-action) runs server-side on PRs and surfaces **vulnerabilities, licenses, and OpenSSF Scorecard** scores from GitHub's dependency-graph diff. It does not surface maintenance signals — last-commit activity, archived repos, libyear, Ruby EOL, or yanked versions — and is GitHub.com / GHES only. `still_active` is the complement, not a replacement:
+## Configuration
 
-|                              | `dependency-review-action`         | `still_active`                              |
-| ---------------------------- | ---------------------------------- | ------------------------------------------- |
-| Platform                     | GitHub.com / GHES only             | Any CI                                      |
-| Languages                    | Multi (GitHub dep graph)           | Ruby                                        |
-| Vulnerabilities              | GHSA                               | deps.dev + ruby-advisory-db (merged)        |
-| Licenses                     | Yes (allow/deny gating)            | Surfaced (no gating)                        |
-| OpenSSF Scorecard            | Yes (display)                      | Yes (display + threshold)                   |
-| **Last-commit activity**     | -                                  | **Yes**                                     |
-| **Archived repo detection**  | -                                  | **Yes**                                     |
-| **Libyear drift**            | -                                  | **Yes**                                     |
-| **Ruby EOL detection**       | -                                  | **Yes**                                     |
-| **Yanked version detection** | -                                  | **Yes**                                     |
-| Diff vs base                 | Native (GitHub API)                | `--baseline=FILE`                           |
-| Output                       | Inline PR annotations              | Terminal / Markdown / JSON / SARIF / CycloneDX |
+A committed `.still_active.yml` keeps policy in version control and replaces the blunt `--ignore=GEM` (which mutes *every* gate for a gem) with granular, expiring suppression. A vulnerability suppression must name an advisory id (so a new CVE is never pre-silenced), an `expires:` date makes accepted risk re-surface instead of rotting, and a suppressed finding still shows in output (and as a dismissed SARIF entry).
 
-Run both: let `dependency-review-action` gate CVEs and licenses, and `still_active` add the maintenance lens on the same PR.
+<details>
+<summary><code>.still_active.yml</code> example</summary>
 
 ```yaml
-on: pull_request
-
-jobs:
-  dependency-review:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-          show-openssf-scorecard: true
-
-  maintenance-review:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
-        with: { ruby-version: ".ruby-version", bundler-cache: true }
-      - uses: SeanLF/still_active-action@v0
-        with:
-          fail-if-critical: true
-```
-
-### CI quality gating
-
-Use exit-code flags to fail CI pipelines based on dependency status:
-
-```bash
-# fail on critically stale or archived gems
-still_active --fail-if-critical --json
-
-# fail on any stale, critical, or archived gem
-still_active --fail-if-warning --json
-
-# fail if any gem has known vulnerabilities
-still_active --fail-if-vulnerable --json
-
-# fail only on high/critical severity vulnerabilities
-still_active --fail-if-vulnerable=high --json
-
-# fail if any gem is more than 3 libyears behind
-still_active --fail-if-outdated=3 --json
-
-# combine flags and exclude known exceptions
-still_active --fail-if-warning --fail-if-vulnerable --ignore=legacy_gem --json
-```
-
-### Configuration file (`.still_active.yml`)
-
-`--ignore=GEM` is blunt: it drops a gem from **every** gate at once, so accepting one unfixable advisory also blinds you to that gem going archived or to a *new* CVE. A committed `.still_active.yml` in the project root replaces that with granular, auditable suppression, and lets you keep your policy flags in version control instead of threading them through every invocation.
-
-```yaml
-# .still_active.yml -- policy defaults plus granular suppression
-fail_if_critical: true
-fail_if_vulnerable: high       # true, or a minimum severity: low|medium|high|critical
-fail_if_outdated: 3            # libyears
-fail_if_poison: warning        # true (=warning), or a tier: note|warning|critical (severity scales with majors-behind)
-fail_if_language_ceiling: true # true = EOL-forced ceilings only; :note also gates latest-not-yet (fluctuates with the runtime's release calendar)
-unreleased_commits: true
-output: json                   # terminal | markdown | json
-direct_only: true              # audit only declared deps, not the full transitive graph (--direct-only)
-
-# Pull bundler-audit's accepted-advisory list instead of maintaining two files
-import:
-  - .bundler-audit.yml
+fail_if_vulnerable: high        # true, or a minimum severity: low|medium|high|critical
+fail_if_poison: warning         # true (=warning), or a tier: note|warning|critical
 
 ignore:
-  # Accept ONE advisory, by id -- a different/new CVE on nokogiri still fails
+  # accept ONE advisory by id; a different or new CVE on nokogiri still fails
   - advisory: CVE-2024-1234
     gem: nokogiri
     reason: "no fix released; not reachable from our code path"
-    expires: 2026-09-01        # re-surfaces as a normal failure after this date
-
-  # Accept staleness on a vendored gem, but still fail if it gets a CVE
-  - gem: legacy_thing
-    signal: activity            # activity | vulnerability | libyear | poison | language_ceiling
-    reason: "vendored, intentionally frozen"
-
-  # A bare gem name keeps the old whole-gem behaviour (mutes every signal)
-  - some_internal_gem
+    expires: 2026-09-01         # re-surfaces as a normal failure after this date
 ```
+</details>
 
-Design:
+Full semantics, thresholds, and transitive behaviour: [`docs/configuration.md`](docs/configuration.md).
 
-- **Granularity.** Key by `advisory:` (one CVE) and/or `signal:` (`activity` / `vulnerability` / `libyear` / `poison`), not the whole gem. A vulnerability suppression **must** name an advisory id, so a newly disclosed CVE on the same gem is never pre-silenced. `--ignore=GEM` (and a bare gem-name entry) still mute everything, by design.
-- **Precedence.** CLI flag > env var > config file > default. A CLI flag always wins; `--ignore` unions with the file's suppressions rather than replacing them. Secrets (tokens) and invocation-specific paths (`--gemfile`, `--gems`, `--baseline`, output paths) are intentionally **not** read from the file, so a committed config never carries a credential.
-- **Expiry.** An `expires:` date makes accepted risk visible: once it passes, the entry stops applying and the finding fails the gate again (Trivy-style), so a suppression can't rot silently. `reason:` is optional but recommended. A suppression naming a gem that isn't in your dependency graph (a typo, or a gem you've since removed) is also surfaced as a warning, so dead entries don't accumulate.
-- **bundler-audit, suggested not absorbed.** still_active never silently inherits another tool's ignore list: auto-importing `.bundler-audit.yml` would suppress vulnerabilities you only accepted in bundler-audit's context, with no reason or expiry here. Instead, when `--fail-if-vulnerable` is on and an un-imported `.bundler-audit.yml` is present, it prints a one-line hint suggesting the `import:` line, leaving the opt-in to you.
-- **Output.** Suppression changes the **exit code** and marks the finding in **SARIF** as a native `suppressions[]` entry (with your `reason` as the justification, so GitHub Code Scanning renders it dismissed rather than open). The finding still appears in JSON/terminal/markdown output; suppression accepts a risk, it doesn't hide that the risk exists.
+## Data sources
 
-### Activity thresholds
-
-Activity is driven by release recency (the latest stable or pre-release date), since a release is what you can actually `bundle update` to. A recent commit does not offset a stale release: the last commit date is shown as context and only stands in when a gem has no releases at all (e.g. git-sourced). Thresholds are calibrated against real RubyGems cadence, where healthy mature gems often go a year or more between releases:
-
-- **ok**: last release within 18 months (configurable with `--safe-range-end`)
-- **stale**: last release between 18 months and 3 years ago
-- **critical**: last release over 3 years ago (configurable with `--warning-range-end`)
-
-### Alternative gem leads (opt-in)
-
-When a gem is flagged archived or critical, `--alternatives` surfaces up to three maintained gems from the same [Ruby Toolbox](https://www.ruby-toolbox.com) category, ranked by total downloads:
-
-```bash
-still_active --gems=paperclip --alternatives
-```
-
-```text
-↳ leads (Ruby Toolbox): shrine · carrierwave · kt-paperclip (verify fit)
-```
-
-These are **leads, not recommendations**: same-category does not mean drop-in replacement, so verify fit before switching. Ruby has no authoritative "use instead" metadata (unlike npm `deprecate`, Go's `// Deprecated:`, or NuGet's alternate-package field), so this is a best-effort heuristic. It is silent when the catalog has no entry for the gem, and the feature never blocks or fails a run. Leads appear in terminal, markdown, JSON, and SARIF output. When the flag is off, terminal output shows a one-line hint on flagged gems that the option exists (other formats stay silent).
-
-### Transitive dependencies
-
-Maintenance signals (stale releases, archived repos, last-commit age, advisories, libyear) cover the **full transitive lockfile graph by default** — an unmaintained gem you ship transitively is real risk even though you never named it, and the CVE tools still_active composes with already enumerate the whole resolved graph. This matches libyear-bundler (transitive by default, `--only-explicit` opts out) and every CVE scanner (bundler-audit, npm/cargo/pip-audit are all full-tree).
-
-When a transitive gem trips a signal, the output names the **direct dependency that pulls it in**: `dependency_path` in JSON, a dimmed `↳ transitive, pulled in by X` line in the terminal, a `(transitive, pulled in by X)` suffix in SARIF messages, and a **Transitive findings** list in markdown. That turns an un-actionable transitive finding into an actionable one: you can't bump a gem you didn't choose, but you can replace or pressure the direct gem that drags it in.
-
-`--alternatives` stays **direct-only** by design — "replace gem X with Y" is incoherent for a gem you never selected. Pass `--direct-only` to audit just your declared dependencies (the pre-1.7 behaviour), which is also much cheaper in API calls.
-
-> **Run on a schedule, not on every commit.** Auditing the full graph means a repo/release/advisory lookup for *every* resolved gem (hundreds, for a real app), and the GitHub signals are rate-limited (60 req/hour unauthenticated, 5000 with a token). Maintenance status changes over days and weeks, not per-commit, so a nightly or weekly job (or `--direct-only` in PR gates) gets you the signal without burning your API budget for nothing. This is why advisory tools like Brakeman ship their check database; still_active's signals are inherently live (a release date or an archived flag can't be vendored), so the answer is cadence, not bundling.
-
-### Unreleased commits (opt-in)
-
-`--unreleased-commits` adds an `unreleased_commits` count to the JSON output: commits on the default branch since the latest release's tag. It catches the case the release-recency signal can't, a gem with a *recent* release but a pile of merged-but-unreleased fixes sitting on top, or conversely one that looks stale but is genuinely *done* (no unreleased work). It is the one maintenance signal no Ruby tool surfaces today; only GitHub's own UI shows it.
-
-It is **opt-in and GitHub-only**: enabling it adds one extra API call per GitHub-hosted gem (the git tag is resolved from the RubyGems version by trying `v1.2.3` then `1.2.3` as the compare base), so mind your rate limit on a large lockfile. Non-GitHub sources report `null` (GitLab has no equivalent scalar; the signal is duck-typed, so a provider either implements it or doesn't). The count is **informational and never gates a run**. Read it as a lead, not a verdict: it is inflated for monorepos (the count spans the whole repository, e.g. `bundler` living in `rubygems/rubygems`) and for release-branch projects (the default branch is the next-version trunk, so `rails` reads ~2000 commits ahead of its latest stable tag).
-
-### Data sources
-
-- **Versions, release dates, and licenses** from [RubyGems.org](https://rubygems.org), [GitHub Packages](https://docs.github.com/en/packages), or [JFrog Artifactory](https://jfrog.com/artifactory/) gem registries
-- **Last commit date and archived status** from the [GitHub](https://docs.github.com/en/rest), [GitLab](https://docs.gitlab.com/ee/api/), or [Forgejo/Gitea](https://forgejo.org/docs/latest/user/api-usage/) (Codeberg) API — or, for GitHub repos when no token is configured, from [ecosyste.ms](https://ecosyste.ms) ([repos API](https://repos.ecosyste.ms)). ecosyste.ms data is licensed [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
-- **OpenSSF Scorecard**, **vulnerability counts**, and **CVSS severity** from Google's [deps.dev](https://deps.dev) API (also the cross-ecosystem source on the `--sbom` path)
-- **Advisory severity labels and fixed-version ranges** from [OSV](https://osv.dev) (`api.osv.dev`), which drive the "below the fix" signal. An advisory that publishes only a CVSS **4.0** vector stays unscored unless you install the optional [`cvss-suite`](https://rubygems.org/gems/cvss-suite) gem (`gem install cvss-suite`), which computes its 4.0 base score; without it the gate still fires on the OSV/GHSA severity label, it just skips the number.
-- **Additional advisories** from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db), merged in when `bundler-audit` is installed alongside (run `bundle audit update` to keep its checkout current)
-- **Ruby version freshness** from [endoflife.date](https://endoflife.date)
-- **Alternative gem leads** (with `--alternatives`) from the [rubytoolbox/catalog](https://github.com/rubytoolbox/catalog) category data
-
-### Configuration defaults
-
-| Option                  | Default     | Description                                                      |
-| ----------------------- | ----------- | ---------------------------------------------------------------- |
-| `output_format`         | auto-detect | Coloured terminal on TTY, JSON when piped                        |
-| `safe_range_end`        | 1.5 years   | Last release within this range is "ok"                           |
-| `warning_range_end`     | 3 years     | Last release within this range is "stale"; beyond is "critical"  |
-| `simultaneous_requests` | 10          | Concurrent API requests                                          |
+Release dates and licenses from [RubyGems](https://rubygems.org) / [GitHub Packages](https://docs.github.com/en/packages) / [Artifactory](https://jfrog.com/artifactory/); repo activity from the [GitHub](https://docs.github.com/en/rest) / [GitLab](https://docs.gitlab.com/ee/api/) / [Codeberg](https://forgejo.org/docs/latest/user/api-usage/) API, or [ecosyste.ms](https://ecosyste.ms) tokenless ([CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)); OpenSSF Scorecard and CVSS from [deps.dev](https://deps.dev); advisory severities and fixed-version ranges from [OSV](https://osv.dev) (CVSS-4 scoring needs the optional [`cvss-suite`](https://rubygems.org/gems/cvss-suite)); extra advisories from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db); runtime EOL from [endoflife.date](https://endoflife.date).
 
 ## Development
 
-After checking out the repo, run `bin/setup` to install dependencies and wire git hooks. Then run `rake` to run the full lint + test suite (`rake spec` for just tests, `rake rubocop` for just lint). You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-A pre-push hook runs `rake` automatically before each `git push`, so cross-file rubocop rules don't escape to CI. Skip with `git push --no-verify` if you really need to.
-
-To install this gem onto your local machine, run `bundle exec rake install`. New versions are published automatically to [rubygems.org](https://rubygems.org) when a GitHub Release is created (via trusted publishing).
-
-## Contributing
-
-Bug reports and pull requests are welcome.
+`bin/setup` installs dependencies and wires git hooks; `rake` runs the full lint + test suite. A pre-push hook runs `rake` automatically. Releases publish to [rubygems.org](https://rubygems.org) automatically on a GitHub Release (trusted publishing). See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+Open source under the [MIT License](https://opensource.org/licenses/MIT).

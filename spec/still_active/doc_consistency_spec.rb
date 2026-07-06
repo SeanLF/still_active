@@ -54,7 +54,7 @@ RSpec.describe("documentation consistency") do # rubocop:disable RSpec/DescribeC
     end
   end
 
-  describe("CLI --help <-> README help snapshot") do
+  describe("CLI --help <-> docs/cli.md help snapshot") do
     # The real long flags still_active emits, straight from the option parser
     # (its --help text), not a hand-maintained list.
     let(:actual_flags) do
@@ -62,27 +62,28 @@ RSpec.describe("documentation consistency") do # rubocop:disable RSpec/DescribeC
       help.scan(/--[a-z][a-z0-9-]*/).uniq
     end
 
-    # The fenced ```text block under "### CLI options" that pastes the --help output.
-    let(:readme_help_block) do
-      readme = File.read(File.join(root, "README.md"))
-      block = readme[/### CLI options\s*\n+```text\n(.*?)\n```/m, 1]
-      raise "could not find the ```text CLI options block in README.md" if block.nil?
+    # The fenced ```text block in docs/cli.md that pastes the --help output.
+    # (The README links out to it rather than inlining the full reference.)
+    let(:cli_help_block) do
+      cli_md = File.read(File.join(root, "docs", "cli.md"))
+      block = cli_md[/```text\n(.*?)\n```/m, 1]
+      raise "could not find the ```text CLI options block in docs/cli.md" if block.nil?
 
       block
     end
 
     # No intentionally-hidden flags exist today: every opts.on in options.rb is
     # meant to be listed (the emoji flags have no description text but still print
-    # and are documented in the README). If a truly internal flag is ever added,
+    # and are documented in docs/cli.md). If a truly internal flag is ever added,
     # exclude it here with a note on why it's not user-facing.
     let(:hidden_flags) { [] }
 
-    it("documents every long flag the CLI emits in the README help block") do
+    it("documents every long flag the CLI emits in the docs/cli.md help block") do
       expected = actual_flags - hidden_flags
-      missing = expected.reject { |flag| readme_help_block.include?(flag) }
+      missing = expected.reject { |flag| cli_help_block.include?(flag) }
       expect(missing).to(
         be_empty,
-        "flags defined in lib/still_active/options.rb but missing from the README `### CLI options` block: #{missing.join(", ")}",
+        "flags defined in lib/still_active/options.rb but missing from the docs/cli.md help block: #{missing.join(", ")}",
       )
     end
   end
