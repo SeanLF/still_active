@@ -2,8 +2,6 @@
 
 **How do you know the dependencies you ship are still maintained?**
 
-[![Gem Version](https://badge.fury.io/rb/still_active.svg)](https://rubygems.org/gems/still_active)
-
 [Install](#installation) · [Quick start](#quick-start) · [GitHub Action & CI](#github-action--ci) · [Cross-ecosystem](#cross-ecosystem-audit) · [Configuration](#configuration) · [Rules](docs/rules.md)
 
 Your package manager tells you what's outdated and what has a known CVE. Neither tells you whether anyone's still working on the thing. An abandoned dependency is a quiet liability: when it finally breaks or a vulnerability lands, there's no release coming and no one to ping, and you find out at the worst time.
@@ -14,11 +12,9 @@ Your package manager tells you what's outdated and what has a known CVE. Neither
 Name            Version          Activity  OpenSSF  Vulns  License
 ────────────────────────────────────────────────────────────────────
 backbone-rails  1.2.3 (latest)   archived  2.6/10   0      -
-  ↳ run with --alternatives for maintained replacements
 nokogiri        1.19.4 (latest)  ok        5.9/10   0      MIT
 paperclip       6.1.0 (latest)   archived  2/10     0      MIT
   ↳ poison: caps terrapin ~> 0.6.0 (1 major behind, latest 1.x)
-  ↳ run with --alternatives for maintained replacements
 rake            13.4.2 (latest)  ok        5.5/10   0      MIT
 
 4 gems: 4 up to date · 2 active, 2 archived · 0 vulnerabilities · 1 poison-pill
@@ -96,7 +92,10 @@ jobs:
         with: { sarif_file: still_active.sarif.json }
 ```
 
-Gate the build on what you care about (all off by default, so nothing breaks until you opt in):
+Gate the build on what you care about (all off by default, so nothing breaks until you opt in), and use `--baseline` for PR review.
+
+<details>
+<summary>CI gate flags and PR-review diff</summary>
 
 ```bash
 still_active --fail-if-critical              # upstream critically stale or archived
@@ -104,19 +103,20 @@ still_active --fail-if-vulnerable            # any known vulnerability (or =low|
 still_active --fail-if-outdated=3            # more than 3 libyears behind latest
 still_active --fail-if-poison                # a dormant package caps a dep below its latest major
 still_active --fail-if-language-ceiling      # a pin strands you on an EOL language runtime
-```
 
-For PR review, `--baseline` reports only what got *worse* since a saved snapshot and exits 1 on any regression:
-
-```bash
+# PR review: report only what got worse since a saved snapshot, exit 1 on any regression
 still_active --json > /tmp/main.json && still_active --baseline=/tmp/main.json
 ```
+</details>
 
 Rule reference (SA001-SA009), suppression, and composing with `dependency-review-action`: [`docs/rules.md`](docs/rules.md), [`docs/ci.md`](docs/ci.md). This repo audits itself every push, so you can browse live findings in its [Code Scanning tab](https://github.com/SeanLF/still_active/security/code-scanning?query=tool%3Astill_active+is%3Aopen).
 
 ## Cross-ecosystem audit
 
-Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft), Trivy, or any producer) and `still_active` assesses `npm`, `pypi`, `cargo`, `go`, `maven`, and `nuget` packages the same way it does gems, via [deps.dev](https://deps.dev) and [ecosyste.ms](https://ecosyste.ms). Most signals apply everywhere; a few are deliberately scoped (detail in [`docs/rules.md`](docs/rules.md)):
+Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft), Trivy, or any producer) and `still_active` assesses `npm`, `pypi`, `cargo`, `go`, `maven`, and `nuget` packages the same way it does gems, via [deps.dev](https://deps.dev) and [ecosyste.ms](https://ecosyste.ms). The SBOM is treated as **untrusted input** (only ecosystem/name/version are read, repositories resolve from deps.dev, and anything unassessable is surfaced rather than faked as `ok`). Most signals apply everywhere; a few are deliberately scoped.
+
+<details>
+<summary>Which signal covers which ecosystem</summary>
 
 | Signal (rule) | Ruby (native) | `--sbom` (cross-ecosystem) |
 | ------------- | ------------- | -------------------------- |
@@ -127,7 +127,10 @@ Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft)
 | Language-runtime ceiling (SA009) | Ruby | Python |
 | Ruby EOL (SA006), yanked (SA007) | Yes | n/a |
 
-The SBOM is treated as **untrusted input**: only ecosystem/name/version are read, repositories are resolved from deps.dev (never a URL the SBOM supplies), and anything it can't assess is surfaced in an `unassessable` list rather than dropped or faked as `ok`. The play is **maintenance**, not CVE scanning, so compose Trivy/Grype for full vulnerability coverage.
+Full rule detail in [`docs/rules.md`](docs/rules.md).
+</details>
+
+The play is **maintenance**, not CVE scanning, so compose Trivy/Grype for full vulnerability coverage.
 
 ## Output formats
 
@@ -169,7 +172,10 @@ Fields are documented in [`docs/schema.md`](docs/schema.md).
 
 ## Configuration
 
-A committed `.still_active.yml` keeps policy in version control and replaces the blunt `--ignore=GEM` (which mutes *every* gate for a gem) with granular, expiring suppression:
+A committed `.still_active.yml` keeps policy in version control and replaces the blunt `--ignore=GEM` (which mutes *every* gate for a gem) with granular, expiring suppression. A vulnerability suppression must name an advisory id (so a new CVE is never pre-silenced), an `expires:` date makes accepted risk re-surface instead of rotting, and a suppressed finding still shows in output (and as a dismissed SARIF entry).
+
+<details>
+<summary><code>.still_active.yml</code> example</summary>
 
 ```yaml
 fail_if_vulnerable: high        # true, or a minimum severity: low|medium|high|critical
@@ -182,8 +188,9 @@ ignore:
     reason: "no fix released; not reachable from our code path"
     expires: 2026-09-01         # re-surfaces as a normal failure after this date
 ```
+</details>
 
-A vulnerability suppression must name an advisory id (so a new CVE is never pre-silenced), an `expires:` date makes accepted risk re-surface instead of rotting, and a suppressed finding still shows in output (and as a dismissed SARIF entry). Full semantics, thresholds, and transitive behaviour: [`docs/configuration.md`](docs/configuration.md).
+Full semantics, thresholds, and transitive behaviour: [`docs/configuration.md`](docs/configuration.md).
 
 ## Data sources
 
