@@ -63,6 +63,39 @@ RSpec.describe(StillActive::VersionHelper) do
     end
   end
 
+  describe("#upcoming_pre_release") do
+    it("returns nil when there is no pre-release") do
+      expect(described_class.upcoming_pre_release(pre_release: nil, release: { "number" => "1.0.0" })).to(be_nil)
+    end
+
+    it("keeps a pre-release newer than the latest stable (an upcoming version)") do
+      pre = { "number" => "2.0.0.rc1", "prerelease" => true }
+      expect(described_class.upcoming_pre_release(pre_release: pre, release: { "number" => "1.5.0" })).to(eq(pre))
+    end
+
+    it("drops a pre-release older than the latest stable (historical noise)") do
+      # e.g. an 8.1.0.rc1 lingering after 8.1.2 shipped, or a lone 2009 rc on a
+      # gem now at 0.9.x. Showing it is noise, and it marks a behind gem as ahead.
+      pre = { "number" => "0.3.4.rc2", "prerelease" => true }
+      expect(described_class.upcoming_pre_release(pre_release: pre, release: { "number" => "0.9.11" })).to(be_nil)
+    end
+
+    it("drops a pre-release of an already-shipped stable (rc1 sorts below its release)") do
+      pre = { "number" => "1.0.0.rc1", "prerelease" => true }
+      expect(described_class.upcoming_pre_release(pre_release: pre, release: { "number" => "1.0.0" })).to(be_nil)
+    end
+
+    it("keeps the pre-release when there is no stable release at all") do
+      pre = { "number" => "1.0.0.rc1", "prerelease" => true }
+      expect(described_class.upcoming_pre_release(pre_release: pre, release: nil)).to(eq(pre))
+    end
+
+    it("drops the pre-release when its version cannot be compared") do
+      pre = { "number" => "not-a-version", "prerelease" => true }
+      expect(described_class.upcoming_pre_release(pre_release: pre, release: { "number" => "1.0.0" })).to(be_nil)
+    end
+  end
+
   describe("#up_to_date") do
     it("returns nil when both latest versions are nil") do
       expect(described_class.up_to_date(version_used: nil, latest_version: nil)).to(be_nil)

@@ -39,7 +39,8 @@ RSpec.describe(StillActive::Workflow) do
           expect(result).to(include(**{
             "rails" => hash_including(
               latest_version: "8.1.2",
-              latest_pre_release_version: "8.1.0.rc1",
+              # 8.1.0.rc1 predates the shipped 8.1.2, so it is dropped as noise.
+              latest_pre_release_version: nil,
               repository_url: "https://github.com/rails/rails",
               ruby_gems_url: "https://rubygems.org/gems/rails",
               scorecard_score: a_value > 0,
@@ -47,7 +48,8 @@ RSpec.describe(StillActive::Workflow) do
             ),
             "nokogiri" => hash_including(
               latest_version: "1.19.1",
-              latest_pre_release_version: "1.18.0.rc1",
+              # 1.18.0.rc1 predates the shipped 1.19.1, so it is dropped as noise.
+              latest_pre_release_version: nil,
               repository_url: "https://github.com/sparklemotion/nokogiri",
               ruby_gems_url: "https://rubygems.org/gems/nokogiri",
               scorecard_score: a_value > 0,
@@ -714,7 +716,8 @@ RSpec.describe(StillActive::Workflow) do
             "rails" => hash_including(
               version_used: "6.1.3.2",
               latest_version: "8.1.2",
-              latest_pre_release_version: "8.1.0.rc1",
+              # 8.1.0.rc1 predates the shipped 8.1.2, so it is dropped as noise.
+              latest_pre_release_version: nil,
               repository_url: "https://github.com/rails/rails",
               ruby_gems_url: "https://rubygems.org/gems/rails",
               up_to_date: false,
@@ -725,7 +728,8 @@ RSpec.describe(StillActive::Workflow) do
             "nokogiri" => hash_including(
               version_used: "1.12.5",
               latest_version: "1.19.1",
-              latest_pre_release_version: "1.18.0.rc1",
+              # 1.18.0.rc1 predates the shipped 1.19.1, so it is dropped as noise.
+              latest_pre_release_version: nil,
               repository_url: "https://github.com/sparklemotion/nokogiri",
               ruby_gems_url: "https://rubygems.org/gems/nokogiri",
               up_to_date: false,
