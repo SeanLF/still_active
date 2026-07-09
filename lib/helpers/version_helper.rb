@@ -22,6 +22,24 @@ module StillActive
       end
     end
 
+    # The latest pre-release is only a useful signal when it is newer than the
+    # latest stable release: an upcoming version you could opt into. A pre-release
+    # that predates the latest stable is historical noise (e.g. a lone 2009 `rc`
+    # on a gem now at 0.9.x, or an `8.1.0.rc1` after `8.1.2` already shipped), and
+    # it silently corrupts downstream logic: up_to_date compares `used >=`
+    # latest_pre_release, so any current version reads `>=` a stale pre-release and
+    # a behind gem is painted up to date (the futurist emoji). Returns the
+    # pre-release only when strictly newer than the release; keeps it when there is
+    # no stable release at all (a pre-release-only gem), where it is the only signal.
+    def upcoming_pre_release(pre_release:, release:)
+      return pre_release if release.nil?
+      return if pre_release.nil?
+
+      pre = to_gem_version(pre_release)
+      stable = to_gem_version(release)
+      pre_release if pre && stable && pre > stable
+    end
+
     def up_to_date(version_used:, latest_version: nil, latest_pre_release_version: nil)
       return if latest_version.nil? && latest_pre_release_version.nil?
 

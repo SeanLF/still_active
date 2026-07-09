@@ -153,7 +153,10 @@ module StillActive
       commit_date = signals[:last_commit_date]
       archived = signals[:archived]
       last_release = VersionHelper.find_version(versions: vs, pre_release: false)
-      last_pre_release = VersionHelper.find_version(versions: vs, pre_release: true)
+      last_pre_release = VersionHelper.upcoming_pre_release(
+        pre_release: VersionHelper.find_version(versions: vs, pre_release: true),
+        release: last_release,
+      )
       deps_dev = fetch_deps_dev_info(
         gem_name: gem_name,
         version: gem_version || VersionHelper.gem_version(version_hash: last_release),
