@@ -60,6 +60,28 @@ module StillActive
       to_gem_version(version_string)
     end
 
+    # Renders a MAJOR.MINOR.PATCH[.prerelease] RubyGems version as SemVer 2.0.0,
+    # for fields that require it (SARIF's tool.driver.semanticVersion). A gem
+    # prerelease joins its prerelease identifiers to the release with a ".", SemVer
+    # with a "-": "3.0.0.rc4" -> "3.0.0-rc4", "1.2.3.pre.5" -> "1.2.3-pre.5". A
+    # plain release ("3.0.0") is already SemVer and passes through, and a short
+    # numeric release is padded to MAJOR.MINOR.PATCH. A string that doesn't start
+    # with a numeric segment is returned unchanged rather than coerced into a bogus
+    # version. Scoped to the tool's own version scheme: a 4+-segment numeric
+    # release (e.g. a gem like "6.1.7.6") is NOT converted to valid SemVer.
+    def to_semver(version_string)
+      return version_string if version_string.nil? || version_string.empty?
+
+      parts = version_string.split(".")
+      release = parts.take_while { |part| part.match?(/\A\d+\z/) }
+      return version_string if release.empty?
+
+      prerelease = parts.drop(release.length)
+      release << "0" while release.length < 3
+      base = release.join(".")
+      prerelease.empty? ? base : "#{base}-#{prerelease.join(".")}"
+    end
+
     def gem_version(version_hash:)
       version_hash&.dig("number")
     end
