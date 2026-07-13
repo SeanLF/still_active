@@ -62,7 +62,7 @@ module StillActive
     end
 
     def add_sbom_option(opts)
-      opts.on("--sbom=PATH", String, "audit a CycloneDX SBOM cross-ecosystem (npm/pypi/cargo/go/maven/nuget) instead of a Gemfile; JSON output") do |value|
+      opts.on("--sbom=PATH", String, "audit a CycloneDX SBOM cross-ecosystem (npm/pypi/cargo/go/maven/nuget) instead of a Gemfile; honours --sarif/--markdown/--terminal/--json") do |value|
         options[:provided_sbom] = true
         StillActive.config { |config| config.sbom_path = value }
       end

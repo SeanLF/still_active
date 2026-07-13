@@ -1246,5 +1246,175 @@ RSpec.describe(StillActive::CLI) do
       expect { cli.run(["--sbom=a_directory"]) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) })
     end
+
+    # The assessment is the same per-dependency shape whether the input was a
+    # Gemfile or an SBOM, so the SBOM path must honour the same output-format
+    # flags rather than force JSON. SARIF (Code Scanning) and markdown (CI
+    # summaries) are the ones that matter cross-ecosystem.
+    describe("output formats") do
+      # A cross-ecosystem SBOM (npm + Go), one dep flagged (archived npm) so the
+      # SARIF/markdown/terminal renderers have a finding to show. The network
+      # fan-out stays stubbed; only formatting is under test here.
+      # deps.dev hands the lens ISO8601 date STRINGS (not Time objects, which is
+      # what the native Bundler path stores), so the fixtures mirror that: a
+      # renderer that assumes Time#strftime crashes an SBOM audit. Dates stay
+      # dynamic (recent_date.iso8601) so activity level doesn't age into staleness.
+      def npm_flagged
+        {
+          ecosystem: :npm,
+          name: "left-pad",
+          version_used: "1.0.0",
+          version_used_release_date: "2016-03-01T00:00:00Z",
+          latest_version: "1.3.0",
+          latest_version_release_date: recent_date.iso8601,
+          last_commit_date: recent_date.iso8601,
+          archived: true,
+          repository_url: "https://github.com/stevemao/left-pad",
+          scorecard_score: 3.0,
+          vulnerability_count: 0,
+          vulnerabilities: [],
+        }
+      end
+
+      def go_ok
+        {
+          ecosystem: :go,
+          name: "github.com/gin-gonic/gin",
+          version_used: "1.9.1",
+          version_used_release_date: recent_date.iso8601,
+          latest_version: "1.9.1",
+          latest_version_release_date: recent_date.iso8601,
+          last_commit_date: recent_date.iso8601,
+          archived: false,
+          vulnerability_count: 0,
+          vulnerabilities: [],
+        }
+      end
+
+      before do
+        File.write("sbom.json", {
+          components: [
+            { type: "library", name: "left-pad", purl: "pkg:npm/left-pad@1.0.0" },
+            { type: "library", name: "gin", purl: "pkg:golang/github.com/gin-gonic/gin@1.9.1" },
+          ],
+        }.to_json)
+        allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
+          outcome({ "npm/left-pad@1.0.0" => npm_flagged, "go/github.com/gin-gonic/gin@1.9.1" => go_ok }),
+        ))
+      end
+
+      it("writes valid SARIF 2.1.0 to the --sarif path (no lockfile required in SBOM mode)") do
+        cli.run(["--sbom=sbom.json", "--sarif=out.sarif.json"])
+        doc = JSON.parse(File.read("out.sarif.json"))
+        expect(doc).to(include("version" => "2.1.0"))
+        expect(doc["$schema"]).to(include("sarif-schema-2.1.0"))
+        results = doc.dig("runs", 0, "results")
+        # The archived npm dep surfaces as an SA001 finding, named by ecosystem/name.
+        expect(results).to(include(include("ruleId" => "SA001", "message" => include("text" => %r{npm/left-pad}))))
+        # Findings point at the SBOM file itself, since there's no lockfile to annotate.
+        expect(results.first.dig("locations", 0, "physicalLocation", "artifactLocation", "uri")).to(eq("sbom.json"))
+      end
+
+      it("writes SARIF to stdout with --sarif=- (not the SBOM JSON report)") do
+        captured = nil
+        allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+        cli.run(["--sbom=sbom.json", "--sarif=-"])
+        doc = JSON.parse(captured)
+        expect(doc).to(include("version" => "2.1.0"))
+        expect(doc).not_to(have_key("dependencies")) # not the SBOM JSON shape
+      end
+
+      it("renders a markdown table (not JSON) with --markdown") do
+        captured = []
+        allow($stdout).to(receive(:puts)) { |arg| captured << arg }
+        cli.run(["--sbom=sbom.json", "--markdown"])
+        out = captured.join("\n")
+        expect(out).to(include("| activity |")) # the markdown table header
+        expect(out).to(include("npm/left-pad"))
+        expect { JSON.parse(out) }.to(raise_error(JSON::ParserError)) # definitely not JSON
+      end
+
+      it("renders the terminal table (not JSON) with --terminal") do
+        captured = []
+        allow($stdout).to(receive(:puts)) { |arg| captured << arg }
+        cli.run(["--sbom=sbom.json", "--terminal"])
+        out = captured.join("\n")
+        expect(out).to(include("Name")) # terminal header
+        expect(out).to(include("archived")) # the flagged npm dep's activity
+        expect { JSON.parse(out) }.to(raise_error(JSON::ParserError))
+      end
+
+      it("still emits the SBOM JSON report with an explicit --json") do
+        captured = nil
+        allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+        cli.run(["--sbom=sbom.json", "--json"])
+        payload = JSON.parse(captured)
+        expect(payload.dig("dependencies", "npm/left-pad@1.0.0")).to(be_a(Hash))
+      end
+
+      it("keeps the fail-if gate working alongside a format flag (regression guard)") do
+        allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
+          outcome({ "npm/left-pad@1.0.0" => npm_flagged.merge(vulnerability_count: 1, vulnerabilities: [{ id: "CVE-2026-0002", severity: "high" }]) }),
+        ))
+        allow($stdout).to(receive(:puts))
+        expect { cli.run(["--sbom=sbom.json", "--markdown", "--fail-if-vulnerable"]) }
+          .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+      end
+
+      it("errors loudly (exit 2) rather than emitting garbage purls when --cyclonedx is combined with --sbom") do
+        expect { cli.run(["--sbom=sbom.json", "--cyclonedx=out.cdx.json"]) }
+          .to(output(/cyclonedx.*not supported.*sbom/im).to_stderr
+            .and(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) }))
+      end
+
+      it("errors loudly (exit 2) rather than a silent JSON fallback when --baseline is combined with --sbom") do
+        File.write("baseline.json", "{}")
+        expect { cli.run(["--sbom=sbom.json", "--baseline=baseline.json"]) }
+          .to(output(/baseline.*not supported.*sbom/im).to_stderr
+            .and(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) }))
+      end
+
+      # A cross-ecosystem dep's suppression identity is "ecosystem/name" (the
+      # codebase convention the poison/ceiling correlators already use), NOT the
+      # composite "ecosystem/name@version" hash key. A user writes the bare
+      # identity in .still_active.yml / --ignore, so the SARIF suppressions[] and
+      # the fail-if gate must both match on it or the suppression silently no-ops.
+      it("marks an SBOM SARIF finding as suppressed when .still_active.yml names ecosystem/name") do
+        File.write(".still_active.yml", "ignore:\n  - gem: npm/left-pad\n    signal: activity\n    reason: known dead, vendored\n")
+        captured = nil
+        allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+        cli.run(["--sbom=sbom.json", "--sarif=-"])
+        sa001 = JSON.parse(captured).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA001" }
+        expect(sa001).not_to(be_nil)
+        expect(sa001["suppressions"]).to(include(include("justification" => "known dead, vendored")))
+      end
+
+      it("honours --ignore=ecosystem/name for the SBOM fail-if gate") do
+        allow($stdout).to(receive(:puts))
+        allow($stderr).to(receive(:puts))
+        # The archived npm dep trips --fail-if-warning; ignoring it by its
+        # ecosystem/name identity must clear the gate (no exit 1).
+        expect { cli.run(["--sbom=sbom.json", "--json", "--fail-if-warning", "--ignore=npm/left-pad"]) }
+          .not_to(raise_error)
+      end
+
+      it("keeps two pinned versions of one package as distinct SARIF alerts (no fingerprint collision)") do
+        # A merged monorepo SBOM can pin the same package at two versions. The
+        # suppression identity is version-independent, but the SARIF fingerprint must
+        # stay version-distinct or GitHub Code Scanning collapses the two archived
+        # findings into one alert and silently drops a pinned copy's coverage.
+        allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({
+          "npm/left-pad@1.0.0" => npm_flagged,
+          "npm/left-pad@1.3.0" => npm_flagged.merge(version_used: "1.3.0"),
+        })))
+        captured = nil
+        allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+        cli.run(["--sbom=sbom.json", "--sarif=-"])
+        sa001 = JSON.parse(captured).dig("runs", 0, "results").select { |r| r["ruleId"] == "SA001" }
+        expect(sa001.size).to(eq(2))
+        fingerprints = sa001.map { |r| r.dig("partialFingerprints", "stillActiveFinding/v1") }
+        expect(fingerprints.uniq.size).to(eq(2))
+      end
+    end
   end
 end

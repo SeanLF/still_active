@@ -3,6 +3,7 @@
 require_relative "activity_helper"
 require_relative "ansi_helper"
 require_relative "constraint_helper"
+require_relative "dependency_helper"
 require_relative "summary_helper"
 require_relative "libyear_helper"
 require_relative "version_helper"
@@ -36,7 +37,7 @@ module StillActive
 
     def build_row(name, data)
       [
-        name,
+        DependencyHelper.identity(name, data),
         format_version(data),
         format_activity(data),
         format_scorecard(data[:scorecard_score]),

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "markdown_escape"
+require_relative "dependency_helper"
 require_relative "vulnerability_helper"
 require_relative "activity_helper"
 require_relative "constraint_helper"
@@ -40,7 +41,7 @@ module StillActive
       inactive_repository_emoji = data[:last_activity_warning_emoji]
       using_latest_version_emoji = data[:up_to_date_emoji]
 
-      formatted_name = markdown_url(text: gem_name, url: repository_url)
+      formatted_name = markdown_url(text: DependencyHelper.identity(gem_name, data), url: repository_url)
 
       formatted_version_used = if [:git, :path].include?(data[:source_type])
         data[:version_used] ? "#{data[:version_used]} (#{data[:source_type]})" : "(#{data[:source_type]})"
@@ -179,7 +180,7 @@ module StillActive
       ranked = flagged.sort_by { |name, data| [-ConstraintHelper::SEVERITY.index(data[:language_ceiling][:severity] || :note), name.to_s] }
       ranked.each do |name, data|
         ceiling = data[:language_ceiling]
-        lines << "- **#{ceiling[:severity] || :note}** #{MarkdownEscape.code_span(name)} #{language_ceiling_receipt(ceiling, data)}"
+        lines << "- **#{ceiling[:severity] || :note}** #{MarkdownEscape.code_span(DependencyHelper.identity(name, data))} #{language_ceiling_receipt(ceiling, data)}"
       end
       lines.join("\n")
     end
@@ -202,7 +203,7 @@ module StillActive
     end
 
     def poison_gem_ref(name, data)
-      ref = MarkdownEscape.code_span(name)
+      ref = MarkdownEscape.code_span(DependencyHelper.identity(name, data))
       path = data[:dependency_path]
       # Transitive pill: name the direct parent the user can actually act on (#60).
       return ref unless data[:direct] == false && Array(path).length >= 2
@@ -290,10 +291,14 @@ module StillActive
       "[#{safe_text}](#{MarkdownEscape.url(url)})"
     end
 
-    def year_month(time_object)
-      return if time_object.nil?
+    # The native Ruby path stores dates as Time; the cross-ecosystem lens carries
+    # deps.dev's raw ISO8601 strings. Parse either (nil-safe) rather than assuming
+    # Time, so an SBOM audit renders dates instead of crashing on String#strftime.
+    def year_month(value)
+      time = ActivityHelper.parse_time(value)
+      return if time.nil?
 
-      time_object.strftime("%Y/%m")
+      time.strftime("%Y/%m")
     end
   end
 end
