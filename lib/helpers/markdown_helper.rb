@@ -67,7 +67,11 @@ module StillActive
         date: data[:latest_pre_release_version_release_date],
       )
 
-      formatted_last_commit = markdown_url(text: year_month(data[:last_commit_date]), url: repository_url)
+      # Only link when there is a date: markdown_url with a nil date + a present
+      # repo returns "[](url)" (an invisible link, and truthy, so the `|| unsure`
+      # fallback below never fires). Guard here so a missing date shows unsure.
+      last_commit_ym = year_month(data[:last_commit_date])
+      formatted_last_commit = markdown_url(text: last_commit_ym, url: repository_url) if last_commit_ym
 
       unsure = StillActive.config.unsure_emoji
 

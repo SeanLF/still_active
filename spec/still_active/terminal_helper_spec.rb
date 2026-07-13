@@ -451,5 +451,18 @@ RSpec.describe(StillActive::TerminalHelper) do
         expect(described_class.render(result)).not_to(include("ruby ceiling:"))
       end
     end
+
+    describe("version column when the versions can't be compared") do
+      it("does not paint a 'behind' arrow when up_to_date can't be determined") do
+        # A version Gem::Version can't parse (a pypi epoch "1!2.3") makes up_to_date
+        # nil. The terminal must not render a confident "used -> latest" upgrade
+        # arrow it can't justify -- markdown already shows unsure (an emoji) here,
+        # and a false "behind" is exactly the class of wrong answer to avoid.
+        result = { "pypi/pkg" => { ecosystem: "pypi", name: "pkg", version_used: "1!2.3", latest_version: "1!2.4", vulnerability_count: 0 } }
+        output = described_class.render(result)
+        expect(output).to(include("1!2.3"))
+        expect(output).not_to(include("→"))
+      end
+    end
   end
 end

@@ -152,6 +152,18 @@ RSpec.describe(StillActive::VersionHelper) do
     it("treats a Go v-prefixed version as behind when older than latest") do
       expect(described_class.up_to_date(version_used: "v2.0.0", latest_version: "v2.1.0")).to(be(false))
     end
+
+    # SemVer build metadata (cargo's "1.0.4+wasi-0.2.12", "0.14.7+wasi-0.2.4")
+    # MUST be ignored for precedence (SemVer 2.0.0 sec 10). Gem::Version can't
+    # parse the "+", so without stripping it, up_to_date returned nil and the
+    # terminal painted a "behind" arrow on an already-current cargo dependency.
+    it("ignores SemVer build metadata, so an identical +build version reads as up to date") do
+      expect(described_class.up_to_date(version_used: "1.0.4+wasi-0.2.12", latest_version: "1.0.4+wasi-0.2.12")).to(be(true))
+    end
+
+    it("compares versions by their core, ignoring build metadata") do
+      expect(described_class.up_to_date(version_used: "0.11.1+wasi-snapshot", latest_version: "0.14.7+wasi-0.2.4")).to(be(false))
+    end
   end
 
   describe("#gem_version") do

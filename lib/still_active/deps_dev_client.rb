@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../helpers/http_helper"
+require_relative "../helpers/version_helper"
 
 module StillActive
   module DepsDevClient
@@ -61,10 +62,34 @@ module StillActive
       versions = body["versions"]
       return unless versions.is_a?(Array) && !versions.empty?
 
-      entry = versions.find { |v| v.is_a?(Hash) && v["isDefault"] } || newest_version(versions)
+      # deps.dev's `isDefault` is NOT reliably the latest release: cargo/wasi flags
+      # 0.7.0 (2019) while 0.14.7 (2025) ships, and pypi/httpx flags a 1.0.0.dev3
+      # prerelease over the 0.28.1 stable. Trusting it reads an active package as
+      # years-stale (a false SA002 "abandoned") and paints a downgrade as an
+      # upgrade. So rank by version and take the newest STABLE release; fall back to
+      # isDefault, then newest-by-date, only when no stable version parses (a
+      # genuinely prerelease-only package still reads active, not dormant).
+      entry = latest_stable_version(versions) ||
+        versions.find { |v| v.is_a?(Hash) && v["isDefault"] } ||
+        newest_version(versions)
       return if entry.nil?
 
       { version: entry.dig("versionKey", "version"), published_at: entry["publishedAt"] }
+    end
+
+    # The newest non-prerelease version by version number (not publishedAt: a
+    # backported patch on an old line can post-date the latest major). nil when no
+    # version parses as a stable release.
+    def latest_stable_version(versions)
+      versions
+        .filter_map do |v|
+          next unless v.is_a?(Hash) && !v["isDeprecated"]
+
+          gem_version = VersionHelper.comparable(v.dig("versionKey", "version"))
+          [gem_version, v] if gem_version && !gem_version.prerelease?
+        end
+        .max_by(&:first)
+        &.last
     end
 
     # The package's most recent release date (ISO8601 string), or nil. This is
@@ -176,6 +201,14 @@ module StillActive
     # Trims a repo URL's path to just the project. On GitLab the project path
     # ends at the "/-/" separator (before tree/blob/etc) and may be nested;
     # elsewhere it's owner/repo. Drops trailing slashes and a ".git" suffix.
+    # github.com top-level paths that are not user/org repositories; deps.dev
+    # occasionally returns one as SOURCE_REPO (a github.com/sponsors/<user> funding
+    # link). Parsing it as owner/repo yields a 404 and a blank repo cell, so treat a
+    # reserved first segment as "no repo" rather than a bogus lookup.
+    GITHUB_RESERVED_PATHS = [
+      "sponsors", "orgs", "marketplace", "apps", "topics", "settings", "notifications", "about", "pricing", "features", "security", "contact",
+    ].freeze
+
     def repo_path_segments(host, segments)
       segments = segments.reject(&:empty?)
 
@@ -183,6 +216,8 @@ module StillActive
         separator = segments.index("-")
         segments = segments[0...separator] if separator
       else
+        return [] if host.to_s.casecmp?("github.com") && GITHUB_RESERVED_PATHS.include?(segments.first&.downcase)
+
         segments = segments.first(2)
       end
 
@@ -196,7 +231,7 @@ module StillActive
     # is chronological), and a dated release always wins over an undated one.
     def newest_version(versions)
       versions
-        .select { |v| v.is_a?(Hash) && v["publishedAt"] }
+        .select { |v| v.is_a?(Hash) && v["publishedAt"] && !v["isDeprecated"] }
         .max_by { |v| v["publishedAt"].to_s }
     end
 

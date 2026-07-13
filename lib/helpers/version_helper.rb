@@ -52,6 +52,14 @@ module StillActive
         .any? { |v| used >= v }
     end
 
+    # A Gem::Version for cross-ecosystem comparison (leading "v" and SemVer build
+    # metadata normalized away), or nil when the string can't be parsed. Public so
+    # the deps.dev client can rank a package's versions to find the real latest
+    # stable rather than trusting deps.dev's unreliable `isDefault` flag.
+    def comparable(version_string)
+      to_gem_version(version_string)
+    end
+
     def gem_version(version_hash:)
       version_hash&.dig("number")
     end
@@ -90,12 +98,13 @@ module StillActive
       str = normalize_version(version)
       return unless str
 
-      # Go module versions are "v"-prefixed semver (v2.0.1); the "v" is a prefix,
-      # not part of the version, and Gem::Version can't parse it. Strip a single
-      # leading "v" so a current Go dependency compares as up to date instead of
-      # reading "behind". rubygems/npm/pypi/cargo versions are digit-first, so
-      # this is a no-op there.
-      str = str.delete_prefix("v")
+      # Normalize two cross-ecosystem shapes Gem::Version can't parse, so a
+      # current dependency compares as up to date instead of reading "behind":
+      #   - a leading "v" (Go module versions, "v2.0.1")
+      #   - SemVer build metadata (cargo's "1.0.4+wasi-0.2.12"), which SemVer 2.0.0
+      #     sec 10 says MUST be ignored for precedence anyway
+      # rubygems/npm/pypi versions are digit-first with no "+", so this is a no-op.
+      str = str.delete_prefix("v").sub(/\+.*\z/, "")
       Gem::Version.new(str) if Gem::Version.correct?(str)
     end
   end

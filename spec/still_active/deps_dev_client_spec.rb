@@ -49,6 +49,20 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(result[:published_at]).to(eq("2025-09-22T04:04:12Z"))
     end
 
+    it("ignores a GitHub funding link (github.com/sponsors/X) as a repository") do
+      # deps.dev sometimes returns a SOURCE_REPO of https://github.com/sponsors/<user>
+      # (a funding link, not a repo). Parsed as owner/repo it becomes sponsors/<user>,
+      # which 404s and renders a blank repo cell. Reserved GitHub paths carry no repo.
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/pypi/packages/rpds-py/versions/1\.0\.0})
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { "advisoryKeys" => [], "links" => [{ "label" => "SOURCE_REPO", "url" => "https://github.com/sponsors/Julian" }] }.to_json,
+        )
+      result = described_class.version_info(gem_name: "rpds-py", version: "1.0.0", system: :pypi)
+      expect(result[:project_id]).to(be_nil)
+    end
+
     it("returns nil when gem_name is nil") do
       expect(described_class.version_info(gem_name: nil, version: "1.0.0")).to(be_nil)
     end
@@ -110,12 +124,64 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(stub).to(have_been_requested)
     end
 
-    it("falls back to the newest publishedAt when no version is flagged default") do
+    it("prefers the latest stable version even when deps.dev flags an older one as default") do
+      # deps.dev's isDefault is not reliably the newest release: cargo/wasi flags
+      # 0.7.0 (2019) as default while 0.14.7 (2025) ships. Trusting isDefault reads
+      # an active crate as years-stale (a false SA002) and paints a downgrade as an
+      # upgrade. The latest STABLE version by version number is the honest latest.
       stub_request(:get, /api\.deps\.dev/).to_return(
         status: 200,
         headers: { "Content-Type" => "application/json" },
         body: package_body([
-          { "versionKey" => { "version" => "0.1.0" }, "isDefault" => false, "publishedAt" => "2024-01-01T00:00:00Z" },
+          { "versionKey" => { "version" => "0.7.0" }, "isDefault" => true, "publishedAt" => "2019-08-29T15:32:47Z" },
+          { "versionKey" => { "version" => "0.14.7+wasi-0.2.4" }, "isDefault" => false, "publishedAt" => "2025-09-01T00:00:00Z" },
+        ]),
+      )
+
+      expect(described_class.default_version_info(name: "wasi", system: :cargo))
+        .to(eq({ version: "0.14.7+wasi-0.2.4", published_at: "2025-09-01T00:00:00Z" }))
+    end
+
+    it("skips a deprecated (yanked) release even when it is the newest by version") do
+      # Dropping the reliance on isDefault lost its implicit yanked-version guard,
+      # so filter deps.dev's isDeprecated flag explicitly: recommending an upgrade
+      # to a pulled release (and using it as the poison-pill "latest" baseline)
+      # would be exactly the kind of confident-wrong answer this tool must avoid.
+      stub_request(:get, /api\.deps\.dev/).to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: package_body([
+          { "versionKey" => { "version" => "1.0.0" }, "isDefault" => false, "isDeprecated" => false, "publishedAt" => "2024-01-01T00:00:00Z" },
+          { "versionKey" => { "version" => "2.0.0" }, "isDefault" => false, "isDeprecated" => true, "publishedAt" => "2025-01-01T00:00:00Z" },
+        ]),
+      )
+
+      expect(described_class.default_version_info(name: "pkg", system: :cargo)&.dig(:version)).to(eq("1.0.0"))
+    end
+
+    it("ignores a prerelease flagged as default, using the latest stable release") do
+      # pypi/httpx: deps.dev flags 1.0.0.dev3 as default while the latest stable is
+      # 0.28.1; a current 0.28.1 pin must not read as "behind 1.0.0.dev3".
+      stub_request(:get, /api\.deps\.dev/).to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: package_body([
+          { "versionKey" => { "version" => "0.28.1" }, "isDefault" => false, "publishedAt" => "2024-12-06T00:00:00Z" },
+          { "versionKey" => { "version" => "1.0.0.dev3" }, "isDefault" => true, "publishedAt" => "2025-01-01T00:00:00Z" },
+        ]),
+      )
+
+      expect(described_class.default_version_info(name: "httpx", system: :pypi)&.dig(:version)).to(eq("0.28.1"))
+    end
+
+    it("falls back to the newest publishedAt when every version is a prerelease") do
+      # No stable release parses, so the release-driven freshness signal falls back
+      # to the newest date rather than reading a prerelease-only package as dormant.
+      stub_request(:get, /api\.deps\.dev/).to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: package_body([
+          { "versionKey" => { "version" => "0.1.0-rc1" }, "isDefault" => false, "publishedAt" => "2024-01-01T00:00:00Z" },
           { "versionKey" => { "version" => "0.2.0-rc1" }, "isDefault" => false, "publishedAt" => "2024-06-01T00:00:00Z" },
         ]),
       )

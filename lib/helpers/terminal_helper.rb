@@ -65,9 +65,15 @@ module StillActive
       return AnsiHelper.dim("-") if used.nil? && latest.nil?
       return AnsiHelper.red("#{used} (YANKED)") if data[:version_yanked]
 
-      if VersionHelper.up_to_date(version_used: used, latest_version: latest)
+      # up_to_date is tri-state: true (on latest), false (genuinely behind), or nil
+      # (a version Gem::Version can't parse -- a pypi epoch, an exotic build string).
+      # Only paint the "-> latest" upgrade arrow on a definite false; a nil means we
+      # couldn't compare, so show the version plainly rather than a false "behind"
+      # (markdown shows unsure via its emoji tri-state for the same case).
+      current = VersionHelper.up_to_date(version_used: used, latest_version: latest)
+      if current
         AnsiHelper.green("#{used} (latest)")
-      elsif latest
+      elsif current == false && latest
         AnsiHelper.yellow("#{used} → #{latest}")
       else
         used.to_s
