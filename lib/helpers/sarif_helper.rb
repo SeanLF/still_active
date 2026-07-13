@@ -42,7 +42,7 @@ module StillActive
         lockfile_uri: lockfile_uri,
       )
 
-      JSON.pretty_generate(document(results: results, tool_version: tool_version))
+      JSON.pretty_generate(document(results: results, tool_version: tool_version, flavour: :ruby))
     end
 
     # The SBOM path emits the same rule set and document, but there is no lockfile
@@ -50,6 +50,9 @@ module StillActive
     # ruby_info is nil (Ruby EOL / SA006 is a native-only signal). Findings are
     # named ecosystem/name (each gem_data carries :ecosystem and :name), so a
     # cross-ecosystem alert reads "npm/left-pad ..." rather than a bare gem name.
+    # A polyglot SBOM has no single ecosystem, so the rule catalog uses the
+    # ecosystem-neutral wording (`flavour: :neutral`) rather than the native "gem"
+    # idiom, so a Go/npm/pypi repo's Code Scanning UI doesn't read as a Ruby audit.
     #
     # result: SbomWorkflow assessed hash ("ecosystem/name@version" => gem_data)
     # source_uri: the SBOM file to point findings at (basename)
@@ -63,12 +66,19 @@ module StillActive
         lockfile_uri: source_uri,
       )
 
-      JSON.pretty_generate(document(results: results, tool_version: tool_version))
+      JSON.pretty_generate(document(results: results, tool_version: tool_version, flavour: :neutral))
     end
 
     private
 
-    def document(results:, tool_version:)
+    def document(results:, tool_version:, flavour:)
+      # The catalog is the single source of truth for BOTH the driver rule list and
+      # each result's ruleIndex (its position in that list). The SBOM (:neutral)
+      # catalog drops the native-only SA006, so a result's ruleIndex must be looked
+      # up against the same-flavour catalog, not the ruby default, or SA007/8/9 would
+      # index the wrong driver rule. Stamping it here keeps the two in lockstep.
+      catalog = Sarif::Rules.all(flavour)
+      index_by_id = catalog.each_with_index.to_h { |rule, i| [rule[:id], i] }
       {
         "$schema" => SARIF_SCHEMA,
         "version" => "2.1.0",
@@ -78,18 +88,21 @@ module StillActive
               "name" => TOOL_NAME,
               "semanticVersion" => tool_version,
               "informationUri" => TOOL_URI,
-              "rules" => sarif_rules,
+              "rules" => catalog.map { |r| sarif_rule(r) },
             },
           },
           "originalUriBaseIds" => { "%SRCROOT%" => { "uri" => "file:///" } },
-          "results" => results,
+          "results" => results.map { |res| stamp_rule_index(res, index_by_id) },
           "columnKind" => "utf16CodeUnits",
         }],
       }
     end
 
-    def sarif_rules
-      Sarif::Rules.all.map { |r| sarif_rule(r) }
+    # SARIF ruleIndex is optional; omit it rather than emit nil when the rule isn't
+    # in this run's catalog (can't happen today, but never point at a bogus index).
+    def stamp_rule_index(result, index_by_id)
+      index = index_by_id[result["ruleId"]]
+      index ? result.merge("ruleIndex" => index) : result
     end
 
     def sarif_rule(r)
@@ -333,7 +346,6 @@ module StillActive
       latest_part = ruby_info[:latest_version] ? " Latest is #{ruby_info[:latest_version]}." : ""
       base = {
         "ruleId" => "SA006",
-        "ruleIndex" => rule_index("SA006"),
         "level" => "error",
         "message" => { "text" => "Ruby #{version} has reached end-of-life#{eol_part}.#{latest_part}" },
         "locations" => [{
@@ -350,7 +362,6 @@ module StillActive
       level ||= Sarif::Rules.find(rule_id)[:level]
       base = {
         "ruleId" => rule_id,
-        "ruleIndex" => rule_index(rule_id),
         "level" => level,
         "message" => { "text" => message },
         "locations" => [location],
@@ -377,10 +388,6 @@ module StillActive
 
     def fingerprint(rule_id, gem_name, advisory_id = nil)
       Digest::SHA256.hexdigest(["v1", rule_id, gem_name, advisory_id].compact.join("|"))[0, 16]
-    end
-
-    def rule_index(rule_id)
-      Sarif::Rules.all.index { |r| r[:id] == rule_id }
     end
 
     def format_date(value)

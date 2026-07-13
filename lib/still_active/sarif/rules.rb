@@ -38,6 +38,15 @@ module StillActive
         format("%.1f", score)
       end
 
+      # Each rule's canonical wording is Ruby-flavoured (the native Gemfile path is
+      # the tool's origin). A rule that can fire on the cross-ecosystem SBOM path
+      # also carries `neutral:` overrides for the strings that name "gem"/Ruby, so a
+      # polyglot SBOM run (Go/npm/pypi/...) emits an ecosystem-agnostic catalog. The
+      # catalog is emitted once per run, so wording is chosen per-run (native vs
+      # SBOM), not per-result. SA006 (Ruby EOL) is genuinely Ruby-only
+      # (`native_only: true`): the SBOM path can never emit it, so the neutral
+      # catalog drops it entirely rather than advertise a "Ruby runtime EOL" rule in,
+      # say, a Go repo's Code Scanning tab.
       RAW_RULES = [
         {
           id: "SA001",
@@ -48,6 +57,11 @@ module StillActive
           level: "error",
           security_severity: "7.5",
           tags: ["security", "supply-chain", "external/cwe/cwe-1357"],
+          neutral: {
+            short: "Package's source repository is archived",
+            full: "The package's upstream repository has been marked archived. No further fixes, including security patches, should be expected.",
+            help_text: "Look for a maintained fork or alternative. If you must keep the package, vendor or fork it so you can apply patches yourself.",
+          },
         },
         {
           id: "SA002",
@@ -58,6 +72,11 @@ module StillActive
           level: "warning",
           security_severity: nil,
           tags: ["maintenance"],
+          neutral: {
+            short: "Package has had no release for over 3 years",
+            full: "The package's latest release is over 3 years old. Not formally archived, but a strong abandonment signal: a consumer cannot pull fixes that were never released. For a package with no releases at all (e.g. git-sourced), the last commit date is used instead.",
+            help_text: "Verify the package still works on your supported runtime and consider a maintained alternative.",
+          },
         },
         {
           id: "SA003",
@@ -68,6 +87,9 @@ module StillActive
           level: "error",
           security_severity: "7.0", # default; per-result override from CVSS
           tags: ["security", "vulnerability", "external/cwe/cwe-1104"],
+          neutral: {
+            short: "Package has known vulnerabilities (via deps.dev / OSV)",
+          },
         },
         {
           id: "SA004",
@@ -78,6 +100,10 @@ module StillActive
           level: "warning",
           security_severity: nil,
           tags: ["maintenance", "libyear"],
+          neutral: {
+            short: "Package is significantly behind the latest release",
+            help_text: "Schedule an upgrade to the latest release.",
+          },
         },
         {
           id: "SA005",
@@ -88,6 +114,9 @@ module StillActive
           level: "note",
           security_severity: nil,
           tags: ["supply-chain", "openssf"],
+          neutral: {
+            short: "Package's OpenSSF Scorecard is low",
+          },
         },
         {
           id: "SA006",
@@ -98,6 +127,7 @@ module StillActive
           level: "error",
           security_severity: "8.5",
           tags: ["security", "runtime", "external/cwe/cwe-1104"],
+          native_only: true,
         },
         {
           id: "SA007",
@@ -108,6 +138,11 @@ module StillActive
           level: "error",
           security_severity: "8.0",
           tags: ["security", "supply-chain", "external/cwe/cwe-1104"],
+          neutral: {
+            short: "Resolved package version has been yanked from its registry",
+            full: "The resolved version has been yanked by the package owner, typically for a serious bug or vulnerability.",
+            help_text: "Update to a non-yanked version immediately.",
+          },
         },
         {
           id: "SA008",
@@ -118,12 +153,17 @@ module StillActive
           level: "warning",
           security_severity: nil, # maintenance/resolvability, not a CVE (as SA002/SA004/SA005)
           tags: ["maintenance", "supply-chain", "external/cwe/cwe-1104"],
+          neutral: {
+            short: "Dormant package caps a dependency below its latest major",
+            full: "A dormant (abandoned or archived) package declares a runtime constraint that caps one of its dependencies below that dependency's current latest major. Because nobody is shipping the package, the cap will never lift, and it grows more constraining as the capped dependency releases new majors: the tree is held below a ceiling no upstream release will raise.",
+            help_text: "Replace or fork the dormant package, or vendor a version that relaxes the constraint. For a transitive pill, target the direct dependency that pulls it in.",
+          },
         },
         {
           id: "SA009",
           name: "RuntimeCeiling",
           short: "Resolved package version caps its language runtime",
-          full: "A resolved package version's declared runtime constraint (Ruby `ruby_version`, Python `requires_python`) caps the language runtime you can run: either below every still-supported release (stranding you on an end-of-life runtime with no security patches) or below the latest stable (a compatibility ceiling to plan around). The default level is note; an EOL-forcing cap is raised to error per result.",
+          full: "A resolved package version's declared runtime constraint (Ruby `ruby_version`, Python `requires_python`, .NET target framework) caps the language runtime you can run: either below every still-supported release (stranding you on an end-of-life runtime with no security patches) or below the latest stable (a compatibility ceiling to plan around). The default level is note; an EOL-forcing cap is raised to error per result.",
           help_text: "If a newer release of the package lifts the cap, upgrade it. Otherwise replace or fork the package, or contribute support for the newer runtime upstream.",
           level: "note",
           security_severity: nil, # maintenance/compatibility, not a CVE (as SA002/SA004/SA005/SA008)
@@ -131,19 +171,34 @@ module StillActive
         },
       ].freeze
 
-      CATALOG = RAW_RULES.map do |r|
-        r.merge(
-          tags: r[:tags].dup.freeze,
-          help_markdown: "#{r[:help_text]}\n\nSee [#{r[:id]} docs](#{help_uri(r[:id])}) for full guidance.",
-        ).freeze
-      end.freeze
-
-      def all
-        CATALOG
+      # Builds a frozen catalog for one wording flavour. `:neutral` applies each
+      # rule's `neutral:` overrides (ecosystem-agnostic wording for the SBOM path);
+      # any other flavour keeps the canonical Ruby wording. help_markdown is derived
+      # from the resolved help_text so it tracks the flavour. The neutral (SBOM)
+      # catalog omits `native_only:` rules, which the cross-ecosystem path can never
+      # emit (SA006, Ruby runtime EOL).
+      def build_catalog(flavour)
+        neutral = flavour == :neutral
+        rules = neutral ? RAW_RULES.reject { |r| r[:native_only] } : RAW_RULES
+        rules.map do |r|
+          resolved = neutral && r[:neutral] ? r.merge(r[:neutral]) : r
+          resolved.except(:neutral, :native_only).merge(
+            tags: r[:tags].dup.freeze,
+            help_markdown: "#{resolved[:help_text]}\n\nSee [#{r[:id]} docs](#{help_uri(r[:id])}) for full guidance.",
+          ).freeze
+        end.freeze
       end
 
-      def find(id)
-        CATALOG.find { |r| r[:id] == id }
+      CATALOG = build_catalog(:ruby)
+      NEUTRAL_CATALOG = build_catalog(:neutral)
+
+      # flavour: :ruby (default, native Gemfile path) or :neutral (SBOM path).
+      def all(flavour = :ruby)
+        flavour == :neutral ? NEUTRAL_CATALOG : CATALOG
+      end
+
+      def find(id, flavour = :ruby)
+        all(flavour).find { |r| r[:id] == id }
       end
     end
   end

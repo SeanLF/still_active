@@ -1315,6 +1315,51 @@ RSpec.describe(StillActive::CLI) do
         expect(results.first.dig("locations", 0, "physicalLocation", "artifactLocation", "uri")).to(eq("sbom.json"))
       end
 
+      it("emits an ecosystem-neutral rule catalog (no 'Gem' titles) for a cross-ecosystem SBOM") do
+        # A Go/npm repo's Code Scanning UI shows the rule shortDescription as the
+        # alert title. The native Ruby catalog says "Gem ..."; the SBOM path must
+        # use the neutral fallback so a Go repo doesn't read as a Ruby audit.
+        cli.run(["--sbom=sbom.json", "--sarif=out.sarif.json"])
+        driver = JSON.parse(File.read("out.sarif.json")).dig("runs", 0, "tool", "driver", "rules")
+        titles = driver.map { |r| r["shortDescription"]["text"] }.join(" | ")
+        expect(titles).not_to(match(/\bgems?\b/i), "neutral catalog still titles a rule 'Gem ...': #{titles}")
+        sa001 = driver.find { |r| r["id"] == "SA001" }
+        expect(sa001["shortDescription"]["text"]).to(eq("Package's source repository is archived"))
+      end
+
+      it("stamps each result's ruleIndex at its rule's position in the (neutral) driver catalog") do
+        # The neutral catalog drops SA006, so every rule after it shifts down one.
+        # A result's ruleIndex must be looked up against the SAME catalog the driver
+        # emits, or an SA009 (runtime ceiling) points at the wrong rule / out of
+        # bounds. Fire a post-SA006 rule (SA009) so this actually exercises the shift.
+        ceiling = {
+          ecosystem: :pypi,
+          name: "oldpkg",
+          version_used: "1.0.0",
+          latest_version: "2.0.0",
+          latest_version_release_date: recent_date.iso8601,
+          last_commit_date: recent_date.iso8601,
+          archived: false,
+          vulnerability_count: 0,
+          vulnerabilities: [],
+          language_ceiling: { runtime: "python", severity: :note, eol_forced: false, latest_stable: "3.13", requirement: "<3.10", fixed_by_upgrade: false },
+        }
+        allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
+          outcome({ "npm/left-pad@1.0.0" => npm_flagged, "pypi/oldpkg@1.0.0" => ceiling }),
+        ))
+        cli.run(["--sbom=sbom.json", "--sarif=out.sarif.json"])
+        doc = JSON.parse(File.read("out.sarif.json"))
+        driver = doc.dig("runs", 0, "tool", "driver", "rules")
+        positions = driver.each_with_index.to_h { |r, i| [r["id"], i] }
+        expect(positions).not_to(have_key("SA006")) # native-only, absent from the SBOM catalog
+        doc.dig("runs", 0, "results").each do |res|
+          expect(res["ruleIndex"]).to(eq(positions.fetch(res["ruleId"])), "#{res["ruleId"]} ruleIndex out of step with driver.rules")
+        end
+        sa009 = doc.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }
+        expect(sa009).not_to(be_nil)
+        expect(sa009["ruleIndex"]).to(eq(positions.fetch("SA009"))) # not the ruby catalog's 8
+      end
+
       it("writes SARIF to stdout with --sarif=- (not the SBOM JSON report)") do
         captured = nil
         allow($stdout).to(receive(:puts)) { |arg| captured = arg }

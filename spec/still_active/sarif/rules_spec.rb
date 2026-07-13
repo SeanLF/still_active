@@ -45,6 +45,48 @@ RSpec.describe(StillActive::Sarif::Rules) do
     end
   end
 
+  describe(".all(:neutral)") do
+    subject(:rules) { described_class.all(:neutral) }
+
+    # The rule catalog is emitted once per SARIF run (tool.driver.rules[]), and a
+    # cross-ecosystem SBOM run can be polyglot, so the wording can't be per-result.
+    # The neutral flavour is the fallback the SBOM path uses so a Go/npm/pypi repo's
+    # Code Scanning alerts don't read as "Gem ...". The native Ruby path keeps `gem`.
+    it("drops the native-only SA006 (Ruby EOL) the SBOM path can never emit") do
+      # A Go/npm repo's Code Scanning tab should not advertise a "Ruby runtime EOL"
+      # rule. Every other stable id survives, in order.
+      expect(rules.map { |r| r[:id] }).to(eq(["SA001", "SA002", "SA003", "SA004", "SA005", "SA007", "SA008", "SA009"]))
+    end
+
+    it("carries no gem/RubyGems/Gemfile wording anywhere in the neutral catalog") do
+      # SA009 legitimately names Ruby as ONE of several runtime-ceiling examples
+      # (alongside Python and .NET), so a bare "ruby" is fine; the leak we guard is
+      # Ruby-package-manager framing that implies a Ruby audit.
+      rules.each do |r|
+        text = [r[:short], r[:full], r[:help_text]].join(" ")
+        expect(text).not_to(match(/\bgems?\b/i), "#{r[:id]} still mentions a gem: #{text.inspect}")
+        expect(text).not_to(match(/rubygems|gemfile|bundle update/i), "#{r[:id]} still names a Ruby-only artefact: #{text.inspect}")
+      end
+    end
+
+    it("drops the Ruby-specific `bundle update` advice from SA004") do
+      expect(rules.find { |r| r[:id] == "SA004" }[:help_text]).not_to(include("bundle"))
+    end
+
+    it("rebuilds help_markdown from the neutral help_text (still links the docs anchor)") do
+      sa004 = rules.find { |r| r[:id] == "SA004" }
+      expect(sa004[:help_markdown]).to(start_with(sa004[:help_text]))
+      expect(sa004[:help_markdown]).to(include("#sa004"))
+    end
+  end
+
+  describe(".all default flavour") do
+    it("keeps the native Ruby `gem` idiom (unchanged for the Gemfile path)") do
+      expect(described_class.all.find { |r| r[:id] == "SA002" }[:short])
+        .to(eq("Gem has had no release for over 3 years"))
+    end
+  end
+
   describe(".find") do
     it("looks up by id") do
       expect(described_class.find("SA001")[:name]).to(eq("ArchivedRepository"))
