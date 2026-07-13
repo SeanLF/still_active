@@ -39,6 +39,13 @@ RSpec.configure do |config|
   # config_spec overrides these to exercise the real discovery cascade. Only the
   # gh/glab auth shell-outs are stubbed (git calls in BotContext pass through).
   config.before do
+    # StillActive.config is a process-wide singleton that specs mutate (activity
+    # ranges, ignored_gems, suppressions, tokens). Reset it before every example so
+    # a mutation can't leak across files and make a later spec order-dependent
+    # (e.g. a widened warning_range_end silently demoting an "abandoned" SARIF gem).
+    # Runs before any describe-level `before`, so per-example config setup still wins.
+    StillActive.reset
+
     ["GITHUB_TOKEN", "GH_TOKEN", "GITLAB_TOKEN"].each { |var| ENV.delete(var) }
     allow(Open3).to(receive(:capture3).and_call_original)
     allow(Open3).to(receive(:capture3).with("gh", "auth", "token").and_raise(Errno::ENOENT))
