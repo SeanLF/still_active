@@ -166,6 +166,34 @@ RSpec.describe(StillActive::VersionHelper) do
     end
   end
 
+  describe("#to_semver") do
+    # Exact gem-version -> SemVer-2.0.0 mappings. Asserting the precise output
+    # (rather than matching a SemVer regex) proves correctness AND keeps a complex
+    # regex out of the suite, which a ReDoS/security scanner could flag.
+    {
+      "3.0.0" => "3.0.0",            # plain release, already SemVer, unchanged
+      "2.0.0" => "2.0.0",
+      "3.0.0.rc4" => "3.0.0-rc4",    # gem prerelease dot -> SemVer hyphen
+      "0.1.0.beta1" => "0.1.0-beta1",
+      "1.2.3.pre.5" => "1.2.3-pre.5", # dotted prerelease structure preserved
+      "2.0.0.rc.2" => "2.0.0-rc.2",
+      "1.2" => "1.2.0", # short release padded to MAJOR.MINOR.PATCH
+    }.each do |gem_version, semver|
+      it("converts #{gem_version.inspect} to #{semver.inspect}") do
+        expect(described_class.to_semver(gem_version)).to(eq(semver))
+      end
+    end
+
+    it("returns a non-numeric-led string unchanged rather than fabricating a version") do
+      expect(described_class.to_semver("not-a-version")).to(eq("not-a-version"))
+    end
+
+    it("returns nil/empty input unchanged") do
+      expect(described_class.to_semver(nil)).to(be_nil)
+      expect(described_class.to_semver("")).to(eq(""))
+    end
+  end
+
   describe("#gem_version") do
     it("returns nil for nil input") do
       expect(described_class.gem_version(version_hash: nil)).to(be_nil)

@@ -8,6 +8,7 @@ require_relative "lockfile_indexer"
 require_relative "activity_helper"
 require_relative "dependency_helper"
 require_relative "constraint_helper"
+require_relative "version_helper"
 
 module StillActive
   # Renders a still_active workflow result as a SARIF 2.1.0 document.
@@ -86,12 +87,13 @@ module StillActive
           "tool" => {
             "driver" => {
               "name" => TOOL_NAME,
-              # `version` is the free-form native version string; `semanticVersion`
-              # is the SemVer view. Both carry StillActive::VERSION. GitHub Code
-              # Scanning only needs `name`, but some SARIF consumers read
-              # `tool.driver.version`, so emit it rather than leave it null.
+              # `version` is the free-form native version string (the RubyGems
+              # version verbatim); `semanticVersion` MUST be SemVer 2.0.0, so a
+              # prerelease like "3.0.0.rc4" is rendered as "3.0.0-rc4". Both derive
+              # from StillActive::VERSION. GitHub Code Scanning only needs `name`,
+              # but some SARIF consumers read either version field.
               "version" => tool_version,
-              "semanticVersion" => tool_version,
+              "semanticVersion" => VersionHelper.to_semver(tool_version),
               "informationUri" => TOOL_URI,
               "rules" => catalog.map { |r| sarif_rule(r) },
             },

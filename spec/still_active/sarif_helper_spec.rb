@@ -34,6 +34,16 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(driver["informationUri"]).to(include("github.com/SeanLF/still_active"))
     end
 
+    it("keeps version raw (gem format) but renders semanticVersion as SemVer for a prerelease") do
+      # StillActive::VERSION is a RubyGems prerelease ("3.0.0.rc4"), which is NOT
+      # valid SemVer 2.0.0; semanticVersion must carry the SemVer form.
+      driver = JSON.parse(described_class.render(
+        result: {}, ruby_info: nil, lockfile_path: lockfile_path, tool_version: "3.0.0.rc4",
+      )).dig("runs", 0, "tool", "driver")
+      expect(driver["version"]).to(eq("3.0.0.rc4")) # free-form native version, verbatim
+      expect(driver["semanticVersion"]).to(eq("3.0.0-rc4")) # SemVer 2.0.0
+    end
+
     it("emits all 9 rules in tool.driver.rules with required fields") do
       rules = doc.dig("runs", 0, "tool", "driver", "rules")
       expect(rules.size).to(eq(9))
