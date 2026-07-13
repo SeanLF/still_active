@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    still_active (3.0.0.rc3)
+    still_active (3.0.0.rc4)
       async (>= 2.2)
       bundler (>= 2.0)
       faraday-retry
@@ -249,7 +249,7 @@ CHECKSUMS
   semantic_range (3.1.1) sha256=508333196ef0c7ba33e79579d4df7eb0a41080595e6a655c2515b03d634ec4a9
   simplecov (1.0.0.rc5) sha256=069108264a60335ebaa014a963b595e15d21541067019659c87bc4e9d6b18743
   simpleidn (0.2.3) sha256=08ce96f03fa1605286be22651ba0fc9c0b2d6272c9b27a260bc88be05b0d2c29
-  still_active (3.0.0.rc3)
+  still_active (3.0.0.rc4)
   stringio (3.2.0) sha256=c37cb2e58b4ffbd33fe5cd948c05934af997b36e0b6ca6fdf43afa234cf222e1
   thor (1.5.0) sha256=e3a9e55fe857e44859ce104a84675ab6e8cd59c650a49106a05f55f136425e73
   traces (0.18.2) sha256=80f1649cb4daace1d7174b81f3b3b7427af0b93047759ba349960cb8f315e214
