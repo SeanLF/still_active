@@ -121,6 +121,21 @@ module StillActive
       }
     end
 
+    # The NuGet target framework monikers a version declares (net6.0, net45,
+    # netstandard2.0, ...), or [] when unknown. On the NuGet-specific
+    # `:requirements` endpoint, not the version endpoint. The language-runtime
+    # ceiling (SA009) reads these to detect a package that targets only EOL .NET
+    # runtimes. Degrades to [] on 404/failure, never raising.
+    def target_frameworks(name:, version:)
+      return [] if name.nil? || version.nil?
+
+      path = "/v3alpha/systems/nuget/packages/#{encode(name)}/versions/#{encode(version)}:requirements"
+      body = HttpHelper.get_json(BASE_URI, path)
+      return [] if body.nil?
+
+      Array(body.dig("nuget", "targetFrameworks")).grep(String)
+    end
+
     def advisory_detail(advisory_id:)
       return if advisory_id.nil?
 

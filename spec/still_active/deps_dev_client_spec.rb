@@ -67,6 +67,25 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(described_class.version_info(gem_name: nil, version: "1.0.0")).to(be_nil)
     end
 
+    describe(".target_frameworks") do
+      it("returns the NuGet target framework monikers for a version") do
+        stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/nuget/packages/newtonsoft\.json/versions/13\.0\.3:requirements})
+          .to_return(
+            status: 200,
+            headers: { "Content-Type" => "application/json" },
+            body: { "nuget" => { "targetFrameworks" => ["net45", "net6.0", "netstandard2.0"] } }.to_json,
+          )
+        expect(described_class.target_frameworks(name: "newtonsoft.json", version: "13.0.3"))
+          .to(eq(["net45", "net6.0", "netstandard2.0"]))
+      end
+
+      it("returns [] for nil input or an unknown package (404), never raising") do
+        expect(described_class.target_frameworks(name: nil, version: "1")).to(eq([]))
+        stub_request(:get, /api\.deps\.dev/).to_return(status: 404)
+        expect(described_class.target_frameworks(name: "ghost", version: "1")).to(eq([]))
+      end
+    end
+
     it("returns nil when version is nil") do
       expect(described_class.version_info(gem_name: "nokogiri", version: nil)).to(be_nil)
     end
