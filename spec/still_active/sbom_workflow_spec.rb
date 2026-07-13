@@ -16,6 +16,7 @@ RSpec.describe(StillActive::SbomWorkflow) do
       # says "upgrade to lift it"; `bar` poison-caps `foo` below that upgrade, so the
       # reconcile must clear fixed_by_upgrade and set upgrade_blocked.
       allow(StillActive::PythonHelper).to(receive(:supported_python_range).and_return(nil))
+      allow(StillActive::DotnetHelper).to(receive_messages(supported_dotnet_range: nil, supported_dotnetfx_range: nil))
       allow(StillActive::EcosystemLens).to(receive(:assess)) do |ecosystem:, name:, version:, **_|
         base = { ecosystem:, name:, version_used: version }
         if name == "foo"

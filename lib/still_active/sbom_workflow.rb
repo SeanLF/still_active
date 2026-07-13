@@ -4,6 +4,7 @@ require_relative "ecosystem_lens"
 require_relative "ceiling_reconciler"
 require_relative "poison_security_correlator"
 require_relative "../helpers/python_helper"
+require_relative "../helpers/dotnet_helper"
 require "async"
 require "async/barrier"
 require "async/semaphore"
@@ -32,16 +33,15 @@ module StillActive
     def call(sbom_result, &on_progress)
       dependencies = sbom_result.dependencies
       Async do
-        # The Python runtime support window, fetched once for the whole SBOM (the
-        # language-ceiling input for pypi deps). Guarded like the native Ruby path:
-        # a feed failure degrades to "no ceiling checks", never aborts the audit.
-        python_range =
-          begin
-            PythonHelper.supported_python_range
-          rescue StandardError => e
-            $stderr.puts("warning: Python support window lookup failed: #{e.class} (#{e.message}); skipping language-ceiling checks")
-            nil
-          end
+        # The language-runtime support windows, fetched once for the whole SBOM
+        # (pypi reads :python; nuget reads :dotnet/:dotnetfx). Guarded per feed like
+        # the native Ruby path: a feed failure degrades to "no ceiling checks" for
+        # that runtime, never aborts the audit.
+        runtime_ranges = {
+          python: safe_support_window("Python") { PythonHelper.supported_python_range },
+          dotnet: safe_support_window(".NET") { DotnetHelper.supported_dotnet_range },
+          dotnetfx: safe_support_window(".NET Framework") { DotnetHelper.supported_dotnetfx_range },
+        }
         barrier = Async::Barrier.new
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result = {}
@@ -61,7 +61,7 @@ module StillActive
             # when the SBOM actually marked it (SbomReader leaves the key absent
             # otherwise): absent stays "unknown", never a false that reads as test-only.
             result["#{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}"] =
-              EcosystemLens.assess(ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], constraint_cache: constraint_cache, python_range: python_range)
+              EcosystemLens.assess(ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], constraint_cache: constraint_cache, runtime_ranges: runtime_ranges)
                 .merge(dep.slice(:production))
           rescue StandardError => e
             # One dependency's failure must not abort the audit, but it must not
@@ -91,6 +91,17 @@ module StillActive
           failures: failures.sort_by { |failure| "#{failure[:ecosystem]}/#{failure[:name]}@#{failure[:version]}" },
         )
       end.wait
+    end
+
+    private
+
+    # Fetch one runtime's support window, degrading a feed failure to nil (no
+    # ceiling checks for that runtime) with a warning, never aborting the audit.
+    def safe_support_window(label)
+      yield
+    rescue StandardError => e
+      $stderr.puts("warning: #{label} support window lookup failed: #{e.class} (#{e.message}); skipping language-ceiling checks")
+      nil
     end
   end
 end

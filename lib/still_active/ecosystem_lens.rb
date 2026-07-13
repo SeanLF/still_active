@@ -8,6 +8,7 @@ require_relative "pypi_client"
 require "time"
 require_relative "../helpers/activity_helper"
 require_relative "../helpers/constraint_helper"
+require_relative "../helpers/dotnet_helper"
 require_relative "../helpers/libyear_helper"
 require_relative "../helpers/pep440_helper"
 require_relative "../helpers/runtime_ceiling_helper"
@@ -52,7 +53,7 @@ module StillActive
     # deps.dev; silence beats a false "holds your tree hostage".
     FLAT_RESOLUTION_ECOSYSTEMS = [:rubygems, :pypi].freeze
 
-    def assess(ecosystem:, name:, version:, constraint_cache: {}, python_range: nil)
+    def assess(ecosystem:, name:, version:, constraint_cache: {}, runtime_ranges: {})
       info = DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)
       default = DepsDevClient.default_version_info(name: name, system: ecosystem)
       # Retry the version lookup once when it came back empty but the package DID
@@ -113,7 +114,7 @@ module StillActive
       }
       gem_data[:version_unresolved] = true if version_unresolved
       attach_constraints(gem_data, ecosystem: ecosystem, name: name, version: version, cache: constraint_cache)
-      attach_language_ceiling(gem_data, ecosystem: ecosystem, name: name, version: version, latest_version: default&.dig(:version), python_range: python_range)
+      attach_language_ceiling(gem_data, ecosystem: ecosystem, name: name, version: version, latest_version: default&.dig(:version), runtime_ranges: runtime_ranges)
       gem_data
     end
 
@@ -128,9 +129,17 @@ module StillActive
     # pypi package; other ecosystems carry no ceiling here rather than a wrong one
     # (cargo's rust_version is a soft MSRV hint, not an install wall). Best-effort:
     # a nil range (endoflife feed down) or absent requires_python yields nothing.
-    def attach_language_ceiling(gem_data, ecosystem:, name:, version:, latest_version:, python_range:)
+    def attach_language_ceiling(gem_data, ecosystem:, name:, version:, latest_version:, runtime_ranges:)
+      finding =
+        case ecosystem
+        when :pypi then python_ceiling(name: name, version: version, latest_version: latest_version, python_range: runtime_ranges[:python])
+        when :nuget then dotnet_ceiling(name: name, version: version, latest_version: latest_version, dotnet: runtime_ranges[:dotnet], dotnetfx: runtime_ranges[:dotnetfx])
+        end
+      gem_data[:language_ceiling] = finding if finding
+    end
+
+    def python_ceiling(name:, version:, latest_version:, python_range:)
       return if python_range.nil?
-      return unless ecosystem == :pypi
 
       requirement = Pep440Helper.to_gem_requirement_string(PypiClient.requires_python(name: name, version: version))
       finding = requirement && RuntimeCeilingHelper.analyze(requirement: requirement, support_window: python_range)
@@ -138,7 +147,36 @@ module StillActive
 
       finding[:runtime] = "Python"
       finding[:fixed_by_upgrade] = python_ceiling_lifted_by_upgrade?(name: name, version: version, latest_version: latest_version, python_range: python_range)
-      gem_data[:language_ceiling] = finding
+      finding
+    end
+
+    # The .NET ceiling: a NuGet package whose ONLY runtime targets are end-of-life
+    # frameworks caps you onto a dead runtime (a restore-time NU1202 wall). Unlike
+    # Python's requires_python range, .NET declares a SET of target frameworks;
+    # DotnetHelper carries the set logic and the netstandard escape-hatch rule.
+    def dotnet_ceiling(name:, version:, latest_version:, dotnet:, dotnetfx:)
+      return if dotnet.nil? && dotnetfx.nil?
+
+      frameworks = DepsDevClient.target_frameworks(name: name, version: version)
+      return if frameworks.empty?
+
+      finding = DotnetHelper.analyze(target_frameworks: frameworks, dotnet: dotnet, dotnetfx: dotnetfx)
+      return if finding.nil?
+
+      finding[:fixed_by_upgrade] = dotnet_ceiling_lifted_by_upgrade?(name: name, version: version, latest_version: latest_version, dotnet: dotnet, dotnetfx: dotnetfx)
+      finding
+    end
+
+    # Positive confirmation, like the Python check: only claim an upgrade lifts the
+    # ceiling when the latest version's targets ACTUALLY clear it (a fresh fetch),
+    # never inferring "safe to bump" from a failed lookup.
+    def dotnet_ceiling_lifted_by_upgrade?(name:, version:, latest_version:, dotnet:, dotnetfx:)
+      return false if latest_version.nil? || latest_version == version
+
+      latest_frameworks = DepsDevClient.target_frameworks(name: name, version: latest_version)
+      return false if latest_frameworks.empty?
+
+      DotnetHelper.analyze(target_frameworks: latest_frameworks, dotnet: dotnet, dotnetfx: dotnetfx).nil?
     end
 
     # Does upgrading the package to its latest release lift the cap? Requires

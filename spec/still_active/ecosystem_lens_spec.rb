@@ -433,7 +433,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "0.53.1").and_return(">=3.6,<3.10"))
       allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "9.9.9").and_return(">=3.10"))
 
-      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", python_range: python_range)
+      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", runtime_ranges: { python: python_range })
 
       ceiling = result[:language_ceiling]
       expect(ceiling[:runtime]).to(eq("Python"))
@@ -449,7 +449,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "0.53.1").and_return(">=3.6,<3.10"))
       allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "9.9.9").and_return(nil))
 
-      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", python_range: python_range)
+      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", runtime_ranges: { python: python_range })
 
       ceiling = result[:language_ceiling]
       expect(ceiling[:eol_forced]).to(be(true))
@@ -459,7 +459,7 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("flags a cap below the latest stable (but on a supported Python) as a note") do
       allow(StillActive::PypiClient).to(receive(:requires_python).and_return(">=3.8,<3.13"))
 
-      result = described_class.assess(ecosystem: :pypi, name: "scipy", version: "1.7.3", python_range: python_range)
+      result = described_class.assess(ecosystem: :pypi, name: "scipy", version: "1.7.3", runtime_ranges: { python: python_range })
 
       ceiling = result[:language_ceiling]
       expect(ceiling[:runtime]).to(eq("Python"))
@@ -470,7 +470,7 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("does not flag a pure floor requires_python (a floor is not a ceiling)") do
       allow(StillActive::PypiClient).to(receive(:requires_python).and_return(">=3.8"))
 
-      result = described_class.assess(ecosystem: :pypi, name: "numpy", version: "1.21.0", python_range: python_range)
+      result = described_class.assess(ecosystem: :pypi, name: "numpy", version: "1.21.0", runtime_ranges: { python: python_range })
 
       expect(result).not_to(have_key(:language_ceiling))
     end
@@ -478,7 +478,7 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("does not flag when the package declares no requires_python") do
       allow(StillActive::PypiClient).to(receive(:requires_python).and_return(nil))
 
-      result = described_class.assess(ecosystem: :pypi, name: "loose", version: "1.0.0", python_range: python_range)
+      result = described_class.assess(ecosystem: :pypi, name: "loose", version: "1.0.0", runtime_ranges: { python: python_range })
 
       expect(result).not_to(have_key(:language_ceiling))
     end
@@ -486,7 +486,7 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("does not read requires_python for a non-Python ecosystem, even with a window") do
       allow(StillActive::PypiClient).to(receive(:requires_python))
 
-      result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1", python_range: python_range)
+      result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1", runtime_ranges: { python: python_range })
 
       expect(result).not_to(have_key(:language_ceiling))
       expect(StillActive::PypiClient).not_to(have_received(:requires_python))
@@ -495,10 +495,66 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("does nothing when the Python support window is unavailable (nil range)") do
       allow(StillActive::PypiClient).to(receive(:requires_python))
 
-      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", python_range: nil)
+      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", runtime_ranges: {})
 
       expect(result).not_to(have_key(:language_ceiling))
       expect(StillActive::PypiClient).not_to(have_received(:requires_python))
+    end
+  end
+
+  describe(".assess language ceiling (.NET / NuGet)") do
+    let(:dotnet) do
+      {
+        cycles: [
+          { version: Gem::Version.new("10"), eol: false, eol_date: nil },
+          { version: Gem::Version.new("8"), eol: false, eol_date: Time.parse("2026-11-10") },
+          { version: Gem::Version.new("6"), eol: true, eol_date: Time.parse("2024-11-12") },
+          { version: Gem::Version.new("5"), eol: true, eol_date: Time.parse("2022-05-10") },
+          { version: Gem::Version.new("3.1"), eol: true, eol_date: Time.parse("2022-12-13") },
+        ],
+      }
+    end
+    let(:dotnetfx) do
+      { cycles: [{ version: Gem::Version.new("4.8"), eol: false, eol_date: nil }, { version: Gem::Version.new("4.5"), eol: true, eol_date: Time.parse("2016-01-12") }] }
+    end
+
+    before do
+      stub_version(source_repo: "https://github.com/some/pkg")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z") # deps.dev default (latest) version 9.9.9
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+    end
+
+    it("flags a NuGet package targeting only EOL .NET runtimes as a critical ceiling, noting the upgrade lifts it") do
+      allow(StillActive::DepsDevClient).to(receive(:target_frameworks).with(name: "deadpkg", version: "1.0.0").and_return(["net5.0", "netcoreapp3.1"]))
+      allow(StillActive::DepsDevClient).to(receive(:target_frameworks).with(name: "deadpkg", version: "9.9.9").and_return(["net8.0"]))
+
+      result = described_class.assess(ecosystem: :nuget, name: "deadpkg", version: "1.0.0", runtime_ranges: { dotnet: dotnet, dotnetfx: dotnetfx })
+
+      ceiling = result[:language_ceiling]
+      expect(ceiling[:runtime]).to(eq(".NET"))
+      expect(ceiling[:eol_forced]).to(be(true))
+      expect(ceiling[:severity]).to(eq(:critical))
+      expect(ceiling[:ceiling_version]).to(eq("3.1"))
+      expect(ceiling[:fixed_by_upgrade]).to(be(true))
+    end
+
+    it("does NOT flag a package that also targets netstandard (the escape hatch), even with EOL runtimes") do
+      # The Newtonsoft.Json 13.0.3 case: net6.0 + net45 (EOL) + netstandard2.0.
+      allow(StillActive::DepsDevClient).to(receive(:target_frameworks).and_return(["net5.0", "net45", "netstandard2.0"]))
+
+      result = described_class.assess(ecosystem: :nuget, name: "newtonsoft.json", version: "13.0.3", runtime_ranges: { dotnet: dotnet, dotnetfx: dotnetfx })
+
+      expect(result).not_to(have_key(:language_ceiling))
+    end
+
+    it("does nothing when the .NET support windows are unavailable, without even fetching the frameworks") do
+      allow(StillActive::DepsDevClient).to(receive(:target_frameworks))
+
+      result = described_class.assess(ecosystem: :nuget, name: "x", version: "1.0.0", runtime_ranges: {})
+
+      expect(result).not_to(have_key(:language_ceiling))
+      expect(StillActive::DepsDevClient).not_to(have_received(:target_frameworks))
     end
   end
 end
