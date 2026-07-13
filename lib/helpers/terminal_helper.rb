@@ -35,6 +35,13 @@ module StillActive
 
     private
 
+    # "dependencies" for a cross-ecosystem SBOM audit (the lens sets :ecosystem),
+    # "gems" for a native Ruby audit -- calling npm/cargo/go packages "gems" is a
+    # Ruby-ism that reads wrong cross-ecosystem.
+    def dependency_noun(result)
+      result.each_value.any? { |data| data[:ecosystem] } ? "dependencies" : "gems"
+    end
+
     def build_row(name, data)
       [
         DependencyHelper.identity(name, data),
@@ -325,7 +332,7 @@ module StillActive
       archived = summary[:activity][:archived]
       yanked = result.each_value.count { |d| d[:version_yanked] }
 
-      parts = ["#{summary[:total_gems]} gems: #{summary[:up_to_date]} up to date, #{summary[:outdated]} outdated"]
+      parts = ["#{summary[:total_gems]} #{dependency_noun(result)}: #{summary[:up_to_date]} up to date, #{summary[:outdated]} outdated"]
       parts.last << ", #{yanked} yanked" if yanked > 0
       activity = "#{active} active, #{stale} stale"
       activity << ", #{archived} archived" if archived > 0

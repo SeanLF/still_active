@@ -101,10 +101,14 @@ module StillActive
       # Normalize two cross-ecosystem shapes Gem::Version can't parse, so a
       # current dependency compares as up to date instead of reading "behind":
       #   - a leading "v" (Go module versions, "v2.0.1")
-      #   - SemVer build metadata (cargo's "1.0.4+wasi-0.2.12"), which SemVer 2.0.0
-      #     sec 10 says MUST be ignored for precedence anyway
+      #   - SemVer build metadata (cargo's "1.0.4+wasi-0.2.12"), everything from the
+      #     first "+", which SemVer 2.0.0 sec 10 says MUST be ignored for precedence
       # rubygems/npm/pypi versions are digit-first with no "+", so this is a no-op.
-      str = str.delete_prefix("v").sub(/\+.*\z/, "")
+      # Sliced by index rather than a regex (/\+.*/ on the external version string
+      # trips a polynomial-ReDoS scanner, and this is provably linear anyway).
+      str = str.delete_prefix("v")
+      plus = str.index("+")
+      str = str[0, plus] if plus
       Gem::Version.new(str) if Gem::Version.correct?(str)
     end
   end

@@ -452,6 +452,22 @@ RSpec.describe(StillActive::TerminalHelper) do
       end
     end
 
+    describe("summary noun for a cross-ecosystem audit") do
+      it("says 'dependencies', not 'gems', when the result is a cross-ecosystem SBOM") do
+        # A cross-ecosystem dep carries :ecosystem (the lens sets it); calling npm/
+        # cargo/go packages "gems" is a Ruby-ism that reads wrong in an SBOM audit.
+        result = { "npm/left-pad" => { ecosystem: "npm", name: "left-pad", version_used: "1.0.0", latest_version: "1.0.0", up_to_date: true, vulnerability_count: 0 } }
+        output = described_class.render(result)
+        expect(output).to(include("1 dependencies:"))
+        expect(output).not_to(match(/\d+ gems:/))
+      end
+
+      it("keeps 'gems' for a native Ruby audit") do
+        result = { "rails" => { version_used: "7.1.0", latest_version: "7.1.0", up_to_date: true, vulnerability_count: 0 } }
+        expect(described_class.render(result)).to(include("1 gems:"))
+      end
+    end
+
     describe("version column when the versions can't be compared") do
       it("does not paint a 'behind' arrow when up_to_date can't be determined") do
         # A version Gem::Version can't parse (a pypi epoch "1!2.3") makes up_to_date
