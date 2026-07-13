@@ -25,9 +25,11 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(doc["version"]).to(eq("2.1.0"))
     end
 
-    it("declares the tool with semantic version") do
+    it("declares the tool with both version and semanticVersion") do
       driver = doc.dig("runs", 0, "tool", "driver")
       expect(driver["name"]).to(eq("still_active"))
+      # A consumer that reads tool.driver.version (some do) must not see null.
+      expect(driver["version"]).to(eq("1.4.0"))
       expect(driver["semanticVersion"]).to(eq("1.4.0"))
       expect(driver["informationUri"]).to(include("github.com/SeanLF/still_active"))
     end
