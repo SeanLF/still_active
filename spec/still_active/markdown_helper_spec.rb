@@ -95,6 +95,29 @@ RSpec.describe(StillActive::MarkdownHelper) do
       end
     end
 
+    context("with a repository URL but no last-commit date") do
+      let(:data) do
+        {
+          version_used: "1.0.0",
+          latest_version: "1.0.0",
+          up_to_date: true,
+          last_commit_date: nil,
+          repository_url: "https://github.com/owner/repo",
+          scorecard_score: 5.0,
+          vulnerability_count: 0,
+        }
+      end
+      let(:line) { described_class.markdown_table_body_line(gem_name: "pkg", data: data) }
+
+      it("renders the unsure emoji for last commit, not an empty-text link") do
+        # markdown_url with a nil date + a present repo produced "[](url)" (an
+        # invisible link), and the `|| unsure` fallback never fired because that
+        # string is truthy. The cell must show the unsure marker instead.
+        expect(line).not_to(include("[]("))
+        expect(line).to(include(StillActive.config.unsure_emoji))
+      end
+    end
+
     context("with a yanked version") do
       let(:data) do
         {

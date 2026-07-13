@@ -35,6 +35,13 @@ module StillActive
 
     private
 
+    # "dependencies" for a cross-ecosystem SBOM audit (the lens sets :ecosystem),
+    # "gems" for a native Ruby audit -- calling npm/cargo/go packages "gems" is a
+    # Ruby-ism that reads wrong cross-ecosystem.
+    def dependency_noun(result)
+      result.each_value.any? { |data| data[:ecosystem] } ? "dependencies" : "gems"
+    end
+
     def build_row(name, data)
       [
         DependencyHelper.identity(name, data),
@@ -65,9 +72,15 @@ module StillActive
       return AnsiHelper.dim("-") if used.nil? && latest.nil?
       return AnsiHelper.red("#{used} (YANKED)") if data[:version_yanked]
 
-      if VersionHelper.up_to_date(version_used: used, latest_version: latest)
+      # up_to_date is tri-state: true (on latest), false (genuinely behind), or nil
+      # (a version Gem::Version can't parse -- a pypi epoch, an exotic build string).
+      # Only paint the "-> latest" upgrade arrow on a definite false; a nil means we
+      # couldn't compare, so show the version plainly rather than a false "behind"
+      # (markdown shows unsure via its emoji tri-state for the same case).
+      current = VersionHelper.up_to_date(version_used: used, latest_version: latest)
+      if current
         AnsiHelper.green("#{used} (latest)")
-      elsif latest
+      elsif current == false && latest
         AnsiHelper.yellow("#{used} → #{latest}")
       else
         used.to_s
@@ -319,7 +332,7 @@ module StillActive
       archived = summary[:activity][:archived]
       yanked = result.each_value.count { |d| d[:version_yanked] }
 
-      parts = ["#{summary[:total_gems]} gems: #{summary[:up_to_date]} up to date, #{summary[:outdated]} outdated"]
+      parts = ["#{summary[:total_gems]} #{dependency_noun(result)}: #{summary[:up_to_date]} up to date, #{summary[:outdated]} outdated"]
       parts.last << ", #{yanked} yanked" if yanked > 0
       activity = "#{active} active, #{stale} stale"
       activity << ", #{archived} archived" if archived > 0
