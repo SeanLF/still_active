@@ -6,6 +6,7 @@ require "time"
 require_relative "../still_active/sarif/rules"
 require_relative "lockfile_indexer"
 require_relative "activity_helper"
+require_relative "dependency_helper"
 require_relative "constraint_helper"
 
 module StillActive
@@ -39,6 +40,27 @@ module StillActive
         line_index: line_index,
         ruby_line: ruby_line,
         lockfile_uri: lockfile_uri,
+      )
+
+      JSON.pretty_generate(document(results: results, tool_version: tool_version))
+    end
+
+    # The SBOM path emits the same rule set and document, but there is no lockfile
+    # to annotate: every finding anchors to the SBOM file itself (line 1), and
+    # ruby_info is nil (Ruby EOL / SA006 is a native-only signal). Findings are
+    # named ecosystem/name (each gem_data carries :ecosystem and :name), so a
+    # cross-ecosystem alert reads "npm/left-pad ..." rather than a bare gem name.
+    #
+    # result: SbomWorkflow assessed hash ("ecosystem/name@version" => gem_data)
+    # source_uri: the SBOM file to point findings at (basename)
+    # tool_version: StillActive::VERSION at emit time
+    def render_sbom(result:, source_uri:, tool_version:)
+      results = build_results(
+        report: result,
+        ruby_info: nil,
+        line_index: {},
+        ruby_line: nil,
+        lockfile_uri: source_uri,
       )
 
       JSON.pretty_generate(document(results: results, tool_version: tool_version))
@@ -94,13 +116,21 @@ module StillActive
       results
     end
 
+    # `name` is the hash key: the bare gem name natively, the composite
+    # "ecosystem/name@version" on the SBOM path. It drives the fingerprint and
+    # location, both of which MUST stay version-distinct so two pinned versions of
+    # one package (a merged monorepo SBOM) never collapse into a single Code
+    # Scanning alert. `display` is the version-independent "ecosystem/name" (bare
+    # name natively): what the message shows and what a --ignore/.still_active.yml
+    # suppression names, so one suppression covers a dependency across versions.
     def gem_results(name, data, line_index, lockfile_uri)
       out = []
       version = data[:version_used]
+      display = DependencyHelper.identity(name, data)
       location = location_for(name, line_index, lockfile_uri)
 
       if data[:archived]
-        out << mark_suppressed(result("SA001", name, "#{name} #{version}: upstream repository is archived#{repo_suffix(data)}#{alternatives_suffix(data)}#{transitive_suffix(data)}.", location), name, :activity)
+        out << mark_suppressed(result("SA001", name, "#{display} #{version}: upstream repository is archived#{repo_suffix(data)}#{alternatives_suffix(data)}#{transitive_suffix(data)}.", location), display, :activity)
       end
 
       unless data[:archived]
@@ -112,10 +142,10 @@ module StillActive
             result(
               "SA002",
               name,
-              "#{name} #{version}: #{noun} in #{years} years (last #{activity[:date].utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}#{transitive_suffix(data)}.",
+              "#{display} #{version}: #{noun} in #{years} years (last #{activity[:date].utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}#{transitive_suffix(data)}.",
               location,
             ),
-            name,
+            display,
             :activity,
           )
         end
@@ -127,15 +157,15 @@ module StillActive
 
       if data[:libyear] && data[:libyear] > LIBYEAR_THRESHOLD
         latest = data[:latest_version] ? " behind #{data[:latest_version]}" : ""
-        out << mark_suppressed(result("SA004", name, "#{name} #{version}: #{data[:libyear]} libyears#{latest}#{transitive_suffix(data)}.", location), name, :libyear)
+        out << mark_suppressed(result("SA004", name, "#{display} #{version}: #{data[:libyear]} libyears#{latest}#{transitive_suffix(data)}.", location), display, :libyear)
       end
 
       if data[:scorecard_score] && data[:scorecard_score] < SCORECARD_LOW_THRESHOLD
-        out << mark_suppressed(result("SA005", name, "#{name} #{version}: OpenSSF Scorecard #{data[:scorecard_score]}/10 (low).", location), name, :scorecard)
+        out << mark_suppressed(result("SA005", name, "#{display} #{version}: OpenSSF Scorecard #{data[:scorecard_score]}/10 (low).", location), display, :scorecard)
       end
 
       if data[:version_yanked]
-        out << mark_suppressed(result("SA007", name, "#{name} #{version}: this version has been yanked from RubyGems.", location), name, :yanked)
+        out << mark_suppressed(result("SA007", name, "#{display} #{version}: this version has been yanked from RubyGems.", location), display, :yanked)
       end
 
       if data[:poison] && !Array(data[:constraints]).empty?
@@ -151,7 +181,7 @@ module StillActive
         else
           "maintenance"
         end
-        out << mark_suppressed(result("SA008", name, poison_message(name, version, data), location, level: poison_level(data), fp_extra: state), name, :poison)
+        out << mark_suppressed(result("SA008", name, poison_message(display, version, data), location, level: poison_level(data), fp_extra: state), display, :poison)
       end
 
       if data[:language_ceiling]
@@ -163,7 +193,7 @@ module StillActive
         # silently mute the critical -- that transition is exactly the one a human
         # must see.
         state = data[:language_ceiling][:eol_forced] ? "eol_forced" : "latest_not_yet"
-        out << mark_suppressed(result("SA009", name, language_ceiling_message(name, version, data), location, level: language_ceiling_level(data), fp_extra: state), name, :language_ceiling)
+        out << mark_suppressed(result("SA009", name, language_ceiling_message(display, version, data), location, level: language_ceiling_level(data), fp_extra: state), display, :language_ceiling)
       end
 
       out
@@ -173,7 +203,7 @@ module StillActive
       { critical: "error", warning: "warning", note: "note" }.fetch(data[:language_ceiling][:severity], "note")
     end
 
-    def language_ceiling_message(name, version, data)
+    def language_ceiling_message(display, version, data)
       ceiling = data[:language_ceiling]
       runtime = ceiling[:runtime]
       body =
@@ -185,7 +215,7 @@ module StillActive
           "no #{runtime} #{ceiling[:latest_stable]} support yet"
         end
       fix = ceiling[:fixed_by_upgrade] && data[:latest_version] ? "; upgrade to #{data[:latest_version]} to lift it" : ""
-      "#{name} #{version}: requires #{runtime} #{ceiling[:requirement]}, #{body}#{fix}#{transitive_suffix(data)}."
+      "#{display} #{version}: requires #{runtime} #{ceiling[:requirement]}, #{body}#{fix}#{transitive_suffix(data)}."
     end
 
     # The poison receipt for a Code Scanning alert: the worst 3 caps (shared
@@ -203,7 +233,7 @@ module StillActive
       { critical: "error", warning: "warning", note: "note" }.fetch(data[:poison_severity], "warning")
     end
 
-    def poison_message(name, version, data)
+    def poison_message(display, version, data)
       top = ConstraintHelper.top_findings(Array(data[:constraints]), limit: 3)
       caps = top[:shown].map do |finding|
         behind = finding[:majors_behind]
@@ -211,7 +241,7 @@ module StillActive
       end
       remaining = top[:total] - top[:shown].length
       caps << "+#{remaining} more" if remaining.positive?
-      "#{name} #{version}: caps #{caps.join("; ")}#{transitive_suffix(data)}#{poison_security_note(data)}."
+      "#{display} #{version}: caps #{caps.join("; ")}#{transitive_suffix(data)}#{poison_security_note(data)}."
     end
 
     # Spells out the security escalation for a code-scanning alert. Only claims
@@ -254,6 +284,10 @@ module StillActive
     end
 
     def vulnerability_result(name, version, vuln, location, data = {})
+      # `name` (the version-distinct hash key) fingerprints the finding; `display`
+      # (version-independent "ecosystem/name") is what the message shows and the
+      # suppression matches. See gem_results for why the two differ.
+      display = DependencyHelper.identity(name, data)
       # Level tracks the resolved severity LABEL (a real CVSS score OR OSV's GHSA
       # label), so a CVSS-4-only HIGH -- which deps.dev returns as cvss3Score 0 --
       # exports as error, not a note/warning a code-scanning gate reads as
@@ -274,13 +308,13 @@ module StillActive
       base = result(
         "SA003",
         name,
-        "#{name} #{version}: #{advisory_id}#{title}#{alias_suffix}#{no_fix}#{transitive_suffix(data)}.",
+        "#{display} #{version}: #{advisory_id}#{title}#{alias_suffix}#{no_fix}#{transitive_suffix(data)}.",
         location,
         level: level,
         fp_extra: advisory_id,
       )
       base["properties"] = { "security-severity" => severity } if severity
-      mark_suppressed(base, name, :vulnerability, advisory: vuln[:id], aliases: Array(vuln[:aliases]))
+      mark_suppressed(base, display, :vulnerability, advisory: vuln[:id], aliases: Array(vuln[:aliases]))
     end
 
     # Names the direct dependency a transitive flagged gem rides in on, so a

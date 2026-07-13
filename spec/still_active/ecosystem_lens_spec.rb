@@ -72,6 +72,19 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:ok))
     end
 
+    it("carries the latest stable version string (parity with the native path's latest_version)") do
+      stub_version(source_repo: "https://github.com/owner/pkg")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+
+      result = described_class.assess(ecosystem: :npm, name: "pkg", version: "1.0.0")
+
+      # The formatters (terminal/markdown/SARIF) read :latest_version to show the
+      # "behind X"/up-to-date delta; without it a cross-ecosystem audit can't.
+      expect(result[:latest_version]).to(eq("9.9.9"))
+    end
+
     it("computes libyear from the locked and latest release dates (cross-ecosystem parity with the native path)") do
       stub_version(source_repo: "https://github.com/psf/requests", published_at: "2023-05-22T15:12:42Z")
       stub_package(default_published_at: "2026-05-22T15:12:42Z") # 3 years newer

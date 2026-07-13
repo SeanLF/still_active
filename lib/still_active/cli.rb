@@ -8,6 +8,7 @@ require_relative "../helpers/bot_context"
 require_relative "../helpers/bundler_helper"
 require_relative "../helpers/constraint_helper"
 require_relative "../helpers/cyclonedx_helper"
+require_relative "../helpers/dependency_helper"
 require_relative "../helpers/diff_markdown_helper"
 require_relative "../helpers/emoji_helper"
 require_relative "../helpers/markdown_helper"
@@ -140,9 +141,56 @@ module StillActive
       # assessment-time failure (a raised lens call) both mean "not assessed":
       # surface them together so neither is a silent hole in the reported coverage.
       unassessable = sbom.unassessable + outcome.failures
-      emit_sbom_json(outcome.assessed, unassessable)
+      render_sbom_output(outcome.assessed, unassessable, path)
       warn_unassessable(unassessable)
       check_exit_status(outcome.assessed)
+    end
+
+    # The assessment is the same per-dependency shape whether the input was a
+    # Gemfile or an SBOM, so the SBOM path honours the same output-format flags
+    # rather than forcing JSON. SARIF and markdown are the two that matter for the
+    # cross-ecosystem/CI use case; JSON stays the piped default. Two formats need
+    # the native Ruby audit's shape (a lockfile to annotate for SARIF's line
+    # numbers, a gems/ruby snapshot for the diff), which a cross-ecosystem SBOM
+    # can't honestly supply, so they error loudly rather than silently falling
+    # back to JSON: --baseline (diff) and --cyclonedx (SBOM in, SBOM out would
+    # need per-ecosystem PURL reconstruction; the honest way to add it later is to
+    # thread the input SBOM's own PURLs through rather than rebuild them).
+    def render_sbom_output(result, unassessable, sbom_path)
+      config = StillActive.config
+      if config.baseline_path
+        unsupported_sbom_format!("--baseline")
+      elsif config.cyclonedx_path
+        unsupported_sbom_format!("--cyclonedx")
+      elsif config.sarif_path
+        emit_sbom_sarif(result, config.sarif_path, sbom_path)
+      else
+        case resolve_format
+        when :json then emit_sbom_json(result, unassessable)
+        when :terminal then puts TerminalHelper.render(result)
+        when :markdown then render_markdown(result)
+        end
+      end
+    end
+
+    def unsupported_sbom_format!(flag)
+      $stderr.puts("error: #{flag} output is not supported in --sbom mode (it needs the native Ruby audit's lockfile/snapshot, which a cross-ecosystem SBOM can't supply); use --sarif, --markdown, --terminal, or --json")
+      exit(2)
+    end
+
+    def emit_sbom_sarif(result, sarif_path, sbom_path)
+      sarif_json = SarifHelper.render_sbom(
+        result: result,
+        source_uri: File.basename(sbom_path),
+        tool_version: StillActive::VERSION,
+      )
+
+      write_output(sarif_path, sarif_json)
+    end
+
+    # "-" means stdout (the SARIF/CycloneDX convention); any other PATH is a file.
+    def write_output(path, content)
+      path == "-" ? puts(content) : File.write(path, content)
     end
 
     # SbomReader never raises (a malformed file degrades to an empty result), which
@@ -271,11 +319,7 @@ module StillActive
         tool_version: StillActive::VERSION,
       )
 
-      if sarif_path == "-"
-        puts sarif_json
-      else
-        File.write(sarif_path, sarif_json)
-      end
+      write_output(sarif_path, sarif_json)
     end
 
     def emit_cyclonedx(result, ruby_info, cyclonedx_path)
@@ -286,11 +330,7 @@ module StillActive
         spec_version: StillActive.config.cyclonedx_version,
       )
 
-      if cyclonedx_path == "-"
-        puts sbom
-      else
-        File.write(cyclonedx_path, sbom)
-      end
+      write_output(cyclonedx_path, sbom)
     end
 
     # Mirrors Bundler's convention: gems.rb -> gems.locked, otherwise <gemfile>.lock.
@@ -394,7 +434,10 @@ module StillActive
       return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated || config.fail_if_poison || config.fail_if_language_ceiling
 
       warn_unknown_severity_gate(result, config)
-      exit(1) if result.any? { |name, data| gate_failed?(name, data, config) }
+      # Match the gate on the dependency's identity (bare gem name natively,
+      # "ecosystem/name" for an SBOM dep), not the composite SBOM hash key, so an
+      # --ignore/.still_active.yml entry actually covers a cross-ecosystem finding.
+      exit(1) if result.any? { |name, data| gate_failed?(DependencyHelper.identity(name, data), data, config) }
     end
 
     # --fail-if-vulnerable=<threshold> fails closed on an advisory with no CVSS
@@ -409,14 +452,15 @@ module StillActive
 
       suppressions = config.suppressions
       result.each do |name, data|
-        next if config.ignored_gems.include?(name)
+        gem = DependencyHelper.identity(name, data)
+        next if config.ignored_gems.include?(gem)
 
-        unknown = live_advisories(name, data, suppressions).select { |vuln| VulnerabilityHelper.unknown_severity?(vuln) }
+        unknown = live_advisories(gem, data, suppressions).select { |vuln| VulnerabilityHelper.unknown_severity?(vuln) }
         next if unknown.empty?
 
         ids = unknown.filter_map { |vuln| vuln[:id] }.join(", ")
         labelled = ids.empty? ? "" : " (#{ids})"
-        $stderr.puts("warning: #{name} has an advisory of unknown severity#{labelled}; failing --fail-if-vulnerable=#{threshold} because it can't be ruled out below the threshold (review, then fix or suppress it in .still_active.yml)")
+        $stderr.puts("warning: #{gem} has an advisory of unknown severity#{labelled}; failing --fail-if-vulnerable=#{threshold} because it can't be ruled out below the threshold (review, then fix or suppress it in .still_active.yml)")
       end
     end
 

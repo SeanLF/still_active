@@ -140,6 +140,18 @@ RSpec.describe(StillActive::VersionHelper) do
     it("returns false when latest version is malformed") do
       expect(described_class.up_to_date(version_used: "1.0.0", latest_version: "abc.def")).to(be(false))
     end
+
+    # Go module versions are "v"-prefixed semver (v2.0.1); the prefix is not part
+    # of the version and Gem::Version can't parse it. Without stripping it, a
+    # current Go dependency read as "behind" (the SBOM terminal/markdown table
+    # painted a "v2.0.1 -> v2.0.1" upgrade arrow on an up-to-date package).
+    it("treats a Go v-prefixed version as up to date when it matches latest") do
+      expect(described_class.up_to_date(version_used: "v2.0.1", latest_version: "v2.0.1")).to(be(true))
+    end
+
+    it("treats a Go v-prefixed version as behind when older than latest") do
+      expect(described_class.up_to_date(version_used: "v2.0.0", latest_version: "v2.1.0")).to(be(false))
+    end
   end
 
   describe("#gem_version") do

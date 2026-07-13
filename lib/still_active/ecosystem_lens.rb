@@ -87,6 +87,10 @@ module StillActive
         name: name,
         version_used: version,
         version_used_release_date: used_release_date,
+        # The latest stable version string, so the shared formatters can render
+        # the "behind X"/up-to-date delta cross-ecosystem the same way the native
+        # path does. nil when deps.dev has no default version for the package.
+        latest_version: latest_version,
         latest_version_release_date: latest_release_date,
         # libyear parity with the native path: how far behind latest the locked
         # version is, in release-years. Both dates come from deps.dev responses
