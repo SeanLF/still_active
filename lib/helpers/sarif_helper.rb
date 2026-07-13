@@ -86,6 +86,11 @@ module StillActive
           "tool" => {
             "driver" => {
               "name" => TOOL_NAME,
+              # `version` is the free-form native version string; `semanticVersion`
+              # is the SemVer view. Both carry StillActive::VERSION. GitHub Code
+              # Scanning only needs `name`, but some SARIF consumers read
+              # `tool.driver.version`, so emit it rather than leave it null.
+              "version" => tool_version,
               "semanticVersion" => tool_version,
               "informationUri" => TOOL_URI,
               "rules" => catalog.map { |r| sarif_rule(r) },
