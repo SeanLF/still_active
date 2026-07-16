@@ -1,0 +1,6 @@
+# Revisions to skip in `git blame` (bulk mechanical reformats, no authorship signal).
+# Configured locally by bin/setup: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub's blame view honors this file automatically.
+
+# chore(lint): adopt Standard Ruby, replacing rubocop-shopify (#152)
+1c5edbebdf12631a259b4e2b5f5935836d959d37
