@@ -8,3 +8,6 @@ bundle install
 # Wire git hooks shared via .githooks/. Pre-push runs the default rake task
 # (rspec + standard) so cross-file lint issues don't escape to CI.
 git config core.hooksPath .githooks
+
+# Make `git blame` skip bulk mechanical reformats (see .git-blame-ignore-revs).
+git config blame.ignoreRevsFile .git-blame-ignore-revs
