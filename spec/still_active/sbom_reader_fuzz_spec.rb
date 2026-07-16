@@ -14,7 +14,7 @@
 RSpec.describe(StillActive::SbomReader) do
   # A one-component CycloneDX doc whose single library carries `purl`.
   def one_lib(purl, name: "candidate")
-    { "bomFormat" => "CycloneDX", "components" => [{ "type" => "library", "name" => name, "purl" => purl }] }.to_json
+    {"bomFormat" => "CycloneDX", "components" => [{"type" => "library", "name" => name, "purl" => purl}]}.to_json
   end
 
   # A known-good library plus a suspect one, so we can prove the good dependency
@@ -24,9 +24,9 @@ RSpec.describe(StillActive::SbomReader) do
     {
       "bomFormat" => "CycloneDX",
       "components" => [
-        { "type" => "library", "name" => "lodash", "purl" => "pkg:npm/lodash@4.17.21" },
-        { "type" => "library", "name" => "suspect", "purl" => purl },
-      ],
+        {"type" => "library", "name" => "lodash", "purl" => "pkg:npm/lodash@4.17.21"},
+        {"type" => "library", "name" => "suspect", "purl" => purl}
+      ]
     }.to_json
   end
 
@@ -45,7 +45,7 @@ RSpec.describe(StillActive::SbomReader) do
       "",
       "pkg:npm/%",
       "pkg:npm/@@@@@@",
-      "pkg:npm/%2",
+      "pkg:npm/%2"
     ]
   end
 
@@ -60,7 +60,7 @@ RSpec.describe(StillActive::SbomReader) do
       "pkg:cargo/serde_derive@1.0.197",
       "pkg:gem/nokogiri@1.16.0?platform=java",
       "pkg:golang/gopkg.in/yaml.v3@3.0.1",
-      "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.15.2?type=jar",
+      "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.15.2?type=jar"
     ]
   end
 
@@ -103,7 +103,7 @@ RSpec.describe(StillActive::SbomReader) do
       "components is a string" => '{"components":"x"}',
       "components is a number" => '{"components":42}',
       "null body" => "null",
-      "bare array" => "[]",
+      "bare array" => "[]"
     }.each do |label, body|
       it "returns an empty Result for #{label}" do
         result = nil
@@ -124,9 +124,9 @@ RSpec.describe(StillActive::SbomReader) do
   end
 
   it "survives a huge component array with bad PURLs interspersed (no raise, good deps intact)" do
-    good = Array.new(3000) { |i| { "type" => "library", "name" => "pkg#{i}", "purl" => "pkg:npm/pkg#{i}@1.0.#{i}" } }
-    bad = malformed_purls.map.with_index { |p, i| { "type" => "library", "name" => "bad#{i}", "purl" => p } }
-    body = { "bomFormat" => "CycloneDX", "components" => good.concat(bad) }.to_json
+    good = Array.new(3000) { |i| {"type" => "library", "name" => "pkg#{i}", "purl" => "pkg:npm/pkg#{i}@1.0.#{i}"} }
+    bad = malformed_purls.map.with_index { |p, i| {"type" => "library", "name" => "bad#{i}", "purl" => p} }
+    body = {"bomFormat" => "CycloneDX", "components" => good.concat(bad)}.to_json
     result = nil
     expect { result = described_class.parse_string(body) }.not_to(raise_error)
     expect(result.dependencies.size).to(eq(3000))
@@ -146,7 +146,7 @@ RSpec.describe(StillActive::SbomReader) do
         Faker::Lorem.characters(number: rng.rand(0..60)),
         Faker::Internet.url,
         "pkg:#{Faker::Lorem.word}/#{Faker::Internet.slug}@#{Faker::App.semantic_version}",
-        "pkg:npm/#{Faker::Lorem.characters(number: rng.rand(0..20))}@#{Faker::Lorem.word}",
+        "pkg:npm/#{Faker::Lorem.characters(number: rng.rand(0..20))}@#{Faker::Lorem.word}"
       ].sample(random: rng)
       name = Faker::Lorem.characters(number: rng.rand(0..30))
       body = one_lib(purl, name: name)

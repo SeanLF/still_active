@@ -14,7 +14,7 @@ RSpec.describe(StillActive::SarifHelper) do
       result: result,
       ruby_info: ruby_info,
       lockfile_path: lockfile_path,
-      tool_version: tool_version,
+      tool_version: tool_version
     ))
   end
 
@@ -38,7 +38,7 @@ RSpec.describe(StillActive::SarifHelper) do
       # StillActive::VERSION is a RubyGems prerelease ("3.0.0.rc4"), which is NOT
       # valid SemVer 2.0.0; semanticVersion must carry the SemVer form.
       driver = JSON.parse(described_class.render(
-        result: {}, ruby_info: nil, lockfile_path: lockfile_path, tool_version: "3.0.0.rc4",
+        result: {}, ruby_info: nil, lockfile_path: lockfile_path, tool_version: "3.0.0.rc4"
       )).dig("runs", 0, "tool", "driver")
       expect(driver["version"]).to(eq("3.0.0.rc4")) # free-form native version, verbatim
       expect(driver["semanticVersion"]).to(eq("3.0.0-rc4")) # SemVer 2.0.0
@@ -78,7 +78,7 @@ RSpec.describe(StillActive::SarifHelper) do
   describe("SA001 ArchivedRepository") do
     subject(:results) { render(result: report).dig("runs", 0, "results") }
 
-    let(:report) { { "archived_gem" => { version_used: "1.0.0", archived: true, repository_url: "https://github.com/x/y" } } }
+    let(:report) { {"archived_gem" => {version_used: "1.0.0", archived: true, repository_url: "https://github.com/x/y"}} }
 
     it("emits one result per archived gem") do
       sa001 = results.select { |r| r["ruleId"] == "SA001" }
@@ -95,7 +95,7 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("uses a fingerprint that omits version") do
-      report_v2 = { "archived_gem" => { version_used: "9.9.9", archived: true } }
+      report_v2 = {"archived_gem" => {version_used: "9.9.9", archived: true}}
       fp_a = render(result: report).dig("runs", 0, "results", 0, "partialFingerprints", "stillActiveFinding/v1")
       fp_b = render(result: report_v2).dig("runs", 0, "results", 0, "partialFingerprints", "stillActiveFinding/v1")
       expect(fp_a).to(eq(fp_b))
@@ -110,20 +110,20 @@ RSpec.describe(StillActive::SarifHelper) do
   describe("native suppressions[] from .still_active.yml") do
     subject(:results) { render(result: report).dig("runs", 0, "results") }
 
-    let(:report) { { "archived_gem" => { version_used: "1.0.0", archived: true, repository_url: "https://github.com/x/y" } } }
+    let(:report) { {"archived_gem" => {version_used: "1.0.0", archived: true, repository_url: "https://github.com/x/y"}} }
 
     before { StillActive.reset }
 
     after { StillActive.reset }
 
     it("marks a suppressed activity finding with the reason as justification") do
-      StillActive.config.suppressions = StillActive::Suppressions.from([{ "gem" => "archived_gem", "signal" => "activity", "reason" => "vendored fork" }])
+      StillActive.config.suppressions = StillActive::Suppressions.from([{"gem" => "archived_gem", "signal" => "activity", "reason" => "vendored fork"}])
       sa001 = results.find { |r| r["ruleId"] == "SA001" }
-      expect(sa001["suppressions"]).to(eq([{ "kind" => "external", "justification" => "vendored fork" }]))
+      expect(sa001["suppressions"]).to(eq([{"kind" => "external", "justification" => "vendored fork"}]))
     end
 
     it("leaves an unrelated finding unsuppressed") do
-      StillActive.config.suppressions = StillActive::Suppressions.from([{ "gem" => "other", "signal" => "activity" }])
+      StillActive.config.suppressions = StillActive::Suppressions.from([{"gem" => "other", "signal" => "activity"}])
       expect(results.find { |r| r["ruleId"] == "SA001" }).not_to(have_key("suppressions"))
     end
 
@@ -134,8 +134,8 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("marks only the matching advisory on a vulnerability finding") do
-      StillActive.config.suppressions = StillActive::Suppressions.from([{ "gem" => "vg", "advisory" => "CVE-1", "reason" => "no fix" }])
-      rpt = { "vg" => { version_used: "1.0.0", vulnerabilities: [{ id: "CVE-1" }, { id: "CVE-2" }] } }
+      StillActive.config.suppressions = StillActive::Suppressions.from([{"gem" => "vg", "advisory" => "CVE-1", "reason" => "no fix"}])
+      rpt = {"vg" => {version_used: "1.0.0", vulnerabilities: [{id: "CVE-1"}, {id: "CVE-2"}]}}
       sa003 = render(result: rpt).dig("runs", 0, "results").select { |r| r["ruleId"] == "SA003" }
       suppressed = sa003.select { |r| r.key?("suppressions") }
       expect(suppressed.size).to(eq(1))
@@ -145,7 +145,7 @@ RSpec.describe(StillActive::SarifHelper) do
 
   describe("alternatives suffix") do
     it("appends alternatives to the archived-gem result message") do
-      result = { "paperclip" => { source_type: :rubygems, version_used: "6.0.0", archived: true, alternatives: ["shrine", "carrierwave"] } }
+      result = {"paperclip" => {source_type: :rubygems, version_used: "6.0.0", archived: true, alternatives: ["shrine", "carrierwave"]}}
       sarif = render(result: result)
       msg = sarif.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA001" }.dig("message", "text")
       expect(msg).to(include("Consider: shrine, carrierwave"))
@@ -153,21 +153,21 @@ RSpec.describe(StillActive::SarifHelper) do
 
     it("appends alternatives to the abandoned-gem result message") do
       ancient = Time.now - (4 * 365 * 24 * 60 * 60)
-      result = { "paperclip" => { version_used: "6.0.0", archived: false, latest_version_release_date: ancient, alternatives: ["shrine", "carrierwave"] } }
+      result = {"paperclip" => {version_used: "6.0.0", archived: false, latest_version_release_date: ancient, alternatives: ["shrine", "carrierwave"]}}
       sarif = render(result: result)
       msg = sarif.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA002" }.dig("message", "text")
       expect(msg).to(include("Consider: shrine, carrierwave"))
     end
 
     it("omits alternatives suffix when alternatives key is absent") do
-      result = { "archived_gem" => { version_used: "1.0.0", archived: true } }
+      result = {"archived_gem" => {version_used: "1.0.0", archived: true}}
       sarif = render(result: result)
       msg = sarif.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA001" }.dig("message", "text")
       expect(msg).not_to(include("Consider:"))
     end
 
     it("omits alternatives suffix when alternatives array is empty") do
-      result = { "archived_gem" => { version_used: "1.0.0", archived: true, alternatives: [] } }
+      result = {"archived_gem" => {version_used: "1.0.0", archived: true, alternatives: []}}
       sarif = render(result: result)
       msg = sarif.dig("runs", 0, "results").find { |r| r["ruleId"] == "SA001" }.dig("message", "text")
       expect(msg).not_to(include("Consider:"))
@@ -181,7 +181,7 @@ RSpec.describe(StillActive::SarifHelper) do
     let(:ancient_release) { Time.now - (4 * 365 * 24 * 60 * 60) }
 
     it("fires when the last release is over 3 years old, reporting the release gap") do
-      report = { "abandoned_gem" => { version_used: "2.0.0", archived: false, latest_version_release_date: ancient_release } }
+      report = {"abandoned_gem" => {version_used: "2.0.0", archived: false, latest_version_release_date: ancient_release}}
       results = render(result: report).dig("runs", 0, "results")
       sa002 = results.select { |r| r["ruleId"] == "SA002" }
       expect(sa002.size).to(eq(1))
@@ -197,15 +197,15 @@ RSpec.describe(StillActive::SarifHelper) do
           version_used: "2.0.0",
           archived: false,
           latest_version_release_date: ancient_release,
-          last_commit_date: Time.now,
-        },
+          last_commit_date: Time.now
+        }
       }
       results = render(result: report).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA002" }).to(be(true))
     end
 
     it("falls back to the commit date for a gem with no releases (git-sourced)") do
-      report = { "git_gem" => { version_used: "1.0.0", archived: false, last_commit_date: ancient_release } }
+      report = {"git_gem" => {version_used: "1.0.0", archived: false, last_commit_date: ancient_release}}
       results = render(result: report).dig("runs", 0, "results")
       sa002 = results.select { |r| r["ruleId"] == "SA002" }
       expect(sa002.size).to(eq(1))
@@ -213,7 +213,7 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("does NOT fire when the gem is also archived (SA001 dominates)") do
-      report = { "abandoned_gem" => { version_used: "2.0.0", archived: true, latest_version_release_date: ancient_release } }
+      report = {"abandoned_gem" => {version_used: "2.0.0", archived: true, latest_version_release_date: ancient_release}}
       results = render(result: report).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA002" }).to(be(false))
       expect(results.any? { |r| r["ruleId"] == "SA001" }).to(be(true))
@@ -222,10 +222,10 @@ RSpec.describe(StillActive::SarifHelper) do
 
   describe("SA008 PoisonPill") do
     def poison(constraints, extra = {})
-      { "gem" => { version_used: "1.1.4", poison: true, constraints: constraints }.merge(extra) }
+      {"gem" => {version_used: "1.1.4", poison: true, constraints: constraints}.merge(extra)}
     end
 
-    let(:cap) { { dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling } }
+    let(:cap) { {dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling} }
 
     it("fires a warning-level SA008 with the receipt (requirement + exact latest version)") do
       results = render(result: poison([cap])).dig("runs", 0, "results")
@@ -242,7 +242,7 @@ RSpec.describe(StillActive::SarifHelper) do
 
     it("escalates a security-relevant (patchable) cap to error, names the pinned vulnerable dep, and mints a distinct fingerprint") do
       vuln_cap = cap.merge(dependency: "protobuf", capped_dep_vulnerable: true)
-      data = poison([vuln_cap], { poison_severity: :note, poison_security_relevant: true })
+      data = poison([vuln_cap], {poison_severity: :note, poison_security_relevant: true})
       sa008 = render(result: data).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
       expect(sa008["level"]).to(eq("error")) # security-relevant escalates above the :note tier
       # No below-fix data: claim only that it's vulnerable, without asserting
@@ -261,16 +261,16 @@ RSpec.describe(StillActive::SarifHelper) do
         capped_dep_vulnerable: true,
         capped_below_fix: true,
         below_fix_advisory: "GHSA-7gcm-g887-7qv7",
-        below_fix_fixed_in: "5.29.6",
+        below_fix_fixed_in: "5.29.6"
       )
-      data = poison([below_cap], { poison_severity: :note, poison_security_relevant: true, poison_below_fix: true })
+      data = poison([below_cap], {poison_severity: :note, poison_security_relevant: true, poison_below_fix: true})
       sa008 = render(result: data).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
       expect(sa008["level"]).to(eq("error"))
       expect(sa008.dig("message", "text")).to(include("protobuf below the fix (GHSA-7gcm-g887-7qv7 fixed in 5.29.6, outside the cap)"))
 
       # A security-relevant (patchable) finding escalating to below-the-fix mints a NEW
       # alert, so a past dismissal of the weaker tier can't mute the stronger one.
-      patchable = poison([cap.merge(dependency: "protobuf", capped_dep_vulnerable: true)], { poison_severity: :note, poison_security_relevant: true })
+      patchable = poison([cap.merge(dependency: "protobuf", capped_dep_vulnerable: true)], {poison_severity: :note, poison_security_relevant: true})
       patchable_fp = render(result: patchable).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
       expect(sa008.dig("partialFingerprints", "primaryLocationLineHash"))
         .not_to(eq(patchable_fp.dig("partialFingerprints", "primaryLocationLineHash")))
@@ -286,10 +286,10 @@ RSpec.describe(StillActive::SarifHelper) do
 
     it("shows the worst 3 caps + more for a many-cap gem") do
       caps = [
-        { dependency: "chalk", requirement: "^1", dep_latest: "5.0.0", majors_behind: 4, kind: :ceiling },
-        { dependency: "through2", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
-        { dependency: "vinyl", requirement: "^0.5", dep_latest: "3.0.0", majors_behind: 3, kind: :ceiling },
-        { dependency: "dateformat", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
+        {dependency: "chalk", requirement: "^1", dep_latest: "5.0.0", majors_behind: 4, kind: :ceiling},
+        {dependency: "through2", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling},
+        {dependency: "vinyl", requirement: "^0.5", dep_latest: "3.0.0", majors_behind: 3, kind: :ceiling},
+        {dependency: "dateformat", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling}
       ]
       msg = render(result: poison(caps)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }.dig("message", "text")
       expect(msg).to(include("+1 more"))
@@ -297,31 +297,31 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("names the direct parent for a transitive pill") do
-      data = poison([cap], { direct: false, dependency_path: ["rails", "gem"] })
+      data = poison([cap], {direct: false, dependency_path: ["rails", "gem"]})
       msg = render(result: data).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }.dig("message", "text")
       expect(msg).to(include("transitive, pulled in by rails"))
     end
 
     it("does not fire for a non-poison gem or a poison gem with empty constraints") do
       results = render(result: {
-        "clean" => { version_used: "1.0.0", poison: false },
-        "empty" => { version_used: "1.0.0", poison: true, constraints: [] },
+        "clean" => {version_used: "1.0.0", poison: false},
+        "empty" => {version_used: "1.0.0", poison: true, constraints: []}
       }).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA008" }).to(be(false))
     end
 
     it("is suppressible via the :poison signal") do
       StillActive.config.suppressions = StillActive::Suppressions.from(
-        [{ "gem" => "gem", "signal" => "poison", "reason" => "vendored" }],
+        [{"gem" => "gem", "signal" => "poison", "reason" => "vendored"}]
       )
       sa008 = render(result: poison([cap])).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA008" }
-      expect(sa008["suppressions"]).to(eq([{ "kind" => "external", "justification" => "vendored" }]))
+      expect(sa008["suppressions"]).to(eq([{"kind" => "external", "justification" => "vendored"}]))
     end
   end
 
   describe("SA009 RuntimeCeiling") do
     def ceiling(finding, extra = {})
-      { "gem" => { version_used: "3.0.9", latest_version: "4.0.0", language_ceiling: { runtime: "Ruby" }.merge(finding) }.merge(extra) }
+      {"gem" => {version_used: "3.0.9", latest_version: "4.0.0", language_ceiling: {runtime: "Ruby"}.merge(finding)}.merge(extra)}
     end
 
     let(:eol_finding) do
@@ -333,7 +333,7 @@ RSpec.describe(StillActive::SarifHelper) do
         ceiling_eol_date: Time.new(2025, 3, 31),
         oldest_supported: "3.3",
         latest_stable: "4.0.5",
-        fixed_by_upgrade: true,
+        fixed_by_upgrade: true
       }
     end
 
@@ -347,8 +347,8 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("fires a note-level SA009 for a latest-not-yet cap") do
-      finding = { requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }
-      sa009 = render(result: ceiling(finding, { version_used: "1.0.0", latest_version: "1.0.0" })).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }
+      finding = {requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false}
+      sa009 = render(result: ceiling(finding, {version_used: "1.0.0", latest_version: "1.0.0"})).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }
       expect(sa009["level"]).to(eq("note"))
       expect(sa009.dig("message", "text")).to(include("no Ruby 4.0.5 support yet"))
     end
@@ -367,7 +367,7 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("mints a DIFFERENT fingerprint when a note escalates to EOL-forced, so a past dismissal can't mute the critical") do
-      note = { requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }
+      note = {requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false}
       fp = lambda do |finding|
         render(result: ceiling(finding)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }.dig("partialFingerprints", "stillActiveFinding/v1")
       end
@@ -375,26 +375,26 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("does not fire for a gem without a ceiling") do
-      results = render(result: { "clean" => { version_used: "1.0.0" } }).dig("runs", 0, "results")
+      results = render(result: {"clean" => {version_used: "1.0.0"}}).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA009" }).to(be(false))
     end
 
     it("is suppressible via the :language_ceiling signal") do
       StillActive.config.suppressions = StillActive::Suppressions.from(
-        [{ "gem" => "gem", "signal" => "language_ceiling", "reason" => "pinned on purpose" }],
+        [{"gem" => "gem", "signal" => "language_ceiling", "reason" => "pinned on purpose"}]
       )
       sa009 = render(result: ceiling(eol_finding)).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA009" }
-      expect(sa009["suppressions"]).to(eq([{ "kind" => "external", "justification" => "pinned on purpose" }]))
+      expect(sa009["suppressions"]).to(eq([{"kind" => "external", "justification" => "pinned on purpose"}]))
     end
 
     it("does NOT fire on a recent release") do
-      report = { "fresh_gem" => { version_used: "2.0.0", archived: false, latest_version_release_date: Time.now } }
+      report = {"fresh_gem" => {version_used: "2.0.0", archived: false, latest_version_release_date: Time.now}}
       results = render(result: report).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA002" }).to(be(false))
     end
 
     it("does NOT fire on a stale-but-not-critical release (18mo-3yr stays terminal-only)") do
-      report = { "stale_gem" => { version_used: "2.0.0", archived: false, latest_version_release_date: Time.now - (2 * 365 * 24 * 60 * 60) } }
+      report = {"stale_gem" => {version_used: "2.0.0", archived: false, latest_version_release_date: Time.now - (2 * 365 * 24 * 60 * 60)}}
       results = render(result: report).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA002" }).to(be(false))
     end
@@ -408,10 +408,10 @@ RSpec.describe(StillActive::SarifHelper) do
         "vuln_gem" => {
           version_used: "3.0.0",
           vulnerabilities: [
-            { id: "CVE-2026-0001", title: "Critical RCE", cvss3_score: 9.1, aliases: ["GHSA-aaaa-bbbb-cccc"] },
-            { id: "CVE-2026-0002", title: "Medium DoS", cvss3_score: 5.0 },
-          ],
-        },
+            {id: "CVE-2026-0001", title: "Critical RCE", cvss3_score: 9.1, aliases: ["GHSA-aaaa-bbbb-cccc"]},
+            {id: "CVE-2026-0002", title: "Medium DoS", cvss3_score: 5.0}
+          ]
+        }
       }
     end
 
@@ -425,9 +425,9 @@ RSpec.describe(StillActive::SarifHelper) do
         "stuck" => {
           version_used: "1.0.0",
           vulnerabilities: [
-            { id: "CVE-2026-9", title: "RCE", cvss3_score: 9.0, no_fix_available: true },
-          ],
-        },
+            {id: "CVE-2026-9", title: "RCE", cvss3_score: 9.0, no_fix_available: true}
+          ]
+        }
       }
       msg = render(result: report).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA003" }.dig("message", "text")
       expect(msg).to(include("no fixed version available"))
@@ -456,8 +456,8 @@ RSpec.describe(StillActive::SarifHelper) do
       report_v2 = {
         "vuln_gem" => {
           version_used: "3.0.0",
-          vulnerabilities: [{ id: "CVE-old", title: "Older advisory", cvss3_score: nil, cvss2_score: 6.0 }],
-        },
+          vulnerabilities: [{id: "CVE-old", title: "Older advisory", cvss3_score: nil, cvss2_score: 6.0}]
+        }
       }
       sa003 = render(result: report_v2).dig("runs", 0, "results")
       expect(sa003.size).to(eq(1))
@@ -469,8 +469,8 @@ RSpec.describe(StillActive::SarifHelper) do
       report_v2 = {
         "vuln_gem" => {
           version_used: "3.0.0",
-          vulnerabilities: [{ id: "CVE-unscored", title: "Unscored", cvss3_score: nil, cvss2_score: nil }],
-        },
+          vulnerabilities: [{id: "CVE-unscored", title: "Unscored", cvss3_score: nil, cvss2_score: nil}]
+        }
       }
       sa003 = render(result: report_v2).dig("runs", 0, "results", 0)
       expect(sa003["level"]).to(eq("warning"))
@@ -483,8 +483,8 @@ RSpec.describe(StillActive::SarifHelper) do
       report = {
         "protobuf" => {
           version_used: "4.21.6",
-          vulnerabilities: [{ id: "GHSA-8qvm-5x2c-j2w7", title: "DoS", cvss3_score: 0, cvss2_score: nil }],
-        },
+          vulnerabilities: [{id: "GHSA-8qvm-5x2c-j2w7", title: "DoS", cvss3_score: 0, cvss2_score: nil}]
+        }
       }
       sa003 = render(result: report).dig("runs", 0, "results", 0)
       expect(sa003["level"]).to(eq("warning"))
@@ -494,7 +494,7 @@ RSpec.describe(StillActive::SarifHelper) do
 
   describe("SA004 LibyearBehind") do
     it("fires when libyear exceeds 1.0") do
-      report = { "behind_gem" => { version_used: "1.5.0", libyear: 2.5, latest_version: "3.0.0" } }
+      report = {"behind_gem" => {version_used: "1.5.0", libyear: 2.5, latest_version: "3.0.0"}}
       results = render(result: report).dig("runs", 0, "results")
       sa004 = results.select { |r| r["ruleId"] == "SA004" }
       expect(sa004.size).to(eq(1))
@@ -502,7 +502,7 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("does not fire at libyear <= 1.0") do
-      report = { "fresh_gem" => { version_used: "1.5.0", libyear: 0.8 } }
+      report = {"fresh_gem" => {version_used: "1.5.0", libyear: 0.8}}
       results = render(result: report).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA004" }).to(be(false))
     end
@@ -510,7 +510,7 @@ RSpec.describe(StillActive::SarifHelper) do
 
   describe("SA005 LowOpenSSFScore") do
     it("fires when scorecard_score is below 4.0") do
-      report = { "weak_gem" => { version_used: "0.5.0", scorecard_score: 2.5 } }
+      report = {"weak_gem" => {version_used: "0.5.0", scorecard_score: 2.5}}
       results = render(result: report).dig("runs", 0, "results")
       sa005 = results.select { |r| r["ruleId"] == "SA005" }
       expect(sa005.size).to(eq(1))
@@ -518,7 +518,7 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("does not fire when scorecard is nil") do
-      report = { "unknown_gem" => { version_used: "1.0.0", scorecard_score: nil } }
+      report = {"unknown_gem" => {version_used: "1.0.0", scorecard_score: nil}}
       results = render(result: report).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA005" }).to(be(false))
     end
@@ -526,7 +526,7 @@ RSpec.describe(StillActive::SarifHelper) do
 
   describe("SA006 RubyEOL") do
     it("fires once when ruby_info indicates EOL") do
-      ruby_info = { version: "2.7.8", eol: true, eol_date: "2023-03-31T00:00:00Z", latest_version: "3.4.0" }
+      ruby_info = {version: "2.7.8", eol: true, eol_date: "2023-03-31T00:00:00Z", latest_version: "3.4.0"}
       results = render(result: {}, ruby_info: ruby_info).dig("runs", 0, "results")
       sa006 = results.select { |r| r["ruleId"] == "SA006" }
       expect(sa006.size).to(eq(1))
@@ -535,7 +535,7 @@ RSpec.describe(StillActive::SarifHelper) do
     end
 
     it("does not fire when ruby is not EOL") do
-      ruby_info = { version: "3.4.0", eol: false }
+      ruby_info = {version: "3.4.0", eol: false}
       results = render(result: {}, ruby_info: ruby_info).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA006" }).to(be(false))
     end
@@ -548,7 +548,7 @@ RSpec.describe(StillActive::SarifHelper) do
 
   describe("SA007 YankedVersion") do
     it("fires when version_yanked is true") do
-      report = { "yanked_gem" => { version_used: "4.0.0", version_yanked: true } }
+      report = {"yanked_gem" => {version_used: "4.0.0", version_yanked: true}}
       results = render(result: report).dig("runs", 0, "results")
       sa007 = results.select { |r| r["ruleId"] == "SA007" }
       expect(sa007.size).to(eq(1))
@@ -558,20 +558,20 @@ RSpec.describe(StillActive::SarifHelper) do
 
   describe("schema validation") do
     it("validates against the SARIF 2.1.0 JSON schema") do
-      ruby_info = { version: "2.7.8", eol: true, latest_version: "3.4.0" }
+      ruby_info = {version: "2.7.8", eol: true, latest_version: "3.4.0"}
       report = {
-        "archived_gem" => { version_used: "1.0.0", archived: true },
-        "abandoned_gem" => { version_used: "2.0.0", archived: false, last_commit_date: (Time.now - (3 * 365 * 24 * 60 * 60)).iso8601 },
-        "vuln_gem" => { version_used: "3.0.0", vulnerabilities: [{ id: "CVE-1", cvss3_score: 9.0 }] },
-        "behind_gem" => { version_used: "1.5.0", libyear: 2.5 },
-        "weak_gem" => { version_used: "0.5.0", scorecard_score: 2.5 },
-        "yanked_gem" => { version_used: "4.0.0", version_yanked: true },
+        "archived_gem" => {version_used: "1.0.0", archived: true},
+        "abandoned_gem" => {version_used: "2.0.0", archived: false, last_commit_date: (Time.now - (3 * 365 * 24 * 60 * 60)).iso8601},
+        "vuln_gem" => {version_used: "3.0.0", vulnerabilities: [{id: "CVE-1", cvss3_score: 9.0}]},
+        "behind_gem" => {version_used: "1.5.0", libyear: 2.5},
+        "weak_gem" => {version_used: "0.5.0", scorecard_score: 2.5},
+        "yanked_gem" => {version_used: "4.0.0", version_yanked: true}
       }
       json_str = described_class.render(
         result: report,
         ruby_info: ruby_info,
         lockfile_path: lockfile_path,
-        tool_version: tool_version,
+        tool_version: tool_version
       )
       schemer = JSONSchemer.schema(Pathname.new(schema_path))
       errors = schemer.validate(JSON.parse(json_str)).to_a

@@ -45,7 +45,7 @@ module StillActive
 
     # => { kind: :permissive|:ceiling|:exact_pin, majors_behind: Integer }
     def analyze(requirement:, dep_latest:)
-      return { kind: :permissive, majors_behind: 0 } if requirement.to_s.length > MAX_REQUIREMENT_LENGTH
+      return {kind: :permissive, majors_behind: 0} if requirement.to_s.length > MAX_REQUIREMENT_LENGTH
 
       # `||` is an OR-range (npm): satisfied by ANY branch, so an unbounded branch
       # lifts the cap entirely and the effective ceiling is the LOOSEST branch.
@@ -56,11 +56,11 @@ module StillActive
       ceilings = branches.map { |clauses| branch_ceiling(clauses) }
       latest_major = major(dep_latest)
 
-      return { kind: :permissive, majors_behind: 0 } if ceilings.any?(&:nil?)
+      return {kind: :permissive, majors_behind: 0} if ceilings.any?(&:nil?)
 
       behind = latest_major ? [latest_major - ceilings.max, 0].max : 0
-      kind = branches.all? { |clauses| all_exact?(clauses) } ? :exact_pin : :ceiling
-      { kind: kind, majors_behind: behind }
+      kind = (branches.all? { |clauses| all_exact?(clauses) }) ? :exact_pin : :ceiling
+      {kind: kind, majors_behind: behind}
     end
 
     # Severity tiers for a compatibility ceiling, worst-last (mirrors
@@ -150,7 +150,7 @@ module StillActive
           requirement: dep[:requirements],
           dep_latest: dep_latest,
           majors_behind: result[:majors_behind],
-          kind: result[:kind],
+          kind: result[:kind]
         }
       end
     end
@@ -161,7 +161,7 @@ module StillActive
     # by the terminal and markdown renderers so the selection can't drift.
     def top_findings(findings, limit: 3)
       ranked = findings.sort_by { |f| [-f[:majors_behind], f[:dependency].to_s] }
-      { shown: ranked.first(limit), total: findings.length }
+      {shown: ranked.first(limit), total: findings.length}
     end
 
     private

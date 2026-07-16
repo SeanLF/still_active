@@ -11,7 +11,7 @@ RSpec.describe(StillActive::EmojiHelper) do
 
   describe("#inactive_gem_emoji") do
     def gem_data(last_commit: nil, release: nil, pre_release: nil)
-      { last_commit_date: last_commit, latest_version_release_date: release, latest_pre_release_version_release_date: pre_release }
+      {last_commit_date: last_commit, latest_version_release_date: release, latest_pre_release_version_release_date: pre_release}
     end
 
     it("returns empty string for a gem with recent commit") do

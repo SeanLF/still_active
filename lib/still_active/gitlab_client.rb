@@ -20,7 +20,7 @@ module StillActive
       body = HttpHelper.get_json(BASE_URI, path, headers: auth_headers)
       return {} if body.nil?
 
-      { archived: body["archived"] == true, last_commit_date: parse_time(body["last_activity_at"], owner, name) }
+      {archived: body["archived"] == true, last_commit_date: parse_time(body["last_activity_at"], owner, name)}
     end
 
     private
@@ -30,13 +30,13 @@ module StillActive
 
       Time.parse(value)
     rescue ArgumentError
-      $stderr.puts("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
+      warn("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
       nil
     end
 
     def auth_headers
       token = StillActive.config.gitlab_token
-      token ? { "PRIVATE-TOKEN" => token } : {}
+      token ? {"PRIVATE-TOKEN" => token} : {}
     end
 
     def encode_project(owner, name)

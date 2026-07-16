@@ -1,4 +1,4 @@
-name: "Rubocop"
+name: "Standard"
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  rubocop:
+  standard:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,5 +24,5 @@ jobs:
         ruby-version: '4.0'
         bundler-cache: true
 
-    - name: Rubocop run
-      run: bundle exec rubocop
+    - name: Standard run
+      run: bundle exec standardrb

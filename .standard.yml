@@ -1,0 +1,17 @@
+ruby_version: 3.3
+plugins:
+  - standard-rspec
+ignore:
+  # keyword_init: true is intentional (keyword-only Structs); keep it explicit.
+  - 'lib/**/*':
+    - Style/RedundantStructKeywordInit
+  # gitignored dirs holding .rb standard would otherwise lint: scratch/ (PoC
+  # scripts) and .worktrees/ (full repo checkouts). standard does not skip
+  # gitignored files on its own.
+  - 'scratch/**/*'
+  - '.worktrees/**/*'
+  # Same RSpec opt-outs the old .rubocop.yml carried.
+  - 'spec/**/*':
+    - RSpec/MultipleExpectations
+    - RSpec/ExampleLength
+    - RSpec/NestedGroups

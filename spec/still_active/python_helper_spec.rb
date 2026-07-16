@@ -5,9 +5,9 @@ require_relative "../../lib/helpers/python_helper"
 RSpec.describe(StillActive::PythonHelper) do
   let(:cycles) do
     [
-      { "cycle" => "3.13", "latest" => "3.13.2", "releaseDate" => "2024-10-07", "eol" => "2029-10-31" },
-      { "cycle" => "3.12", "latest" => "3.12.9", "releaseDate" => "2023-10-02", "eol" => "2028-10-31" },
-      { "cycle" => "3.9", "latest" => "3.9.21", "releaseDate" => "2020-10-05", "eol" => "2025-10-31" },
+      {"cycle" => "3.13", "latest" => "3.13.2", "releaseDate" => "2024-10-07", "eol" => "2029-10-31"},
+      {"cycle" => "3.12", "latest" => "3.12.9", "releaseDate" => "2023-10-02", "eol" => "2028-10-31"},
+      {"cycle" => "3.9", "latest" => "3.9.21", "releaseDate" => "2020-10-05", "eol" => "2025-10-31"}
     ]
   end
 

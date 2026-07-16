@@ -33,16 +33,16 @@ RSpec.describe(StillActive::LibyearHelper) do
   describe(".total_libyear") do
     it("sums libyear values across gems") do
       result = {
-        "a" => { libyear: 1.5 },
-        "b" => { libyear: 2.3 },
+        "a" => {libyear: 1.5},
+        "b" => {libyear: 2.3}
       }
       expect(described_class.total_libyear(result)).to(eq(3.8))
     end
 
     it("treats nil libyear as 0") do
       result = {
-        "a" => { libyear: 1.0 },
-        "b" => { libyear: nil },
+        "a" => {libyear: 1.0},
+        "b" => {libyear: nil}
       }
       expect(described_class.total_libyear(result)).to(eq(1.0))
     end

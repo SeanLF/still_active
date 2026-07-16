@@ -19,7 +19,7 @@ module StillActive
       SocketError,
       SystemCallError,
       OpenSSL::SSL::SSLError,
-      EOFError,
+      EOFError
     ].freeze
     MAX_REDIRECTS = 3
     # Ceiling on a single response body. These are metadata endpoints (version
@@ -83,23 +83,23 @@ module StillActive
         when :redirect
           location = payload["Location"]
           if location.nil? || location.empty?
-            $stderr.puts("warning: #{uri.host}#{uri.path} returned HTTP #{payload.code} with no Location header")
+            warn("warning: #{uri.host}#{uri.path} returned HTTP #{payload.code} with no Location header")
             return
           end
 
           redirect_uri = uri + location
           unless TRUSTED_HOSTS.include?(redirect_uri.host)
-            $stderr.puts("warning: #{uri.host}#{uri.path} redirected to untrusted host #{redirect_uri.host}, skipping")
+            warn("warning: #{uri.host}#{uri.path} redirected to untrusted host #{redirect_uri.host}, skipping")
             return
           end
           # We dial every request over TLS (use_ssl = true). A redirect that
           # downgrades to http is either a misconfiguration or a downgrade
           # attempt; refuse it rather than silently dialing http-over-TLS.
           unless redirect_uri.scheme == "https"
-            $stderr.puts("warning: #{uri.host}#{uri.path} redirected to non-https #{redirect_uri.scheme} target, skipping")
+            warn("warning: #{uri.host}#{uri.path} redirected to non-https #{redirect_uri.scheme} target, skipping")
             return
           end
-          $stderr.puts("warning: #{uri.host}#{uri.path} redirected to #{redirect_uri.host}#{redirect_uri.path} (stale metadata?)")
+          warn("warning: #{uri.host}#{uri.path} redirected to #{redirect_uri.host}#{redirect_uri.path} (stale metadata?)")
           # Auth is scoped to an origin (scheme + host + port), not just a host:
           # a different port is a different service and must not inherit the token.
           headers = {} unless same_origin?(uri, redirect_uri)
@@ -107,16 +107,16 @@ module StillActive
         end
       end
 
-      $stderr.puts("warning: #{uri.host}#{uri.path} too many redirects")
+      warn("warning: #{uri.host}#{uri.path} too many redirects")
       nil
     rescue *TRANSPORT_ERRORS => e
-      $stderr.puts("warning: #{uri.host}#{uri.path} failed: #{e.class} (#{e.message})")
+      warn("warning: #{uri.host}#{uri.path} failed: #{e.class} (#{e.message})")
       nil
     rescue JSON::ParserError => e
-      $stderr.puts("warning: #{uri.host}#{uri.path} returned invalid JSON: #{e.message}")
+      warn("warning: #{uri.host}#{uri.path} returned invalid JSON: #{e.message}")
       nil
     rescue URI::InvalidURIError => e
-      $stderr.puts("warning: #{uri.host}#{uri.path} returned an invalid redirect Location: #{e.message}")
+      warn("warning: #{uri.host}#{uri.path} returned an invalid redirect Location: #{e.message}")
       nil
     end
 
@@ -133,7 +133,7 @@ module StillActive
         return [:redirect, response] if response.is_a?(Net::HTTPRedirection)
 
         unless response.is_a?(Net::HTTPSuccess)
-          $stderr.puts("warning: #{uri.host}#{uri.path} returned HTTP #{response.code}") unless response.is_a?(Net::HTTPNotFound)
+          warn("warning: #{uri.host}#{uri.path} returned HTTP #{response.code}") unless response.is_a?(Net::HTTPNotFound)
           return [:stop, nil]
         end
 
@@ -151,7 +151,7 @@ module StillActive
       response.read_body do |chunk|
         body << chunk
         if body.bytesize > MAX_BODY_BYTES
-          $stderr.puts("warning: #{uri.host}#{uri.path} response exceeded #{MAX_BODY_BYTES} bytes, skipping")
+          warn("warning: #{uri.host}#{uri.path} response exceeded #{MAX_BODY_BYTES} bytes, skipping")
           return nil
         end
       end

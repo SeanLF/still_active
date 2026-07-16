@@ -36,9 +36,9 @@ RSpec.describe(StillActive::VersionHelper) do
         # on newest-first ordering would report the wrong "latest" and cascade a
         # bogus up_to_date / libyear off it.
         unordered = [
-          { "number" => "1.0.0", "prerelease" => false },
-          { "number" => "2.5.0", "prerelease" => false },
-          { "number" => "2.0.0", "prerelease" => false },
+          {"number" => "1.0.0", "prerelease" => false},
+          {"number" => "2.5.0", "prerelease" => false},
+          {"number" => "2.0.0", "prerelease" => false}
         ]
         result = described_class.find_version(versions: unordered, pre_release: false)
         expect(result["number"]).to(eq("2.5.0"))
@@ -53,9 +53,9 @@ RSpec.describe(StillActive::VersionHelper) do
 
       it("returns the highest pre-release, not whichever is listed first") do
         unordered = [
-          { "number" => "1.0.0.rc1", "prerelease" => true },
-          { "number" => "1.0.0.rc3", "prerelease" => true },
-          { "number" => "1.0.0.rc2", "prerelease" => true },
+          {"number" => "1.0.0.rc1", "prerelease" => true},
+          {"number" => "1.0.0.rc3", "prerelease" => true},
+          {"number" => "1.0.0.rc2", "prerelease" => true}
         ]
         result = described_class.find_version(versions: unordered, pre_release: true)
         expect(result["number"]).to(eq("1.0.0.rc3"))
@@ -65,34 +65,34 @@ RSpec.describe(StillActive::VersionHelper) do
 
   describe("#upcoming_pre_release") do
     it("returns nil when there is no pre-release") do
-      expect(described_class.upcoming_pre_release(pre_release: nil, release: { "number" => "1.0.0" })).to(be_nil)
+      expect(described_class.upcoming_pre_release(pre_release: nil, release: {"number" => "1.0.0"})).to(be_nil)
     end
 
     it("keeps a pre-release newer than the latest stable (an upcoming version)") do
-      pre = { "number" => "2.0.0.rc1", "prerelease" => true }
-      expect(described_class.upcoming_pre_release(pre_release: pre, release: { "number" => "1.5.0" })).to(eq(pre))
+      pre = {"number" => "2.0.0.rc1", "prerelease" => true}
+      expect(described_class.upcoming_pre_release(pre_release: pre, release: {"number" => "1.5.0"})).to(eq(pre))
     end
 
     it("drops a pre-release older than the latest stable (historical noise)") do
       # e.g. an 8.1.0.rc1 lingering after 8.1.2 shipped, or a lone 2009 rc on a
       # gem now at 0.9.x. Showing it is noise, and it marks a behind gem as ahead.
-      pre = { "number" => "0.3.4.rc2", "prerelease" => true }
-      expect(described_class.upcoming_pre_release(pre_release: pre, release: { "number" => "0.9.11" })).to(be_nil)
+      pre = {"number" => "0.3.4.rc2", "prerelease" => true}
+      expect(described_class.upcoming_pre_release(pre_release: pre, release: {"number" => "0.9.11"})).to(be_nil)
     end
 
     it("drops a pre-release of an already-shipped stable (rc1 sorts below its release)") do
-      pre = { "number" => "1.0.0.rc1", "prerelease" => true }
-      expect(described_class.upcoming_pre_release(pre_release: pre, release: { "number" => "1.0.0" })).to(be_nil)
+      pre = {"number" => "1.0.0.rc1", "prerelease" => true}
+      expect(described_class.upcoming_pre_release(pre_release: pre, release: {"number" => "1.0.0"})).to(be_nil)
     end
 
     it("keeps the pre-release when there is no stable release at all") do
-      pre = { "number" => "1.0.0.rc1", "prerelease" => true }
+      pre = {"number" => "1.0.0.rc1", "prerelease" => true}
       expect(described_class.upcoming_pre_release(pre_release: pre, release: nil)).to(eq(pre))
     end
 
     it("drops the pre-release when its version cannot be compared") do
-      pre = { "number" => "not-a-version", "prerelease" => true }
-      expect(described_class.upcoming_pre_release(pre_release: pre, release: { "number" => "1.0.0" })).to(be_nil)
+      pre = {"number" => "not-a-version", "prerelease" => true}
+      expect(described_class.upcoming_pre_release(pre_release: pre, release: {"number" => "1.0.0"})).to(be_nil)
     end
   end
 
@@ -177,7 +177,7 @@ RSpec.describe(StillActive::VersionHelper) do
       "0.1.0.beta1" => "0.1.0-beta1",
       "1.2.3.pre.5" => "1.2.3-pre.5", # dotted prerelease structure preserved
       "2.0.0.rc.2" => "2.0.0-rc.2",
-      "1.2" => "1.2.0", # short release padded to MAJOR.MINOR.PATCH
+      "1.2" => "1.2.0" # short release padded to MAJOR.MINOR.PATCH
     }.each do |gem_version, semver|
       it("converts #{gem_version.inspect} to #{semver.inspect}") do
         expect(described_class.to_semver(gem_version)).to(eq(semver))
@@ -220,23 +220,23 @@ RSpec.describe(StillActive::VersionHelper) do
     end
 
     it("returns the single SPDX identifier") do
-      expect(described_class.license(version_hash: { "licenses" => ["MIT"] })).to(eq("MIT"))
+      expect(described_class.license(version_hash: {"licenses" => ["MIT"]})).to(eq("MIT"))
     end
 
     it("joins multiple licenses with a comma") do
-      expect(described_class.license(version_hash: { "licenses" => ["MIT", "Apache-2.0"] })).to(eq("MIT, Apache-2.0"))
+      expect(described_class.license(version_hash: {"licenses" => ["MIT", "Apache-2.0"]})).to(eq("MIT, Apache-2.0"))
     end
 
     it("returns nil when the licenses array is empty") do
-      expect(described_class.license(version_hash: { "licenses" => [] })).to(be_nil)
+      expect(described_class.license(version_hash: {"licenses" => []})).to(be_nil)
     end
 
     it("returns nil when the licenses key is absent") do
-      expect(described_class.license(version_hash: { "number" => "1.0.0" })).to(be_nil)
+      expect(described_class.license(version_hash: {"number" => "1.0.0"})).to(be_nil)
     end
 
     it("returns nil when licenses is null") do
-      expect(described_class.license(version_hash: { "licenses" => nil })).to(be_nil)
+      expect(described_class.license(version_hash: {"licenses" => nil})).to(be_nil)
     end
   end
 end

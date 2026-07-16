@@ -38,8 +38,8 @@ module StillActive
         latest_release_date: latest_release_date,
         libyear: LibyearHelper.gem_libyear(
           version_used_release_date: current_release_date,
-          latest_version_release_date: latest_release_date,
-        ),
+          latest_version_release_date: latest_release_date
+        )
       }
     end
 
@@ -54,7 +54,7 @@ module StillActive
     private
 
     def current_ruby_version
-      lockfile_ruby_version || (RUBY_ENGINE == "ruby" ? RUBY_VERSION : nil)
+      lockfile_ruby_version || ((RUBY_ENGINE == "ruby") ? RUBY_VERSION : nil)
     end
 
     def lockfile_ruby_version

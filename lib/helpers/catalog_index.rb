@@ -27,7 +27,7 @@ module StillActive
       index = build_index(blob)
       write_cache(index)
       index
-    rescue StandardError => e
+    rescue => e
       warn("still_active: could not load Ruby Toolbox catalog for alternatives (#{e.class}); skipping leads")
       nil
     end

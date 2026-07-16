@@ -10,7 +10,7 @@ RSpec.describe(StillActive::SummaryHelper) do
     {
       latest_version_release_date: recent,
       last_commit_date: recent,
-      direct: true,
+      direct: true
     }.merge(overrides)
   end
 
@@ -19,7 +19,7 @@ RSpec.describe(StillActive::SummaryHelper) do
       result = {
         "fresh" => gem_data,
         "stale_transitive" => gem_data(latest_version_release_date: Time.now - (2 * 365 * 24 * 60 * 60), last_commit_date: Time.now - (2 * 365 * 24 * 60 * 60), direct: false),
-        "dead" => gem_data(archived: true),
+        "dead" => gem_data(archived: true)
       }
       summary = described_class.summarize(result)
 
@@ -31,7 +31,7 @@ RSpec.describe(StillActive::SummaryHelper) do
     end
 
     it("always reports every activity level, even at zero") do
-      summary = described_class.summarize({ "fresh" => gem_data })
+      summary = described_class.summarize({"fresh" => gem_data})
       expect(summary[:activity].keys).to(contain_exactly(:ok, :stale, :critical, :archived, :unknown))
       expect(summary[:activity][:critical]).to(eq(0))
     end
@@ -41,7 +41,7 @@ RSpec.describe(StillActive::SummaryHelper) do
         "a" => gem_data(archived: true),
         "b" => gem_data(up_to_date: false),
         "c" => gem_data(vulnerability_count: 3),
-        "d" => gem_data(vulnerability_count: 1),
+        "d" => gem_data(vulnerability_count: 1)
       }
       summary = described_class.summarize(result)
 
@@ -52,7 +52,7 @@ RSpec.describe(StillActive::SummaryHelper) do
     end
 
     it("reports ruby_eol when ruby info is given, omits it otherwise") do
-      expect(described_class.summarize({}, ruby_info: { eol: true })[:ruby_eol]).to(be(true))
+      expect(described_class.summarize({}, ruby_info: {eol: true})[:ruby_eol]).to(be(true))
       expect(described_class.summarize({})).not_to(have_key(:ruby_eol))
     end
 

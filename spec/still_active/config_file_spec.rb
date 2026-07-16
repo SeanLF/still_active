@@ -54,7 +54,7 @@ RSpec.describe(StillActive::ConfigFile) do
         "output" => "json",
         "safe_range_end" => 1.0,
         "warning_range_end" => 4.0,
-        "parallelism" => 6,
+        "parallelism" => 6
       }
       described_class.apply(config, data, base_dir: dir)
 
@@ -73,66 +73,66 @@ RSpec.describe(StillActive::ConfigFile) do
     end
 
     it("warns and ignores a non-boolean gate value instead of silently disabling the gate") do
-      warnings = described_class.apply(config, { "fail_if_critical" => "" }, base_dir: dir)
+      warnings = described_class.apply(config, {"fail_if_critical" => ""}, base_dir: dir)
       expect(warnings.join).to(include("fail_if_critical must be true or false"))
       expect(config.fail_if_critical).to(be(false))
     end
 
     it("maps direct_only so a team can commit a direct-only audit, not just pass --direct-only") do
-      warnings = described_class.apply(config, { "direct_only" => true }, base_dir: dir)
+      warnings = described_class.apply(config, {"direct_only" => true}, base_dir: dir)
       expect(config.direct_only).to(be(true))
       expect(warnings.join).not_to(include("unknown setting"))
     end
 
     it("warns and ignores a non-boolean direct_only instead of silently flipping scope") do
-      warnings = described_class.apply(config, { "direct_only" => "yep" }, base_dir: dir)
+      warnings = described_class.apply(config, {"direct_only" => "yep"}, base_dir: dir)
       expect(warnings.join).to(include("direct_only must be true or false"))
       expect(config.direct_only).to(be(false))
     end
 
     it("treats fail_if_outdated: false as the gate being off, without crashing") do
-      expect { described_class.apply(config, { "fail_if_outdated" => false }, base_dir: dir) }.not_to(raise_error)
+      expect { described_class.apply(config, {"fail_if_outdated" => false}, base_dir: dir) }.not_to(raise_error)
       expect(config.fail_if_outdated).to(be_nil)
     end
 
     it("warns on a non-numeric threshold instead of coercing it to zero") do
-      warnings = described_class.apply(config, { "safe_range_end" => "bananas" }, base_dir: dir)
+      warnings = described_class.apply(config, {"safe_range_end" => "bananas"}, base_dir: dir)
       expect(warnings.join).to(include("safe_range_end must be a number"))
       expect(config.no_warning_range_end).to(eq(1.5))
     end
 
     it("warns on a non-positive parallelism instead of accepting it") do
-      warnings = described_class.apply(config, { "parallelism" => 0 }, base_dir: dir)
+      warnings = described_class.apply(config, {"parallelism" => 0}, base_dir: dir)
       expect(warnings.join).to(include("parallelism"))
       expect(config.parallelism).to(eq(10))
     end
 
     it("warns and skips an import target that is valid YAML but not a mapping") do
       write("weird.yml", "- a\n- b\n")
-      warnings = described_class.apply(config, { "import" => ["weird.yml"] }, base_dir: dir)
+      warnings = described_class.apply(config, {"import" => ["weird.yml"]}, base_dir: dir)
       expect(warnings.join).to(include("weird.yml"))
     end
 
     it("warns on an unknown top-level key") do
-      warnings = described_class.apply(config, { "frobnicate" => true }, base_dir: dir)
+      warnings = described_class.apply(config, {"frobnicate" => true}, base_dir: dir)
       expect(warnings.join).to(include("frobnicate"))
     end
 
     it("warns on an invalid fail_if_vulnerable severity") do
-      warnings = described_class.apply(config, { "fail_if_vulnerable" => "spicy" }, base_dir: dir)
+      warnings = described_class.apply(config, {"fail_if_vulnerable" => "spicy"}, base_dir: dir)
       expect(warnings.join).to(match(/severity/i))
       expect(config.fail_if_vulnerable).to(be_nil)
     end
 
     it("builds suppressions from the ignore block") do
-      data = { "ignore" => [{ "gem" => "nokogiri", "advisory" => "CVE-2024-1", "reason" => "no fix" }] }
+      data = {"ignore" => [{"gem" => "nokogiri", "advisory" => "CVE-2024-1", "reason" => "no fix"}]}
       described_class.apply(config, data, base_dir: dir)
       expect(config.suppressions.suppressed?(gem: "nokogiri", signal: :vulnerability, advisory: "CVE-2024-1")).to(be(true))
     end
 
     it("imports advisory ids from a referenced .bundler-audit.yml as vulnerability suppressions") do
       write(".bundler-audit.yml", "---\nignore:\n  - CVE-2024-AUDIT\n")
-      data = { "import" => [".bundler-audit.yml"] }
+      data = {"import" => [".bundler-audit.yml"]}
       described_class.apply(config, data, base_dir: dir)
       # An imported id suppresses that advisory on any gem.
       expect(config.suppressions.suppressed?(gem: "anything", signal: :vulnerability, advisory: "CVE-2024-AUDIT")).to(be(true))
@@ -141,12 +141,12 @@ RSpec.describe(StillActive::ConfigFile) do
     end
 
     it("warns when an import target is missing") do
-      warnings = described_class.apply(config, { "import" => ["nope.yml"] }, base_dir: dir)
+      warnings = described_class.apply(config, {"import" => ["nope.yml"]}, base_dir: dir)
       expect(warnings.join).to(include("nope.yml"))
     end
 
     it("surfaces suppression validation warnings") do
-      data = { "ignore" => [{ "gem" => "x", "signal" => "vulnerability" }] }
+      data = {"ignore" => [{"gem" => "x", "signal" => "vulnerability"}]}
       warnings = described_class.apply(config, data, base_dir: dir)
       expect(warnings.join).to(match(/advisory id/i))
     end
@@ -171,7 +171,7 @@ RSpec.describe(StillActive::ConfigFile) do
     it("stays silent when the file is already imported") do
       write(".bundler-audit.yml", "---\nignore:\n  - CVE-1\n")
       config.fail_if_vulnerable = true
-      expect(described_class.import_hint({ "import" => [".bundler-audit.yml"] }, config: config, dir: dir)).to(be_nil)
+      expect(described_class.import_hint({"import" => [".bundler-audit.yml"]}, config: config, dir: dir)).to(be_nil)
     end
 
     it("stays silent when there is no .bundler-audit.yml") do

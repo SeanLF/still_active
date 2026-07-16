@@ -117,34 +117,34 @@ RSpec.describe(StillActive::ConstraintHelper) do
   end
 
   describe(".poison_findings") do
-    let(:latest) { { "activemodel" => "8.0.1", "terrapin" => "1.1.1", "rack" => "3.1.0" } }
+    let(:latest) { {"activemodel" => "8.0.1", "terrapin" => "1.1.1", "rack" => "3.1.0"} }
 
     def resolve = ->(name) { latest[name] }
 
     it("returns a receipt for each below-latest ceiling / exact pin, skipping the rest") do
       deps = [
-        { package_name: "activemodel", requirements: "< 5.0" },     # ceiling, 4 behind
-        { package_name: "terrapin", requirements: "~> 0.6.0" },     # ceiling, 1 behind
-        { package_name: "rack", requirements: ">= 2.0" },           # permissive -> skipped
+        {package_name: "activemodel", requirements: "< 5.0"},     # ceiling, 4 behind
+        {package_name: "terrapin", requirements: "~> 0.6.0"},     # ceiling, 1 behind
+        {package_name: "rack", requirements: ">= 2.0"}           # permissive -> skipped
       ]
 
       findings = described_class.poison_findings(deps, &resolve)
 
       expect(findings).to(eq([
-        { dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling },
-        { dependency: "terrapin", requirement: "~> 0.6.0", dep_latest: "1.1.1", majors_behind: 1, kind: :ceiling },
+        {dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling},
+        {dependency: "terrapin", requirement: "~> 0.6.0", dep_latest: "1.1.1", majors_behind: 1, kind: :ceiling}
       ]))
     end
 
     it("drops a dep whose latest the resolver cannot determine (returns nil), rather than guessing") do
-      deps = [{ package_name: "ghost", requirements: "< 5.0" }]
+      deps = [{package_name: "ghost", requirements: "< 5.0"}]
       expect(described_class.poison_findings(deps) { nil }).to(eq([]))
     end
   end
 
   describe(".top_findings") do
     def finding(dep, behind)
-      { dependency: dep, requirement: "< x", dep_latest: "9.0.0", majors_behind: behind, kind: :ceiling }
+      {dependency: dep, requirement: "< x", dep_latest: "9.0.0", majors_behind: behind, kind: :ceiling}
     end
 
     it("returns the worst `limit` findings (majors_behind desc) plus the full total") do
@@ -177,17 +177,17 @@ RSpec.describe(StillActive::ConstraintHelper) do
 
   describe("severity") do
     def ceiling(behind)
-      { dependency: "d", requirement: "< x", dep_latest: "9.0.0", majors_behind: behind, kind: :ceiling }
+      {dependency: "d", requirement: "< x", dep_latest: "9.0.0", majors_behind: behind, kind: :ceiling}
     end
 
     it("short-circuits an EOL-forced runtime ceiling to critical, regardless of magnitude") do
       # The language-runtime ceiling reuses this tierer. A cap that strands you on
       # an end-of-life Ruby is act-now no matter that it carries no majors_behind.
-      expect(described_class.constraint_severity({ eol_forced: true })).to(eq(:critical))
+      expect(described_class.constraint_severity({eol_forced: true})).to(eq(:critical))
     end
 
     it("tiers a magnitude-less finding (e.g. latest-not-yet runtime ceiling) as a note") do
-      expect(described_class.constraint_severity({ eol_forced: false })).to(eq(:note))
+      expect(described_class.constraint_severity({eol_forced: false})).to(eq(:note))
     end
 
     it("tiers a ceiling by magnitude: 1 behind = note, 2 = warning, 3+ = critical") do
@@ -198,12 +198,12 @@ RSpec.describe(StillActive::ConstraintHelper) do
     end
 
     it("rolls a gem's ceilings up to its worst tier (exact-pins excluded)") do
-      findings = [ceiling(1), ceiling(3), { dependency: "e", kind: :exact_pin, majors_behind: 9 }]
+      findings = [ceiling(1), ceiling(3), {dependency: "e", kind: :exact_pin, majors_behind: 9}]
       expect(described_class.worst_severity(findings)).to(eq(:critical))
     end
 
     it("returns nil worst_severity when there are no ceilings") do
-      expect(described_class.worst_severity([{ kind: :exact_pin, majors_behind: 4 }])).to(be_nil)
+      expect(described_class.worst_severity([{kind: :exact_pin, majors_behind: 4}])).to(be_nil)
     end
 
     it("compares severities by ordinal for the gate threshold") do
@@ -227,7 +227,7 @@ RSpec.describe(StillActive::ConstraintHelper) do
     # The real Sentry case: protobuf latest ~7.x, cap `< 5` (3 majors behind), so the
     # highest major the cap allows is 4. A fix in major 4 is reachable; a fix in 5+ is
     # "below the fix" -- unpatchable without replacing the capper.
-    let(:finding) { { dep_latest: "7.35.1", majors_behind: 3 } }
+    let(:finding) { {dep_latest: "7.35.1", majors_behind: 3} }
 
     it("is true for a fix at or below the cap's ceiling major") do
       expect(described_class.reachable_within_cap?(finding, "4.25.8")).to(be(true))
@@ -241,8 +241,8 @@ RSpec.describe(StillActive::ConstraintHelper) do
 
     it("reads false on unparseable or absent inputs (never claims a fix is reachable when unsure)") do
       expect(described_class.reachable_within_cap?(finding, "not-a-version")).to(be(false))
-      expect(described_class.reachable_within_cap?({ dep_latest: nil, majors_behind: 3 }, "4.0.0")).to(be(false))
-      expect(described_class.reachable_within_cap?({ dep_latest: "7.0.0", majors_behind: nil }, "4.0.0")).to(be(false))
+      expect(described_class.reachable_within_cap?({dep_latest: nil, majors_behind: 3}, "4.0.0")).to(be(false))
+      expect(described_class.reachable_within_cap?({dep_latest: "7.0.0", majors_behind: nil}, "4.0.0")).to(be(false))
     end
   end
 end

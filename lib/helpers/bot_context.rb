@@ -22,7 +22,7 @@ module StillActive
     # commits ("Update README to mention SARIF"), so we anchor on the v-prefixed
     # version. False negatives (a no-`v` Renovate config) are acceptable; false
     # positives are not. The `v` is consumed, so the captured version excludes it.
-    RENOVATE_SUBJECT = /\A(?:(?:chore|fix|build)\(deps(?:-dev)?\):\s*)?update (?:dependency )?(\S+) to v(\d[\w.\-]*)/i
+    RENOVATE_SUBJECT = /\A(?:(?:chore|fix|build)\(deps(?:-dev)?\):\s*)?update (?:dependency )?(\S+) to v(\d[\w.-]*)/i
 
     # Unanchored variants used only to EXTRACT the bump *after* a bot is already
     # confirmed (via GITHUB_ACTOR / branch / the anchored subject above). Because
@@ -30,7 +30,7 @@ module StillActive
     # prefix or scope Dependabot/Renovate is configured with and just find the
     # "bump X from Y to Z" / "update X to vN" skeleton anywhere in the subject.
     DEPENDABOT_BUMP = /bump (\S+) from (\S+) to (\S+)/i
-    RENOVATE_BUMP = /update (?:dependency )?(\S+) to v(\d[\w.\-]*)/i
+    RENOVATE_BUMP = /update (?:dependency )?(\S+) to v(\d[\w.-]*)/i
 
     # Returns { bot: "dependabot" | "renovate", bumps: [{ gem:, from:, to: }] }
     # or nil when no bot signal is present. `bumps` is parsed from the head
@@ -39,12 +39,12 @@ module StillActive
       bot = detect_bot(env: env, head_subject: head_subject)
       return if bot.nil?
 
-      { bot: bot, bumps: bumps_from(bot, head_subject) }
+      {bot: bot, bumps: bumps_from(bot, head_subject)}
     end
 
     # A one-line, format-agnostic narrative for the detected context.
     def summary(context)
-      label = context[:bot] == "renovate" ? "Renovate" : "Dependabot"
+      label = (context[:bot] == "renovate") ? "Renovate" : "Dependabot"
       bumps = context[:bumps]
 
       case bumps.length
@@ -98,9 +98,9 @@ module StillActive
       return [] if subject.nil?
 
       if bot == "dependabot" && (match = subject.match(DEPENDABOT_BUMP))
-        [{ gem: match[1], from: match[2], to: match[3] }]
+        [{gem: match[1], from: match[2], to: match[3]}]
       elsif bot == "renovate" && (match = subject.match(RENOVATE_BUMP))
-        [{ gem: match[1], from: nil, to: match[2] }]
+        [{gem: match[1], from: nil, to: match[2]}]
       else
         []
       end
@@ -108,7 +108,7 @@ module StillActive
 
     def single_bump_summary(label, bump)
       arrow = bump[:from] ? "#{bump[:from]} → #{bump[:to]}" : "→ #{bump[:to]}"
-      verb = label == "Renovate" ? "update" : "bump"
+      verb = (label == "Renovate") ? "update" : "bump"
       "#{label} #{verb}: #{bump[:gem]} #{arrow}"
     end
 

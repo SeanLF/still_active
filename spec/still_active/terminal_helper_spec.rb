@@ -19,7 +19,7 @@ RSpec.describe(StillActive::TerminalHelper) do
         vulnerability_count: 0,
         repository_url: "https://github.com/rails/rails",
         ruby_gems_url: "https://rubygems.org/gems/rails",
-        license: "MIT",
+        license: "MIT"
       },
       "stale_gem" => {
         version_used: "1.0.0",
@@ -32,15 +32,15 @@ RSpec.describe(StillActive::TerminalHelper) do
         scorecard_score: nil,
         vulnerability_count: 3,
         vulnerabilities: [
-          { id: "GHSA-1", cvss3_score: 9.8 },
-          { id: "GHSA-2", cvss3_score: 5.0 },
-          { id: "GHSA-3", cvss3_score: 3.0 },
+          {id: "GHSA-1", cvss3_score: 9.8},
+          {id: "GHSA-2", cvss3_score: 5.0},
+          {id: "GHSA-3", cvss3_score: 3.0}
         ],
         repository_url: "https://github.com/example/stale",
         ruby_gems_url: "https://rubygems.org/gems/stale_gem",
         libyear: 2.5,
-        license: "GPL-3.0",
-      },
+        license: "GPL-3.0"
+      }
     }
   end
 
@@ -117,8 +117,8 @@ RSpec.describe(StillActive::TerminalHelper) do
             latest_pre_release_version_release_date: nil,
             scorecard_score: nil,
             vulnerability_count: nil,
-            archived: true,
-          },
+            archived: true
+          }
         }
       end
 
@@ -144,8 +144,8 @@ RSpec.describe(StillActive::TerminalHelper) do
             latest_pre_release_version_release_date: nil,
             scorecard_score: nil,
             vulnerability_count: nil,
-            version_yanked: true,
-          },
+            version_yanked: true
+          }
         }
       end
 
@@ -168,8 +168,8 @@ RSpec.describe(StillActive::TerminalHelper) do
             latest_version_release_date: nil,
             latest_pre_release_version_release_date: nil,
             scorecard_score: nil,
-            vulnerability_count: nil,
-          },
+            vulnerability_count: nil
+          }
         }
       end
 
@@ -188,8 +188,8 @@ RSpec.describe(StillActive::TerminalHelper) do
             latest_version_release_date: nil,
             latest_pre_release_version_release_date: nil,
             scorecard_score: nil,
-            vulnerability_count: nil,
-          },
+            vulnerability_count: nil
+          }
         }
       end
 
@@ -200,21 +200,21 @@ RSpec.describe(StillActive::TerminalHelper) do
 
     context("with ruby info") do
       it("shows latest Ruby") do
-        ruby_info = { version: "3.4.0", latest_version: "3.4.0", libyear: nil, eol: false, eol_date: nil }
+        ruby_info = {version: "3.4.0", latest_version: "3.4.0", libyear: nil, eol: false, eol_date: nil}
         output = described_class.render(result, ruby_info: ruby_info)
         expect(output).to(include("Ruby 3.4.0"))
         expect(output).to(include("latest"))
       end
 
       it("shows behind Ruby") do
-        ruby_info = { version: "3.2.0", latest_version: "3.4.0", libyear: 1.5, eol: false, eol_date: nil }
+        ruby_info = {version: "3.2.0", latest_version: "3.4.0", libyear: 1.5, eol: false, eol_date: nil}
         output = described_class.render(result, ruby_info: ruby_info)
         expect(output).to(include("Ruby 3.2.0"))
         expect(output).to(include("1.5 libyears behind 3.4.0"))
       end
 
       it("shows EOL Ruby") do
-        ruby_info = { version: "3.1.0", latest_version: "3.4.0", libyear: 2.0, eol: true, eol_date: Time.new(2025, 3, 31) }
+        ruby_info = {version: "3.1.0", latest_version: "3.4.0", libyear: 2.0, eol: true, eol_date: Time.new(2025, 3, 31)}
         output = described_class.render(result, ruby_info: ruby_info)
         expect(output).to(include("Ruby 3.1.0"))
         expect(output).to(include("EOL 2025-03-31"))
@@ -234,8 +234,8 @@ RSpec.describe(StillActive::TerminalHelper) do
             archived: true,
             alternatives: ["shrine", "carrierwave"],
             vulnerability_count: nil,
-            scorecard_score: nil,
-          },
+            scorecard_score: nil
+          }
         }
         out = described_class.render(result)
         expect(out).to(include("leads (Ruby Toolbox): shrine · carrierwave"))
@@ -247,8 +247,8 @@ RSpec.describe(StillActive::TerminalHelper) do
           "paperclip" => {
             archived: true,
             vulnerability_count: nil,
-            scorecard_score: nil,
-          },
+            scorecard_score: nil
+          }
         }
         out = described_class.render(result)
         expect(out).to(include("--alternatives"))
@@ -261,8 +261,8 @@ RSpec.describe(StillActive::TerminalHelper) do
             latest_version_release_date: Time.now,
             latest_pre_release_version_release_date: nil,
             vulnerability_count: nil,
-            scorecard_score: nil,
-          },
+            scorecard_score: nil
+          }
         }
         out = described_class.render(result)
         expect(out).not_to(include("leads (Ruby Toolbox)"))
@@ -278,8 +278,8 @@ RSpec.describe(StillActive::TerminalHelper) do
             latest_version: "1.0.0",
             scorecard_score: nil,
             vulnerability_count: 1,
-            vulnerabilities: [{ id: "CVE-1", cvss3_score: 7.5, no_fix_available: true }],
-          },
+            vulnerabilities: [{id: "CVE-1", cvss3_score: 7.5, no_fix_available: true}]
+          }
         }
         expect(described_class.render(result)).to(include("1 (high, no fix)"))
       end
@@ -293,15 +293,15 @@ RSpec.describe(StillActive::TerminalHelper) do
           vulnerability_count: 0,
           scorecard_score: nil,
           poison: true,
-          constraints: constraints,
+          constraints: constraints
         }.merge(extra)
       end
 
       it("prints a rich single-cap receipt with the requirement and latest major") do
         result = {
           "protected_attributes" => poison_gem([
-            { dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling },
-          ]),
+            {dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling}
+          ])
         }
         expect(described_class.render(result))
           .to(include("poison: caps activemodel < 5.0 (4 majors behind, latest 8.x)"))
@@ -309,22 +309,22 @@ RSpec.describe(StillActive::TerminalHelper) do
 
       it("prints a compact top-3 receipt with +N more for a many-cap gem, worst-first with name tie-break") do
         caps = [
-          { dependency: "chalk", requirement: "^1", dep_latest: "5.0.0", majors_behind: 4, kind: :ceiling },
-          { dependency: "through2", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
-          { dependency: "vinyl", requirement: "^0.5", dep_latest: "3.0.0", majors_behind: 3, kind: :ceiling },
-          { dependency: "dateformat", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling },
-          { dependency: "beeper", requirement: "^1", dep_latest: "3.0.0", majors_behind: 2, kind: :ceiling },
+          {dependency: "chalk", requirement: "^1", dep_latest: "5.0.0", majors_behind: 4, kind: :ceiling},
+          {dependency: "through2", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling},
+          {dependency: "vinyl", requirement: "^0.5", dep_latest: "3.0.0", majors_behind: 3, kind: :ceiling},
+          {dependency: "dateformat", requirement: "^2", dep_latest: "5.0.0", majors_behind: 3, kind: :ceiling},
+          {dependency: "beeper", requirement: "^1", dep_latest: "3.0.0", majors_behind: 2, kind: :ceiling}
         ]
-        expect(described_class.render({ "gulp-util" => poison_gem(caps) }))
+        expect(described_class.render({"gulp-util" => poison_gem(caps)}))
           .to(include("poison: caps chalk (4 behind), dateformat (3), through2 (3) +2 more"))
       end
 
       it("names the pinned vulnerable dep and forces red when the cap is security-relevant, even at note tier") do
         result = {
           "google-api-core" => poison_gem(
-            [{ dependency: "protobuf", requirement: "< 5", dep_latest: "7.0.0", majors_behind: 3, kind: :ceiling, capped_dep_vulnerable: true }],
-            { poison_severity: :note, poison_security_relevant: true },
-          ),
+            [{dependency: "protobuf", requirement: "< 5", dep_latest: "7.0.0", majors_behind: 3, kind: :ceiling, capped_dep_vulnerable: true}],
+            {poison_severity: :note, poison_security_relevant: true}
+          )
         }
         out = described_class.render(result)
         expect(out).to(include("⚠ pins vulnerable protobuf"))
@@ -344,10 +344,10 @@ RSpec.describe(StillActive::TerminalHelper) do
               capped_dep_vulnerable: true,
               capped_below_fix: true,
               below_fix_advisory: "GHSA-7gcm-g887-7qv7",
-              below_fix_fixed_in: "5.29.6",
+              below_fix_fixed_in: "5.29.6"
             }],
-            { poison_severity: :note, poison_security_relevant: true, poison_below_fix: true },
-          ),
+            {poison_severity: :note, poison_security_relevant: true, poison_below_fix: true}
+          )
         }
         out = described_class.render(result)
         expect(out).to(include("⚠ pins protobuf below the fix (GHSA-7gcm-g887-7qv7 fixed in 5.29.6)"))
@@ -356,9 +356,9 @@ RSpec.describe(StillActive::TerminalHelper) do
       it("folds the parent into a transitive poison line and suppresses the generic transitive line") do
         result = {
           "terrapin" => poison_gem(
-            [{ dependency: "climate_control", requirement: "< 1.0", dep_latest: "1.2.0", majors_behind: 1, kind: :ceiling }],
-            { direct: false, dependency_path: ["paperclip", "terrapin"] },
-          ),
+            [{dependency: "climate_control", requirement: "< 1.0", dep_latest: "1.2.0", majors_behind: 1, kind: :ceiling}],
+            {direct: false, dependency_path: ["paperclip", "terrapin"]}
+          )
         }
         out = described_class.render(result)
         expect(out).to(include("poison (via paperclip): caps climate_control < 1.0 (1 major behind, latest 1.x)"))
@@ -367,23 +367,23 @@ RSpec.describe(StillActive::TerminalHelper) do
 
       it("counts poison-pills in the summary line") do
         result = {
-          "a" => poison_gem([{ dependency: "x", requirement: "< 5", dep_latest: "8.0.0", majors_behind: 3, kind: :ceiling }]),
-          "b" => poison_gem([{ dependency: "y", requirement: "< 5", dep_latest: "8.0.0", majors_behind: 3, kind: :ceiling }]),
+          "a" => poison_gem([{dependency: "x", requirement: "< 5", dep_latest: "8.0.0", majors_behind: 3, kind: :ceiling}]),
+          "b" => poison_gem([{dependency: "y", requirement: "< 5", dep_latest: "8.0.0", majors_behind: 3, kind: :ceiling}])
         }
         expect(described_class.render(result)).to(include("2 poison-pills"))
       end
 
       it("colours the poison line by severity tier (red critical, dim note)") do
-        crit = poison_gem([{ dependency: "x", requirement: "< 5", dep_latest: "8.0.0", majors_behind: 4, kind: :ceiling }], { poison_severity: :critical })
-        note = poison_gem([{ dependency: "y", requirement: "~> 2", dep_latest: "3.0.0", majors_behind: 1, kind: :ceiling }], { poison_severity: :note })
-        out = described_class.render({ "crit" => crit, "note" => note })
+        crit = poison_gem([{dependency: "x", requirement: "< 5", dep_latest: "8.0.0", majors_behind: 4, kind: :ceiling}], {poison_severity: :critical})
+        note = poison_gem([{dependency: "y", requirement: "~> 2", dep_latest: "3.0.0", majors_behind: 1, kind: :ceiling}], {poison_severity: :note})
+        out = described_class.render({"crit" => crit, "note" => note})
         expect(out).to(match(/\e\[31m  ↳ poison: caps x/))   # red = critical
         expect(out).to(match(/\e\[2m  ↳ poison: caps y/))    # dim = note
         expect(out).to(include("2 poison-pills (1 critical, 1 note)"))
       end
 
       it("prints no poison line for a non-poison gem") do
-        result = { "kaminari" => { version_used: "1", latest_version: "1", vulnerability_count: 0, scorecard_score: nil, poison: false } }
+        result = {"kaminari" => {version_used: "1", latest_version: "1", vulnerability_count: 0, scorecard_score: nil, poison: false}}
         expect(described_class.render(result)).not_to(include("poison:"))
       end
     end
@@ -395,7 +395,7 @@ RSpec.describe(StillActive::TerminalHelper) do
           latest_version: "4.0.0",
           vulnerability_count: 0,
           scorecard_score: nil,
-          language_ceiling: { runtime: "Ruby" }.merge(ceiling),
+          language_ceiling: {runtime: "Ruby"}.merge(ceiling)
         }.merge(extra)
       end
 
@@ -409,8 +409,8 @@ RSpec.describe(StillActive::TerminalHelper) do
             ceiling_eol_date: Time.new(2025, 3, 31),
             oldest_supported: "3.3",
             latest_stable: "4.0.5",
-            fixed_by_upgrade: true,
-          }),
+            fixed_by_upgrade: true
+          })
         }
         out = described_class.render(result)
         expect(out).to(match(/\e\[31m  ↳ ruby ceiling: requires Ruby < 3.2/)) # red = critical
@@ -427,10 +427,10 @@ RSpec.describe(StillActive::TerminalHelper) do
               severity: :note,
               oldest_supported: "3.3",
               latest_stable: "4.0.5",
-              fixed_by_upgrade: false,
+              fixed_by_upgrade: false
             },
-            { version_used: "1.0.0", latest_version: "1.0.0" },
-          ),
+            {version_used: "1.0.0", latest_version: "1.0.0"}
+          )
         }
         out = described_class.render(result)
         expect(out).to(match(/\e\[2m  ↳ ruby ceiling: requires Ruby ~> 3.3/)) # dim = note
@@ -440,14 +440,14 @@ RSpec.describe(StillActive::TerminalHelper) do
 
       it("counts ruby ceilings in the summary line, worst-first by tier") do
         result = {
-          "a" => ceiling_gem({ requirement: "< 3.2", eol_forced: true, severity: :critical, ceiling_version: "3.1", ceiling_eol_date: nil, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }),
-          "b" => ceiling_gem({ requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false }, { version_used: "1.0.0", latest_version: "1.0.0" }),
+          "a" => ceiling_gem({requirement: "< 3.2", eol_forced: true, severity: :critical, ceiling_version: "3.1", ceiling_eol_date: nil, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false}),
+          "b" => ceiling_gem({requirement: "~> 3.3", eol_forced: false, severity: :note, oldest_supported: "3.3", latest_stable: "4.0.5", fixed_by_upgrade: false}, {version_used: "1.0.0", latest_version: "1.0.0"})
         }
         expect(described_class.render(result)).to(include("2 Ruby ceilings (1 critical, 1 note)"))
       end
 
       it("prints no ceiling line for a gem without one") do
-        result = { "rails" => { version_used: "7", latest_version: "7", vulnerability_count: 0, scorecard_score: nil } }
+        result = {"rails" => {version_used: "7", latest_version: "7", vulnerability_count: 0, scorecard_score: nil}}
         expect(described_class.render(result)).not_to(include("ruby ceiling:"))
       end
     end
@@ -456,14 +456,14 @@ RSpec.describe(StillActive::TerminalHelper) do
       it("says 'dependencies', not 'gems', when the result is a cross-ecosystem SBOM") do
         # A cross-ecosystem dep carries :ecosystem (the lens sets it); calling npm/
         # cargo/go packages "gems" is a Ruby-ism that reads wrong in an SBOM audit.
-        result = { "npm/left-pad" => { ecosystem: "npm", name: "left-pad", version_used: "1.0.0", latest_version: "1.0.0", up_to_date: true, vulnerability_count: 0 } }
+        result = {"npm/left-pad" => {ecosystem: "npm", name: "left-pad", version_used: "1.0.0", latest_version: "1.0.0", up_to_date: true, vulnerability_count: 0}}
         output = described_class.render(result)
         expect(output).to(include("1 dependencies:"))
         expect(output).not_to(match(/\d+ gems:/))
       end
 
       it("keeps 'gems' for a native Ruby audit") do
-        result = { "rails" => { version_used: "7.1.0", latest_version: "7.1.0", up_to_date: true, vulnerability_count: 0 } }
+        result = {"rails" => {version_used: "7.1.0", latest_version: "7.1.0", up_to_date: true, vulnerability_count: 0}}
         expect(described_class.render(result)).to(include("1 gems:"))
       end
     end
@@ -474,7 +474,7 @@ RSpec.describe(StillActive::TerminalHelper) do
         # nil. The terminal must not render a confident "used -> latest" upgrade
         # arrow it can't justify -- markdown already shows unsure (an emoji) here,
         # and a false "behind" is exactly the class of wrong answer to avoid.
-        result = { "pypi/pkg" => { ecosystem: "pypi", name: "pkg", version_used: "1!2.3", latest_version: "1!2.4", vulnerability_count: 0 } }
+        result = {"pypi/pkg" => {ecosystem: "pypi", name: "pkg", version_used: "1!2.3", latest_version: "1!2.4", vulnerability_count: 0}}
         output = described_class.render(result)
         expect(output).to(include("1!2.3"))
         expect(output).not_to(include("→"))

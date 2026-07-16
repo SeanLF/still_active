@@ -8,10 +8,10 @@ RSpec.describe(StillActive::EndoflifeHelper) do
   # them is the feed path. Fixtures mirror the ruby.json / python.json shape.
   let(:cycles) do
     [
-      { "cycle" => "3.13", "latest" => "3.13.2", "releaseDate" => "2024-10-07", "eol" => "2029-10-31" },
-      { "cycle" => "3.12", "latest" => "3.12.9", "releaseDate" => "2023-10-02", "eol" => "2028-10-31" },
-      { "cycle" => "3.9", "latest" => "3.9.21", "releaseDate" => "2020-10-05", "eol" => "2025-10-31" },
-      { "cycle" => "3.8", "latest" => "3.8.20", "releaseDate" => "2019-10-14", "eol" => "2024-10-14" },
+      {"cycle" => "3.13", "latest" => "3.13.2", "releaseDate" => "2024-10-07", "eol" => "2029-10-31"},
+      {"cycle" => "3.12", "latest" => "3.12.9", "releaseDate" => "2023-10-02", "eol" => "2028-10-31"},
+      {"cycle" => "3.9", "latest" => "3.9.21", "releaseDate" => "2020-10-05", "eol" => "2025-10-31"},
+      {"cycle" => "3.8", "latest" => "3.8.20", "releaseDate" => "2019-10-14", "eol" => "2024-10-14"}
     ]
   end
 
@@ -59,7 +59,7 @@ RSpec.describe(StillActive::EndoflifeHelper) do
   end
 
   it "skips a cycle whose version is malformed rather than crashing" do
-    garbled_cycle = cycles + [{ "cycle" => "not-a-version", "latest" => "9.9", "eol" => "2029-01-01" }]
+    garbled_cycle = cycles + [{"cycle" => "not-a-version", "latest" => "9.9", "eol" => "2029-01-01"}]
     allow(StillActive::HttpHelper).to(receive(:get_json).and_return(garbled_cycle))
     expect { window }.not_to(raise_error)
     expect(window[:cycles].map { |c| c[:version] }).not_to(include(nil))
@@ -99,7 +99,7 @@ RSpec.describe(StillActive::EndoflifeHelper) do
   it "degrades a single cycle's malformed eol to non-EOL rather than raising and nulling the whole window" do
     # A garbled eol on one cycle must cost at most that cycle, never disable the
     # signal tree-wide (which would hide EOL-forced criticals).
-    bad = cycles.map { |c| c["cycle"] == "3.9" ? c.merge("eol" => "2024-13-99") : c }
+    bad = cycles.map { |c| (c["cycle"] == "3.9") ? c.merge("eol" => "2024-13-99") : c }
     allow(StillActive::HttpHelper).to(receive(:get_json).and_return(bad))
     expect { window }.not_to(raise_error)
     expect(window).not_to(be_nil)

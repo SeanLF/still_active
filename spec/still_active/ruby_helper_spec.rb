@@ -10,29 +10,29 @@ RSpec.describe(StillActive::RubyHelper) do
         "latest" => "3.4.2",
         "releaseDate" => "2024-12-25",
         "eol" => "2028-03-31",
-        "lts" => false,
+        "lts" => false
       },
       {
         "cycle" => "3.3",
         "latest" => "3.3.7",
         "releaseDate" => "2023-12-25",
         "eol" => "2027-03-31",
-        "lts" => false,
+        "lts" => false
       },
       {
         "cycle" => "3.2",
         "latest" => "3.2.8",
         "releaseDate" => "2022-12-25",
         "eol" => "2026-03-31",
-        "lts" => false,
+        "lts" => false
       },
       {
         "cycle" => "3.1",
         "latest" => "3.1.6",
         "releaseDate" => "2021-12-25",
         "eol" => "2025-03-31",
-        "lts" => false,
-      },
+        "lts" => false
+      }
     ]
   end
 

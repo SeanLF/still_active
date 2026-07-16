@@ -14,31 +14,31 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
   # always builds, but the scalars inside are the garbage providers really return
   # (deps.dev aliases as bare strings vs objects, etc.). None of these must raise.
   reachable_malformed = {
-    "missing keys entirely" => { "a" => {} },
+    "missing keys entirely" => {"a" => {}},
     "nil values where scalars expected" => {
-      "a" => { ecosystem: nil, name: nil, version_used: nil, constraints: nil, capped_deps: nil, vulnerabilities: nil, vulnerability_count: nil },
+      "a" => {ecosystem: nil, name: nil, version_used: nil, constraints: nil, capped_deps: nil, vulnerabilities: nil, vulnerability_count: nil}
     },
     "empty constraints/vulnerabilities arrays" => {
-      "a" => { ecosystem: :pypi, name: "x", constraints: [], vulnerabilities: [], vulnerability_count: 0 },
+      "a" => {ecosystem: :pypi, name: "x", constraints: [], vulnerabilities: [], vulnerability_count: 0}
     },
     "non-string dependency + nil requirement in a constraint" => {
-      "a" => { ecosystem: :pypi, name: "x", constraints: [{ dependency: 123, requirement: nil, majors_behind: nil }], vulnerability_count: 1, vulnerabilities: [{ id: nil }] },
+      "a" => {ecosystem: :pypi, name: "x", constraints: [{dependency: 123, requirement: nil, majors_behind: nil}], vulnerability_count: 1, vulnerabilities: [{id: nil}]}
     },
     "non-string resolved version + non-string requirement (nested)" => {
-      "a" => { ecosystem: :npm, name: "capper", version_used: 123, capped_deps: [{ dependency: "dep", requirement: 999 }] },
-      "b" => { ecosystem: :npm, name: "dep", version_used: [1, 2], vulnerabilities: [{ id: "V", fixed_versions: [nil, 123, "2.0.0"], cvss3_score: 9.1 }] },
+      "a" => {ecosystem: :npm, name: "capper", version_used: 123, capped_deps: [{dependency: "dep", requirement: 999}]},
+      "b" => {ecosystem: :npm, name: "dep", version_used: [1, 2], vulnerabilities: [{id: "V", fixed_versions: [nil, 123, "2.0.0"], cvss3_score: 9.1}]}
     },
     "non-string advisory id + aliases (PR #129 alias shape)" => {
-      "a" => { ecosystem: :pypi, name: "capper", constraints: [{ dependency: "dep", requirement: "< 5", majors_behind: 3, kind: :ceiling }] },
-      "b" => { ecosystem: :pypi, name: "dep", version_used: 1, vulnerability_count: 1, vulnerabilities: [{ id: 123, aliases: [456, nil, {}, "CVE-2026-1"], fixed_versions: [789, nil], cvss3_score: 8.1 }] },
+      "a" => {ecosystem: :pypi, name: "capper", constraints: [{dependency: "dep", requirement: "< 5", majors_behind: 3, kind: :ceiling}]},
+      "b" => {ecosystem: :pypi, name: "dep", version_used: 1, vulnerability_count: 1, vulnerabilities: [{id: 123, aliases: [456, nil, {}, "CVE-2026-1"], fixed_versions: [789, nil], cvss3_score: 8.1}]}
     },
     "epoch / unparseable fixed_versions" => {
-      "a" => { ecosystem: :pypi, name: "capper", version_used: "1!2.3", constraints: [{ dependency: "dep", requirement: "< 5", majors_behind: 3, kind: :ceiling }] },
-      "b" => { ecosystem: :pypi, name: "dep", version_used: "1!2.3", vulnerability_count: 1, vulnerabilities: [{ id: "CVE-x", fixed_versions: ["1!9.9.9", "garbage"], cvss3_score: 9.8 }] },
+      "a" => {ecosystem: :pypi, name: "capper", version_used: "1!2.3", constraints: [{dependency: "dep", requirement: "< 5", majors_behind: 3, kind: :ceiling}]},
+      "b" => {ecosystem: :pypi, name: "dep", version_used: "1!2.3", vulnerability_count: 1, vulnerabilities: [{id: "CVE-x", fixed_versions: ["1!9.9.9", "garbage"], cvss3_score: 9.8}]}
     },
     "vulnerability_count positive but vulnerabilities absent" => {
-      "a" => { ecosystem: :pypi, name: "x", vulnerability_count: 3, constraints: [{ dependency: "dep", requirement: "< 5" }] },
-    },
+      "a" => {ecosystem: :pypi, name: "x", vulnerability_count: 3, constraints: [{dependency: "dep", requirement: "< 5"}]}
+    }
   }.freeze
 
   describe "reachable malformed result objects never raise (PR #129 scalar shapes)" do
@@ -71,7 +71,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
         ecosystem: eco,
         name: Faker::Lorem.word,
         version_used: [Faker::App.semantic_version, nil, rng.rand(100)].sample(random: rng),
-        constraints: fuzz_constraints(rng),
+        constraints: fuzz_constraints(rng)
       }
       capper[:capped_deps] = fuzz_capped_deps(rng) if rng.rand < 0.5
       dep = {
@@ -79,20 +79,20 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
         name: Faker::Lorem.word,
         version_used: [Faker::App.semantic_version, nil].sample(random: rng),
         vulnerability_count: rng.rand(0..3),
-        vulnerabilities: fuzz_vulns(rng),
+        vulnerabilities: fuzz_vulns(rng)
       }
-      { "a" => capper, "b" => dep }
+      {"a" => capper, "b" => dep}
     end
 
     def fuzz_constraints(rng)
       Array.new(rng.rand(0..2)) do
-        { dependency: [Faker::Lorem.word, rng.rand(9)].sample(random: rng), requirement: ["< 5", nil, rng.rand(9)].sample(random: rng), majors_behind: rng.rand(0..4), kind: :ceiling }
+        {dependency: [Faker::Lorem.word, rng.rand(9)].sample(random: rng), requirement: ["< 5", nil, rng.rand(9)].sample(random: rng), majors_behind: rng.rand(0..4), kind: :ceiling}
       end
     end
 
     def fuzz_capped_deps(rng)
       Array.new(rng.rand(0..2)) do
-        { dependency: Faker::Lorem.word, requirement: ["^1.0.0", "< 5", nil].sample(random: rng) }
+        {dependency: Faker::Lorem.word, requirement: ["^1.0.0", "< 5", nil].sample(random: rng)}
       end
     end
 
@@ -102,7 +102,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
           id: [Faker::Internet.slug, nil, rng.rand(999)].sample(random: rng),
           aliases: [rng.rand(999), nil, "CVE-#{rng.rand(9999)}"].sample(rng.rand(0..3), random: rng),
           fixed_versions: [Faker::App.semantic_version, nil, rng.rand(9), "garbage"].sample(rng.rand(0..3), random: rng),
-          cvss3_score: [Faker::Number.between(from: 0.0, to: 10.0), nil].sample(random: rng),
+          cvss3_score: [Faker::Number.between(from: 0.0, to: 10.0), nil].sample(random: rng)
         }
       end
     end
@@ -116,17 +116,17 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
   # that entry's enrichment rather than crash the whole audit.
   describe "structural invariant violations (guarded: robustness)" do
     it "does not raise when :constraints is a non-array" do
-      expect { described_class.correlate({ "a" => { constraints: "nope", vulnerability_count: 1, vulnerabilities: [] } }) }.not_to(raise_error)
+      expect { described_class.correlate({"a" => {constraints: "nope", vulnerability_count: 1, vulnerabilities: []}}) }.not_to(raise_error)
     end
 
     it "does not raise when :capped_deps is a non-array" do
-      expect { described_class.correlate({ "a" => { ecosystem: :npm, name: "x", capped_deps: "nope" } }) }.not_to(raise_error)
+      expect { described_class.correlate({"a" => {ecosystem: :npm, name: "x", capped_deps: "nope"}}) }.not_to(raise_error)
     end
 
     it "does not raise when a :vulnerabilities element is a non-hash" do
       object = {
-        "a" => { ecosystem: :pypi, name: "x", constraints: [{ dependency: "dep", requirement: "< 5" }] },
-        "b" => { ecosystem: :pypi, name: "dep", vulnerability_count: 1, vulnerabilities: ["notahash", nil, 5], version_used: "1.0.0" },
+        "a" => {ecosystem: :pypi, name: "x", constraints: [{dependency: "dep", requirement: "< 5"}]},
+        "b" => {ecosystem: :pypi, name: "dep", vulnerability_count: 1, vulnerabilities: ["notahash", nil, 5], version_used: "1.0.0"}
       }
       expect { described_class.correlate(object) }.not_to(raise_error)
     end

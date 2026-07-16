@@ -57,7 +57,7 @@ module StillActive
       opts.on("--gems=GEM,GEM2,...", Array, "Gem(s)") do |value|
         options[:provided_gems] = true
         # Explicitly named gems are direct by definition (the user chose them).
-        StillActive.config { |config| config.gems = value.map { |g| { name: g, direct: true } } }
+        StillActive.config { |config| config.gems = value.map { |g| {name: g, direct: true} } }
       end
     end
 
@@ -130,14 +130,14 @@ module StillActive
       opts.on(
         "--safe-range-end=YEARS",
         Float,
-        "maximum years since last release considered safe, no warning (default 1.5; fractional allowed)",
+        "maximum years since last release considered safe, no warning (default 1.5; fractional allowed)"
       ) do |value|
         StillActive.config { |config| config.no_warning_range_end = value }
       end
       opts.on(
         "--warning-range-end=YEARS",
         Float,
-        "maximum years since last release that triggers a warning, beyond this is critical (default 3)",
+        "maximum years since last release that triggers a warning, beyond this is critical (default 3)"
       ) do |value|
         StillActive.config { |config| config.warning_range_end = value }
       end
@@ -181,7 +181,7 @@ module StillActive
           # Ceiling findings are only ever :critical or :note, so =warning can't
           # match anything the bare (=critical) default doesn't already catch.
           if value == "warning"
-            $stderr.puts("warning: --fail-if-language-ceiling=warning has no effect (runtime ceilings are only critical or note); behaves as =critical")
+            warn("warning: --fail-if-language-ceiling=warning has no effect (runtime ceilings are only critical or note); behaves as =critical")
           end
           StillActive.config { |config| config.fail_if_language_ceiling = value.to_sym }
         else

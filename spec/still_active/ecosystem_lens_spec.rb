@@ -17,36 +17,36 @@ RSpec.describe(StillActive::EcosystemLens) do
   # Stub the deps.dev version endpoint (advisory keys + SOURCE_REPO link + the
   # locked version's publishedAt, the libyear input).
   def stub_version(advisory_keys: [], source_repo: nil, published_at: nil)
-    links = source_repo ? [{ "label" => "SOURCE_REPO", "url" => source_repo }] : []
-    body = { "advisoryKeys" => advisory_keys.map { { "id" => _1 } }, "links" => links, "publishedAt" => published_at }
+    links = source_repo ? [{"label" => "SOURCE_REPO", "url" => source_repo}] : []
+    body = {"advisoryKeys" => advisory_keys.map { {"id" => _1} }, "links" => links, "publishedAt" => published_at}
     stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/[^/]+/packages/.+/versions/.+})
-      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: body.to_json)
+      .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: body.to_json)
   end
 
   # Stub the deps.dev package endpoint (the latest-release-date source). The
   # regex excludes the version sub-path so it never shadows stub_version.
   def stub_package(default_published_at:)
-    versions = [{ "versionKey" => { "version" => "9.9.9" }, "isDefault" => true, "publishedAt" => default_published_at }]
+    versions = [{"versionKey" => {"version" => "9.9.9"}, "isDefault" => true, "publishedAt" => default_published_at}]
     stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/[^/]+/packages/[^/]+\z})
-      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { "versions" => versions }.to_json)
+      .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"versions" => versions}.to_json)
   end
 
   def stub_project_scorecard(score: 7.0, maintained: 8)
-    body = { "scorecard" => { "overallScore" => score, "date" => "2026-01-01", "checks" => [{ "name" => "Maintained", "score" => maintained }] } }
+    body = {"scorecard" => {"overallScore" => score, "date" => "2026-01-01", "checks" => [{"name" => "Maintained", "score" => maintained}]}}
     stub_request(:get, %r{api\.deps\.dev/v3alpha/projects/})
-      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: body.to_json)
+      .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: body.to_json)
   end
 
   def stub_advisory(id:, cvss: 9.8)
-    body = { "advisoryKey" => { "id" => id }, "title" => "boom", "aliases" => [], "cvss3Score" => cvss }
+    body = {"advisoryKey" => {"id" => id}, "title" => "boom", "aliases" => [], "cvss3Score" => cvss}
     stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/})
-      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: body.to_json)
+      .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: body.to_json)
   end
 
   def stub_ecosystems_repo(archived:, pushed_at: "2026-01-01T00:00:00Z")
-    body = { "archived" => archived, "pushed_at" => pushed_at }
+    body = {"archived" => archived, "pushed_at" => pushed_at}
     stub_request(:get, %r{repos\.ecosyste\.ms/api/v1/hosts/GitHub/repositories/})
-      .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: body.to_json)
+      .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: body.to_json)
   end
 
   describe(".assess") do
@@ -67,7 +67,7 @@ RSpec.describe(StillActive::EcosystemLens) do
         archived: false,
         scorecard_score: 6.5,
         scorecard_maintained: 9,
-        vulnerability_count: 0,
+        vulnerability_count: 0
       ))
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:ok))
     end
@@ -173,14 +173,14 @@ RSpec.describe(StillActive::EcosystemLens) do
       stub_ecosystems_repo(archived: false)
       stub_request(:get, "https://api.osv.dev/v1/vulns/GHSA-cvss4").to_return(
         status: 200,
-        headers: { "Content-Type" => "application/json" },
+        headers: {"Content-Type" => "application/json"},
         body: {
-          "database_specific" => { "severity" => "HIGH" },
+          "database_specific" => {"severity" => "HIGH"},
           "affected" => [{
-            "package" => { "name" => "protobuf", "ecosystem" => "PyPI" },
-            "ranges" => [{ "type" => "ECOSYSTEM", "events" => [{ "introduced" => "0" }, { "fixed" => "5.29.6" }] }],
-          }],
-        }.to_json,
+            "package" => {"name" => "protobuf", "ecosystem" => "PyPI"},
+            "ranges" => [{"type" => "ECOSYSTEM", "events" => [{"introduced" => "0"}, {"fixed" => "5.29.6"}]}]
+          }]
+        }.to_json
       )
 
       result = described_class.assess(ecosystem: :pypi, name: "protobuf", version: "4.21.6")
@@ -215,7 +215,7 @@ RSpec.describe(StillActive::EcosystemLens) do
         latest_version_release_date: nil,
         archived: nil,
         repository_url: nil,
-        vulnerability_count: 0,
+        vulnerability_count: 0
       ))
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
     end
@@ -243,8 +243,8 @@ RSpec.describe(StillActive::EcosystemLens) do
       stub_package(default_published_at: "2026-06-01T00:00:00Z") # default version is "9.9.9"
       stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/[^/]+/packages/[^/]+/versions/9\.9\.9})
         .to_return(status: 200,
-          headers: { "Content-Type" => "application/json" },
-          body: { "links" => [{ "label" => "SOURCE_REPO", "url" => "https://github.com/owner/archived" }] }.to_json)
+          headers: {"Content-Type" => "application/json"},
+          body: {"links" => [{"label" => "SOURCE_REPO", "url" => "https://github.com/owner/archived"}]}.to_json)
       stub_project_scorecard
       stub_ecosystems_repo(archived: true)
 
@@ -297,35 +297,35 @@ RSpec.describe(StillActive::EcosystemLens) do
     def stub_latest(dates)
       allow(StillActive::DepsDevClient).to(receive(:default_version_info)) do |name:, **|
         entry = dates[name]
-        entry.is_a?(Hash) ? entry : { version: "9.9.9", published_at: entry }
+        entry.is_a?(Hash) ? entry : {version: "9.9.9", published_at: entry}
       end
     end
 
     it("flags a dormant pypi package that caps a runtime dep below its latest major (Flask -> Werkzeug)") do
-      stub_latest("flask" => "2016-05-01T00:00:00Z", "Werkzeug" => { version: "3.1.3" })
+      stub_latest("flask" => "2016-05-01T00:00:00Z", "Werkzeug" => {version: "3.1.3"})
       allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
         .with(name: "flask", version: "0.12.5", registry: "pypi.org")
-        .and_return([{ package_name: "Werkzeug", requirements: "<1.0,>=0.7" }])
+        .and_return([{package_name: "Werkzeug", requirements: "<1.0,>=0.7"}])
 
       result = described_class.assess(ecosystem: :pypi, name: "flask", version: "0.12.5")
 
       expect(result[:poison]).to(be(true))
       expect(result[:constraints]).to(eq([
-        { dependency: "Werkzeug", requirement: "<1.0,>=0.7", dep_latest: "3.1.3", majors_behind: 3, kind: :ceiling },
+        {dependency: "Werkzeug", requirement: "<1.0,>=0.7", dep_latest: "3.1.3", majors_behind: 3, kind: :ceiling}
       ]))
     end
 
     it("surfaces a dormant pypi package's below-latest exact-pin as a hazard, not poison (celery-style vine ==)") do
-      stub_latest("celery" => "2017-01-01T00:00:00Z", "vine" => { version: "5.1.0" })
+      stub_latest("celery" => "2017-01-01T00:00:00Z", "vine" => {version: "5.1.0"})
       allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies)).and_return([
-        { package_name: "vine", requirements: "==1.3.0" },
+        {package_name: "vine", requirements: "==1.3.0"}
       ])
 
       result = described_class.assess(ecosystem: :pypi, name: "celery", version: "4.0.0")
 
       expect(result[:poison]).to(be(false))
       expect(result[:constraints]).to(eq([
-        { dependency: "vine", requirement: "==1.3.0", dep_latest: "5.1.0", majors_behind: 4, kind: :exact_pin },
+        {dependency: "vine", requirement: "==1.3.0", dep_latest: "5.1.0", majors_behind: 4, kind: :exact_pin}
       ]))
     end
 
@@ -338,13 +338,13 @@ RSpec.describe(StillActive::EcosystemLens) do
       # copy below its fix. No dep_latest fetch here: the wall test is patch-precise.
       stub_latest("oldpkg" => "2017-01-01T00:00:00Z")
       allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
-        .and_return([{ package_name: "vulndep", requirements: "^1.2.0" }])
+        .and_return([{package_name: "vulndep", requirements: "^1.2.0"}])
 
       [:npm, :cargo].each do |eco|
         result = described_class.assess(ecosystem: eco, name: "oldpkg", version: "1.0.0")
         expect(result).not_to(have_key(:poison))
         expect(result).not_to(have_key(:constraints))
-        expect(result[:capped_deps]).to(eq([{ dependency: "vulndep", requirement: "^1.2.0" }]))
+        expect(result[:capped_deps]).to(eq([{dependency: "vulndep", requirement: "^1.2.0"}]))
       end
     end
 
@@ -377,13 +377,13 @@ RSpec.describe(StillActive::EcosystemLens) do
       allow(StillActive::DepsDevClient).to(receive(:default_version_info)) do |name:, **|
         if name == "Werkzeug"
           werkzeug_calls += 1
-          werkzeug_calls == 1 ? nil : { version: "3.1.3" }
+          (werkzeug_calls == 1) ? nil : {version: "3.1.3"}
         else
-          { version: "9.9.9", published_at: "2016-05-01T00:00:00Z" } # dormant package
+          {version: "9.9.9", published_at: "2016-05-01T00:00:00Z"} # dormant package
         end
       end
       allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies)).and_return([
-        { package_name: "Werkzeug", requirements: "<1.0,>=0.7" },
+        {package_name: "Werkzeug", requirements: "<1.0,>=0.7"}
       ])
 
       first = described_class.assess(ecosystem: :pypi, name: "flask", version: "0.12.5", constraint_cache: cache)
@@ -413,11 +413,11 @@ RSpec.describe(StillActive::EcosystemLens) do
         latest_stable: Gem::Version.new("3.14.6"),
         latest_stable_fresh: false,
         cycles: [
-          { version: Gem::Version.new("3.14"), eol: false, eol_date: Time.parse("2030-10-31") },
-          { version: Gem::Version.new("3.10"), eol: false, eol_date: Time.parse("2026-10-31") },
-          { version: Gem::Version.new("3.9"), eol: true, eol_date: Time.parse("2025-10-31") },
-          { version: Gem::Version.new("3.8"), eol: true, eol_date: Time.parse("2024-10-14") },
-        ],
+          {version: Gem::Version.new("3.14"), eol: false, eol_date: Time.parse("2030-10-31")},
+          {version: Gem::Version.new("3.10"), eol: false, eol_date: Time.parse("2026-10-31")},
+          {version: Gem::Version.new("3.9"), eol: true, eol_date: Time.parse("2025-10-31")},
+          {version: Gem::Version.new("3.8"), eol: true, eol_date: Time.parse("2024-10-14")}
+        ]
       }
     end
 
@@ -433,7 +433,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "0.53.1").and_return(">=3.6,<3.10"))
       allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "9.9.9").and_return(">=3.10"))
 
-      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", runtime_ranges: { python: python_range })
+      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", runtime_ranges: {python: python_range})
 
       ceiling = result[:language_ceiling]
       expect(ceiling[:runtime]).to(eq("Python"))
@@ -449,7 +449,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "0.53.1").and_return(">=3.6,<3.10"))
       allow(StillActive::PypiClient).to(receive(:requires_python).with(name: "numba", version: "9.9.9").and_return(nil))
 
-      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", runtime_ranges: { python: python_range })
+      result = described_class.assess(ecosystem: :pypi, name: "numba", version: "0.53.1", runtime_ranges: {python: python_range})
 
       ceiling = result[:language_ceiling]
       expect(ceiling[:eol_forced]).to(be(true))
@@ -459,7 +459,7 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("flags a cap below the latest stable (but on a supported Python) as a note") do
       allow(StillActive::PypiClient).to(receive(:requires_python).and_return(">=3.8,<3.13"))
 
-      result = described_class.assess(ecosystem: :pypi, name: "scipy", version: "1.7.3", runtime_ranges: { python: python_range })
+      result = described_class.assess(ecosystem: :pypi, name: "scipy", version: "1.7.3", runtime_ranges: {python: python_range})
 
       ceiling = result[:language_ceiling]
       expect(ceiling[:runtime]).to(eq("Python"))
@@ -470,7 +470,7 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("does not flag a pure floor requires_python (a floor is not a ceiling)") do
       allow(StillActive::PypiClient).to(receive(:requires_python).and_return(">=3.8"))
 
-      result = described_class.assess(ecosystem: :pypi, name: "numpy", version: "1.21.0", runtime_ranges: { python: python_range })
+      result = described_class.assess(ecosystem: :pypi, name: "numpy", version: "1.21.0", runtime_ranges: {python: python_range})
 
       expect(result).not_to(have_key(:language_ceiling))
     end
@@ -478,7 +478,7 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("does not flag when the package declares no requires_python") do
       allow(StillActive::PypiClient).to(receive(:requires_python).and_return(nil))
 
-      result = described_class.assess(ecosystem: :pypi, name: "loose", version: "1.0.0", runtime_ranges: { python: python_range })
+      result = described_class.assess(ecosystem: :pypi, name: "loose", version: "1.0.0", runtime_ranges: {python: python_range})
 
       expect(result).not_to(have_key(:language_ceiling))
     end
@@ -486,7 +486,7 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("does not read requires_python for a non-Python ecosystem, even with a window") do
       allow(StillActive::PypiClient).to(receive(:requires_python))
 
-      result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1", runtime_ranges: { python: python_range })
+      result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1", runtime_ranges: {python: python_range})
 
       expect(result).not_to(have_key(:language_ceiling))
       expect(StillActive::PypiClient).not_to(have_received(:requires_python))
@@ -506,16 +506,16 @@ RSpec.describe(StillActive::EcosystemLens) do
     let(:dotnet) do
       {
         cycles: [
-          { version: Gem::Version.new("10"), eol: false, eol_date: nil },
-          { version: Gem::Version.new("8"), eol: false, eol_date: Time.parse("2026-11-10") },
-          { version: Gem::Version.new("6"), eol: true, eol_date: Time.parse("2024-11-12") },
-          { version: Gem::Version.new("5"), eol: true, eol_date: Time.parse("2022-05-10") },
-          { version: Gem::Version.new("3.1"), eol: true, eol_date: Time.parse("2022-12-13") },
-        ],
+          {version: Gem::Version.new("10"), eol: false, eol_date: nil},
+          {version: Gem::Version.new("8"), eol: false, eol_date: Time.parse("2026-11-10")},
+          {version: Gem::Version.new("6"), eol: true, eol_date: Time.parse("2024-11-12")},
+          {version: Gem::Version.new("5"), eol: true, eol_date: Time.parse("2022-05-10")},
+          {version: Gem::Version.new("3.1"), eol: true, eol_date: Time.parse("2022-12-13")}
+        ]
       }
     end
     let(:dotnetfx) do
-      { cycles: [{ version: Gem::Version.new("4.8"), eol: false, eol_date: nil }, { version: Gem::Version.new("4.5"), eol: true, eol_date: Time.parse("2016-01-12") }] }
+      {cycles: [{version: Gem::Version.new("4.8"), eol: false, eol_date: nil}, {version: Gem::Version.new("4.5"), eol: true, eol_date: Time.parse("2016-01-12")}]}
     end
 
     before do
@@ -529,7 +529,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       allow(StillActive::DepsDevClient).to(receive(:target_frameworks).with(name: "deadpkg", version: "1.0.0").and_return(["net5.0", "netcoreapp3.1"]))
       allow(StillActive::DepsDevClient).to(receive(:target_frameworks).with(name: "deadpkg", version: "9.9.9").and_return(["net8.0"]))
 
-      result = described_class.assess(ecosystem: :nuget, name: "deadpkg", version: "1.0.0", runtime_ranges: { dotnet: dotnet, dotnetfx: dotnetfx })
+      result = described_class.assess(ecosystem: :nuget, name: "deadpkg", version: "1.0.0", runtime_ranges: {dotnet: dotnet, dotnetfx: dotnetfx})
 
       ceiling = result[:language_ceiling]
       expect(ceiling[:runtime]).to(eq(".NET"))
@@ -543,7 +543,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       # The Newtonsoft.Json 13.0.3 case: net6.0 + net45 (EOL) + netstandard2.0.
       allow(StillActive::DepsDevClient).to(receive(:target_frameworks).and_return(["net5.0", "net45", "netstandard2.0"]))
 
-      result = described_class.assess(ecosystem: :nuget, name: "newtonsoft.json", version: "13.0.3", runtime_ranges: { dotnet: dotnet, dotnetfx: dotnetfx })
+      result = described_class.assess(ecosystem: :nuget, name: "newtonsoft.json", version: "13.0.3", runtime_ranges: {dotnet: dotnet, dotnetfx: dotnetfx})
 
       expect(result).not_to(have_key(:language_ceiling))
     end

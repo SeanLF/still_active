@@ -39,7 +39,7 @@ module StillActive
     # "gems" for a native Ruby audit -- calling npm/cargo/go packages "gems" is a
     # Ruby-ism that reads wrong cross-ecosystem.
     def dependency_noun(result)
-      result.each_value.any? { |data| data[:ecosystem] } ? "dependencies" : "gems"
+      (result.each_value.any? { |data| data[:ecosystem] }) ? "dependencies" : "gems"
     end
 
     def build_row(name, data)
@@ -49,7 +49,7 @@ module StillActive
         format_activity(data),
         format_scorecard(data[:scorecard_score]),
         format_vulns(data),
-        format_license(data[:license]),
+        format_license(data[:license])
       ]
     end
 
@@ -153,9 +153,9 @@ module StillActive
     # gems point at the parent (#60), direct ones offer alternatives.
     def sub_lines(data)
       lines = if data[:poison]
-        [poison_line(data), (data[:direct] == false ? nil : alternatives_line(data))]
+        [poison_line(data), ((data[:direct] == false) ? nil : alternatives_line(data))]
       else
-        [data[:direct] == false ? dependency_path_line(data) : alternatives_line(data)]
+        [(data[:direct] == false) ? dependency_path_line(data) : alternatives_line(data)]
       end
       # A language-runtime ceiling is orthogonal to poison/alternatives (a gem can
       # be maintained yet still cap your Ruby), so it always gets its own line.
@@ -206,7 +206,7 @@ module StillActive
       return if constraints.nil? || constraints.empty?
 
       path = data[:dependency_path]
-      via = data[:direct] == false && path && path.length >= 2 ? " (via #{path.first})" : ""
+      via = (data[:direct] == false && path && path.length >= 2) ? " (via #{path.first})" : ""
       # Colour carries the tier: red = act-now (3+ majors behind), yellow = plan,
       # dim = a minor/FYI cap (1 behind). A security-relevant cap (it pins a
       # vulnerable dependency below the fix) is always red -- that's the finding to
@@ -234,7 +234,7 @@ module StillActive
     end
 
     def poison_colour(severity)
-      { critical: :red, warning: :yellow, note: :dim }.fetch(severity, :yellow)
+      {critical: :red, warning: :yellow, note: :dim}.fetch(severity, :yellow)
     end
 
     # A worst-first "N label (X critical, Y note)" summary fragment, coloured by
@@ -339,11 +339,11 @@ module StillActive
       parts << activity
       parts << "#{summary[:vulnerabilities]} vulnerabilities"
       poison_tiers = result.each_value.select { |data| data[:poison] }.map { |data| data[:poison_severity] }
-      poison_part = tier_summary_part(poison_tiers, "#{poison_tiers.size} poison-#{poison_tiers.size == 1 ? "pill" : "pills"}")
+      poison_part = tier_summary_part(poison_tiers, "#{poison_tiers.size} poison-#{(poison_tiers.size == 1) ? "pill" : "pills"}")
       parts << poison_part if poison_part
       ceilings = result.each_value.filter_map { |data| data[:language_ceiling] }
       runtimes = ceilings.map { |ceiling| ceiling[:runtime] }.uniq
-      runtime_label = runtimes.size == 1 ? runtimes.first : "language"
+      runtime_label = (runtimes.size == 1) ? runtimes.first : "language"
       ceiling_part = tier_summary_part(ceilings.map { |ceiling| ceiling[:severity] }, "#{ceilings.size} #{runtime_label} ceiling#{"s" unless ceilings.size == 1}")
       parts << ceiling_part if ceiling_part
       total_libyear = LibyearHelper.total_libyear(result)

@@ -46,8 +46,8 @@ module StillActive
         ruby_range =
           begin
             RubyHelper.supported_ruby_range
-          rescue StandardError => e
-            $stderr.puts("warning: Ruby support window lookup failed: #{e.class} (#{e.message}); skipping language-ceiling checks")
+          rescue => e
+            warn("warning: Ruby support window lookup failed: #{e.class} (#{e.message}); skipping language-ceiling checks")
             nil
           end
         # Resolve the GitHub token once here, single-fibered, before the fan-out:
@@ -79,14 +79,14 @@ module StillActive
               advisory_db: advisory_db,
               catalog: catalog,
               constraint_cache: constraint_cache,
-              ruby_range: ruby_range,
+              ruby_range: ruby_range
             )
           rescue Octokit::TooManyRequests
             $stderr.print("\r\e[K") if on_progress
-            $stderr.puts("rate limited checking #{gem[:name]}: set GITHUB_TOKEN to increase your limit")
-          rescue StandardError => e
+            warn("rate limited checking #{gem[:name]}: set GITHUB_TOKEN to increase your limit")
+          rescue => e
             $stderr.print("\r\e[K") if on_progress
-            $stderr.puts("error occurred for #{gem[:name]}: #{e.class}\n\t#{e.message}")
+            warn("error occurred for #{gem[:name]}: #{e.class}\n\t#{e.message}")
           ensure
             completed += 1
             on_progress&.call(completed, total)
@@ -115,7 +115,7 @@ module StillActive
     private
 
     def gem_info(gem_name:, result_object:, gem_version: nil, source_type: :rubygems, source_uri: nil, direct: true, dependency_path: nil, advisory_db: nil, catalog: nil, constraint_cache: {}, ruby_range: nil)
-      result_object[gem_name] = { source_type: source_type, direct: direct }
+      result_object[gem_name] = {source_type: source_type, direct: direct}
       result_object[gem_name][:dependency_path] = dependency_path if dependency_path
       result_object[gem_name][:version_used] = gem_version if gem_version
 
@@ -129,7 +129,7 @@ module StillActive
           result_object: result_object,
           source_uri: source_uri,
           advisory_db: advisory_db,
-          ruby_range: ruby_range,
+          ruby_range: ruby_range
         )
       end
 
@@ -148,19 +148,19 @@ module StillActive
       signals = repo_signals(
         source: repo_info[:source],
         repository_owner: repo_info[:owner],
-        repository_name: repo_info[:name],
+        repository_name: repo_info[:name]
       )
       commit_date = signals[:last_commit_date]
       archived = signals[:archived]
       last_release = VersionHelper.find_version(versions: vs, pre_release: false)
       last_pre_release = VersionHelper.upcoming_pre_release(
         pre_release: VersionHelper.find_version(versions: vs, pre_release: true),
-        release: last_release,
+        release: last_release
       )
       deps_dev = fetch_deps_dev_info(
         gem_name: gem_name,
         version: gem_version || VersionHelper.gem_version(version_hash: last_release),
-        advisory_db: advisory_db,
+        advisory_db: advisory_db
       )
       result_object[gem_name].merge!({
         latest_version: VersionHelper.gem_version(version_hash: last_release),
@@ -172,7 +172,7 @@ module StillActive
         repository_url: repo_info[:url],
         last_commit_date: commit_date,
         archived: archived,
-        **deps_dev,
+        **deps_dev
       })
 
       unless vs.empty?
@@ -184,7 +184,7 @@ module StillActive
           source: repo_info[:source],
           repository_owner: repo_info[:owner],
           repository_name: repo_info[:name],
-          version: VersionHelper.gem_version(version_hash: last_release),
+          version: VersionHelper.gem_version(version_hash: last_release)
         )
       end
 
@@ -194,7 +194,7 @@ module StillActive
           up_to_date: VersionHelper.up_to_date(
             version_used: version_used,
             latest_version: last_release,
-            latest_pre_release_version: last_pre_release,
+            latest_pre_release_version: last_pre_release
           ),
 
           version_used_release_date: VersionHelper.release_date(version_hash: version_used),
@@ -202,8 +202,8 @@ module StillActive
           license: VersionHelper.license(version_hash: version_used),
           libyear: LibyearHelper.gem_libyear(
             version_used_release_date: VersionHelper.release_date(version_hash: version_used),
-            latest_version_release_date: VersionHelper.release_date(version_hash: last_release),
-          ),
+            latest_version_release_date: VersionHelper.release_date(version_hash: last_release)
+          )
         })
       end
 
@@ -218,7 +218,7 @@ module StillActive
           used_ruby_requirement: canonical_ruby_requirement(vs, version_used),
           latest_ruby_requirement: canonical_ruby_requirement(vs, last_release),
           pinned: !version_used.nil?,
-          ruby_range: ruby_range,
+          ruby_range: ruby_range
         )
       end
     end
@@ -297,7 +297,7 @@ module StillActive
         repository_url: repo_info[:url],
         last_commit_date: signals[:last_commit_date],
         archived: signals[:archived],
-        **deps_dev,
+        **deps_dev
       })
     end
 
@@ -311,7 +311,7 @@ module StillActive
 
       leads = AlternativesHelper.leads_for(gem_name: gem_name, index: catalog)
       result_object[gem_name][:alternatives] = leads unless leads.empty?
-    rescue StandardError
+    rescue
       nil # cosmetic best-effort: lead-fetching must never break the core audit
     end
 
@@ -373,7 +373,7 @@ module StillActive
       # drop the advisory and read a known-vulnerable gem as clean, so an
       # un-enriched key still contributes a minimal advisory (mirrors EcosystemLens;
       # ruby-advisory-db then fills the score on merge when it also carries it).
-      deps_dev_vulns = advisory_keys.map { |id| DepsDevClient.advisory_detail(advisory_id: id) || { id: id, source: "deps.dev" } }
+      deps_dev_vulns = advisory_keys.map { |id| DepsDevClient.advisory_detail(advisory_id: id) || {id: id, source: "deps.dev"} }
       radb_vulns = RubyAdvisoryDb.advisories_for(database: advisory_db, gem_name: gem_name, version: version)
       vulnerabilities = VulnerabilityHelper.merge_advisories(deps_dev: deps_dev_vulns, ruby_advisory_db: radb_vulns)
       # Enrich with OSV: a real GHSA severity label (deps.dev can't score a CVSS-4-only
@@ -384,7 +384,7 @@ module StillActive
         scorecard_score: scorecard&.dig(:score),
         scorecard_maintained: scorecard&.dig(:maintained),
         vulnerability_count: vulnerabilities.length,
-        vulnerabilities: vulnerabilities,
+        vulnerabilities: vulnerabilities
       }
     end
 
@@ -409,7 +409,7 @@ module StillActive
     # best-effort feature must not be able to degrade an unrelated gem's core data:
     # degrade to "no versions known" here, exactly like Gems::NotFound.
     rescue Gems::GemError, *HttpHelper::TRANSPORT_ERRORS => e
-      $stderr.puts("warning: rubygems.org versions lookup failed for #{gem_name}: #{e.class} (#{e.message})")
+      warn("warning: rubygems.org versions lookup failed for #{gem_name}: #{e.class} (#{e.message})")
       []
     end
 
@@ -439,9 +439,9 @@ module StillActive
 
     def warn_unqueryable_private_source(gem_name:, source_uri:)
       host = URI(source_uri).host
-      $stderr.puts(
+      warn(
         "warning: #{gem_name} resolves from a private source (#{host}) still_active cannot query; " \
-          "reporting no version/latest/libyear data for it rather than substituting public rubygems.org data",
+          "reporting no version/latest/libyear data for it rather than substituting public rubygems.org data"
       )
     end
 
@@ -450,7 +450,7 @@ module StillActive
       namespace_path = base.path
       path = "#{namespace_path}/api/v1/gems/#{CGI.escape(gem_name)}/versions.json"
       token = StillActive.config.github_oauth_token
-      headers = token ? { "Authorization" => "Bearer #{token}" } : {}
+      headers = token ? {"Authorization" => "Bearer #{token}"} : {}
       HttpHelper.get_json(base, path, headers: headers) || []
     end
 
@@ -471,7 +471,7 @@ module StillActive
     # deps.dev scorecards index github.com and gitlab.com only. A Forgejo/Codeberg
     # repo has no deps.dev project, so leave its project_id nil rather than minting
     # a bogus github.com/owner/name that would fetch the wrong (or no) scorecard.
-    DEPS_DEV_HOST_BY_SOURCE = { github: "github.com", gitlab: "gitlab.com" }.freeze
+    DEPS_DEV_HOST_BY_SOURCE = {github: "github.com", gitlab: "gitlab.com"}.freeze
 
     def deps_dev_project_id(repo)
       host = DEPS_DEV_HOST_BY_SOURCE[repo[:source]]
@@ -505,7 +505,7 @@ module StillActive
 
       [
         info.metadata&.dig("source_code_uri"),
-        info.homepage,
+        info.homepage
       ].compact.uniq
     end
 
@@ -521,7 +521,7 @@ module StillActive
 
       [
         info["homepage_uri"],
-        info["source_code_uri"],
+        info["source_code_uri"]
       ].compact.uniq
     rescue Gems::NotFound
       []

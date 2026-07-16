@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "set"
 require_relative "lockfile_dependency_parser"
 
 module StillActive
@@ -41,7 +40,7 @@ module StillActive
             source_type: spec.source_type || :unknown,
             source_uri: spec.source_uri,
             direct: is_direct,
-            dependency_path: is_direct ? nil : paths[spec.name],
+            dependency_path: is_direct ? nil : paths[spec.name]
           }
         end
     end

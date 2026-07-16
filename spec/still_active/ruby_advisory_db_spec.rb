@@ -15,7 +15,7 @@ RSpec.describe(StillActive::RubyAdvisoryDb) do
       identifiers: identifiers,
       to_h: to_h,
       patched_versions: patched_versions,
-      unaffected_versions: unaffected_versions,
+      unaffected_versions: unaffected_versions
     )
   end
 
@@ -32,8 +32,8 @@ RSpec.describe(StillActive::RubyAdvisoryDb) do
           cvss_v3: 6.1,
           cvss_v2: nil,
           title: "Possible XSS vulnerability in Rack",
-          url: "https://groups.google.com/forum/#!topic/ruby-security-ann/x",
-        },
+          url: "https://groups.google.com/forum/#!topic/ruby-security-ann/x"
+        }
       )
     end
 
@@ -56,7 +56,7 @@ RSpec.describe(StillActive::RubyAdvisoryDb) do
     it("carries title and url from to_h") do
       expect(vulnerability).to(include(
         title: "Possible XSS vulnerability in Rack",
-        url: "https://groups.google.com/forum/#!topic/ruby-security-ann/x",
+        url: "https://groups.google.com/forum/#!topic/ruby-security-ann/x"
       ))
     end
 
@@ -72,7 +72,7 @@ RSpec.describe(StillActive::RubyAdvisoryDb) do
         identifiers: ["CVE-x"],
         to_h: {},
         patched_versions: [],
-        unaffected_versions: unaffected,
+        unaffected_versions: unaffected
       )
     end
 
@@ -102,7 +102,7 @@ RSpec.describe(StillActive::RubyAdvisoryDb) do
         cve_id: "CVE-2011-0001",
         id: "OSVDB-1",
         identifiers: ["CVE-2011-0001"],
-        to_h: { cvss_v3: nil, cvss_v2: 5.0 },
+        to_h: {cvss_v3: nil, cvss_v2: 5.0}
       )
       expect(described_class.to_vulnerability(advisory)[:id]).to(eq("CVE-2011-0001"))
     end
@@ -115,7 +115,7 @@ RSpec.describe(StillActive::RubyAdvisoryDb) do
         cve_id: "CVE-9",
         id: "CVE-9",
         identifiers: ["CVE-9", "GHSA-xxx"],
-        to_h: { cvss_v3: 7.5, cvss_v2: nil },
+        to_h: {cvss_v3: 7.5, cvss_v2: nil}
       )
     end
 

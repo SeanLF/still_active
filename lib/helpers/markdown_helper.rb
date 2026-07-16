@@ -51,20 +51,20 @@ module StillActive
         version_with_date(
           text: data[:version_used],
           url: version_url(ruby_gems_url, data[:version_used]),
-          date: data[:version_used_release_date],
+          date: data[:version_used_release_date]
         )
       end
 
       formatted_latest_version = version_with_date(
         text: data[:latest_version],
         url: version_url(ruby_gems_url, data[:latest_version]),
-        date: data[:latest_version_release_date],
+        date: data[:latest_version_release_date]
       )
 
       formatted_latest_pre_release = version_with_date(
         text: data[:latest_pre_release_version],
         url: version_url(ruby_gems_url, data[:latest_pre_release_version]),
-        date: data[:latest_pre_release_version_release_date],
+        date: data[:latest_pre_release_version_release_date]
       )
 
       # Only link when there is a date: markdown_url with a nil date + a present
@@ -86,7 +86,7 @@ module StillActive
         formatted_latest_pre_release || unsure,
         formatted_last_commit || unsure,
         format_libyear(data[:libyear]),
-        format_license(data[:license]),
+        format_license(data[:license])
       ]
 
       "| #{cells.join(" | ")} |"
@@ -136,7 +136,7 @@ module StillActive
           poison_rank(data), # below-the-fix leads, then security-relevant, then the rest
           -ConstraintHelper::SEVERITY.index(data[:poison_severity] || :note),
           -Array(data[:constraints]).map { |c| c[:majors_behind].to_i }.max,
-          name.to_s,
+          name.to_s
         ]
       end
       ranked.each do |name, data|
@@ -202,7 +202,7 @@ module StillActive
         else
           "requires #{runtime} #{req}, no #{runtime} #{ceiling[:latest_stable]} support yet"
         end
-      fix = ceiling[:fixed_by_upgrade] && data[:latest_version] ? "; upgrade to #{data[:latest_version]} to lift it" : ""
+      fix = (ceiling[:fixed_by_upgrade] && data[:latest_version]) ? "; upgrade to #{data[:latest_version]} to lift it" : ""
       "#{base}#{fix}"
     end
 
@@ -226,7 +226,7 @@ module StillActive
         i.zero? ? "#{dep} #{req} (#{behind} major#{"s" unless behind == 1} behind, latest #{poison_major(finding[:dep_latest])})" : "#{dep} #{req} (#{behind})"
       end
       joined = parts.join(", ")
-      top[:total] > 1 ? "#{joined} — #{top[:total]} total" : joined
+      (top[:total] > 1) ? "#{joined} — #{top[:total]} total" : joined
     end
 
     # "8.0.1" -> "8.x": the cap is a major-level gap.

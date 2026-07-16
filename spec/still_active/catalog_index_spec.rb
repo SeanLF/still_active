@@ -29,7 +29,7 @@ RSpec.describe(StillActive::CatalogIndex) do
         "name: File Uploads\nprojects:\n  - paperclip\n  - shrine\n  - carrierwave\n",
       "catalog-main/catalog/Auth/authorization.yml" =>
         "name: Authorization\nprojects:\n  - cancan\n  - pundit\n",
-      "catalog-main/catalog/Auth/_meta.yml" => "name: Auth\n",
+      "catalog-main/catalog/Auth/_meta.yml" => "name: Auth\n"
     )
   end
 
@@ -44,7 +44,7 @@ RSpec.describe(StillActive::CatalogIndex) do
     it("indexes owner/repo slug projects by their repo tail, not the raw slug") do
       slug_catalog = tarball(
         "catalog-main/catalog/Web/frameworks.yml" =>
-          "name: Frameworks\nprojects:\n  - rails/rails\n  - sinatra\n",
+          "name: Frameworks\nprojects:\n  - rails/rails\n  - sinatra\n"
       )
       index = described_class.build_index(slug_catalog)
       expect(index["rails"]).to(contain_exactly("sinatra"))

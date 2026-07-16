@@ -19,12 +19,12 @@ module StillActive
     def last_activity(gem_data)
       release = [
         gem_data[:latest_version_release_date],
-        gem_data[:latest_pre_release_version_release_date],
+        gem_data[:latest_pre_release_version_release_date]
       ].filter_map { parse_time(_1) }.max
-      return { date: release, kind: :release } if release
+      return {date: release, kind: :release} if release
 
       commit = parse_time(gem_data[:last_commit_date])
-      commit ? { date: commit, kind: :commit } : nil
+      commit ? {date: commit, kind: :commit} : nil
     end
 
     # Coerce a Time or an iso8601-ish string (the SARIF path may supply either)

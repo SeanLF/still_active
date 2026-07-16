@@ -8,7 +8,7 @@ libyear. Compose those; don't reimplement them.
 ## Commands
 
 - Setup: `bin/setup` (installs deps, wires git hooks)
-- Test + lint: `rake` (full suite). `rake spec` or `rake rubocop` for one.
+- Test + lint: `rake` (full suite). `rake spec` or `rake standard` for one.
 - Run: `bundle exec still_active` (try `--json`, `--sarif`, `--alternatives`)
 - Console: `bin/console`
 - `rake` must pass before a commit.

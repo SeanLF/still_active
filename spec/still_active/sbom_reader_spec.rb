@@ -5,7 +5,7 @@ RSpec.describe(StillActive::SbomReader) do
 
   let(:fixture) { "spec/fixtures/sbom/sample.cdx.json" }
 
-  def sbom(*components) = { "bomFormat" => "CycloneDX", "components" => components }.to_json
+  def sbom(*components) = {"bomFormat" => "CycloneDX", "components" => components}.to_json
 
   it("extracts only the mappable library components (drops file/application, github, generic, null-purl)") do
     names = deps.map { |d| [d[:ecosystem], d[:name]] }
@@ -15,7 +15,7 @@ RSpec.describe(StillActive::SbomReader) do
       [:npm, "@babel/code-frame"],
       [:maven, "com.google.guava:guava"],
       [:rubygems, "rake"],
-      [:go, "github.com/gorilla/mux"],
+      [:go, "github.com/gorilla/mux"]
     ))
   end
 
@@ -25,7 +25,7 @@ RSpec.describe(StillActive::SbomReader) do
 
   it("carries the version per package") do
     requests = deps.find { |d| d[:name] == "requests" }
-    expect(requests).to(eq({ ecosystem: :pypi, name: "requests", version: "2.31.0" }))
+    expect(requests).to(eq({ecosystem: :pypi, name: "requests", version: "2.31.0"}))
   end
 
   it("strips Syft's ?package-id qualifier") do
@@ -59,10 +59,10 @@ RSpec.describe(StillActive::SbomReader) do
     # every other dependency's verdict.
     body = {
       components: [
-        { type: "library", name: "good", purl: "pkg:npm/lodash@4.17.21" },
-        { type: "library", name: "bad", purl: "pkg:npm/@1.0.0" },
-        { type: "library", name: "bad2", purl: "pkg:npm/%zz@1.0.0" },
-      ],
+        {type: "library", name: "good", purl: "pkg:npm/lodash@4.17.21"},
+        {type: "library", name: "bad", purl: "pkg:npm/@1.0.0"},
+        {type: "library", name: "bad2", purl: "pkg:npm/%zz@1.0.0"}
+      ]
     }.to_json
     result = nil
     expect { result = described_class.parse_string(body) }.not_to(raise_error)
@@ -99,7 +99,7 @@ RSpec.describe(StillActive::SbomReader) do
       # presence to refuse a public-by-name lookup, which would report a
       # same-named PUBLIC package's data as if it were this private one
       # (dependency confusion; the #43 principle, cross-ecosystem).
-      body = sbom({ "type" => "library", "purl" => "pkg:pypi/internalpkg@1.0.0?repository_url=https://pypi.internal.example.com" })
+      body = sbom({"type" => "library", "purl" => "pkg:pypi/internalpkg@1.0.0?repository_url=https://pypi.internal.example.com"})
       result = described_class.parse_string(body)
       expect(result.dependencies).to(eq([]))
       expect(result.unassessable).to(eq([{
@@ -107,12 +107,12 @@ RSpec.describe(StillActive::SbomReader) do
         name: "internalpkg",
         version: "1.0.0",
         reason: :private_registry,
-        repository_url: "https://pypi.internal.example.com",
+        repository_url: "https://pypi.internal.example.com"
       }]))
     end
 
     it("classifies a GitHub Packages npm package as private") do
-      body = sbom({ "type" => "library", "purl" => "pkg:npm/%40acme/utils@2.0.0?repository_url=https://npm.pkg.github.com" })
+      body = sbom({"type" => "library", "purl" => "pkg:npm/%40acme/utils@2.0.0?repository_url=https://npm.pkg.github.com"})
       result = described_class.parse_string(body)
       expect(result.dependencies).to(eq([]))
       expect(result.unassessable.first).to(include(ecosystem: :npm, name: "@acme/utils", reason: :private_registry))
@@ -121,26 +121,26 @@ RSpec.describe(StillActive::SbomReader) do
     it("treats a userinfo-spoofed repository_url as private (the dependency-confusion payload)") do
       # `pypi.org@evil.com` parses with host evil.com, not pypi.org -- the guard
       # must not be fooled into a public lookup.
-      body = sbom({ "type" => "library", "purl" => "pkg:pypi/internalpkg@1.0.0?repository_url=https://pypi.org@evil.com" })
+      body = sbom({"type" => "library", "purl" => "pkg:pypi/internalpkg@1.0.0?repository_url=https://pypi.org@evil.com"})
       expect(described_class.parse_string(body).unassessable.first).to(include(reason: :private_registry))
     end
 
     it("still assesses a package whose repository_url redundantly names the PUBLIC registry") do
-      body = sbom({ "type" => "library", "purl" => "pkg:pypi/requests@2.0.0?repository_url=https://pypi.org" })
-      expect(described_class.read_string(body)).to(eq([{ ecosystem: :pypi, name: "requests", version: "2.0.0" }]))
+      body = sbom({"type" => "library", "purl" => "pkg:pypi/requests@2.0.0?repository_url=https://pypi.org"})
+      expect(described_class.read_string(body)).to(eq([{ecosystem: :pypi, name: "requests", version: "2.0.0"}]))
     end
 
     it("extracts a scoped (possibly private) npm package by its full @scope/name") do
-      body = sbom({ "type" => "library", "purl" => "pkg:npm/%40myorg/secret@2.0.0" })
-      expect(described_class.read_string(body)).to(eq([{ ecosystem: :npm, name: "@myorg/secret", version: "2.0.0" }]))
+      body = sbom({"type" => "library", "purl" => "pkg:npm/%40myorg/secret@2.0.0"})
+      expect(described_class.read_string(body)).to(eq([{ecosystem: :npm, name: "@myorg/secret", version: "2.0.0"}]))
     end
 
     it("skips a PURL with no version (cannot be assessed)") do
-      expect(described_class.read_string(sbom({ "type" => "library", "purl" => "pkg:npm/foo" }))).to(eq([]))
+      expect(described_class.read_string(sbom({"type" => "library", "purl" => "pkg:npm/foo"}))).to(eq([]))
     end
 
     it("skips an unmapped ecosystem (e.g. cocoapods/conan/swift)") do
-      expect(described_class.read_string(sbom({ "type" => "library", "purl" => "pkg:cocoapods/Alamofire@5.0.0" }))).to(eq([]))
+      expect(described_class.read_string(sbom({"type" => "library", "purl" => "pkg:cocoapods/Alamofire@5.0.0"}))).to(eq([]))
     end
   end
 
@@ -151,7 +151,7 @@ RSpec.describe(StillActive::SbomReader) do
   # carries a dev signal somewhere, and left absent (unknown) otherwise.
   describe("dev/prod scope") do
     def lib(name, extra = {})
-      { "type" => "library", "name" => name, "purl" => "pkg:npm/#{name}@1.0.0" }.merge(extra)
+      {"type" => "library", "name" => name, "purl" => "pkg:npm/#{name}@1.0.0"}.merge(extra)
     end
 
     it("marks a scope:excluded component as not production and unmarked siblings as production") do
@@ -162,8 +162,8 @@ RSpec.describe(StillActive::SbomReader) do
 
     it("reads the cyclonedx-npm development property as not production") do
       body = sbom(
-        lib("jest", "properties" => [{ "name" => "cdx:npm:package:development", "value" => "true" }]),
-        lib("lodash"),
+        lib("jest", "properties" => [{"name" => "cdx:npm:package:development", "value" => "true"}]),
+        lib("lodash")
       )
       deps = described_class.read_string(body)
       expect(deps.find { |d| d[:name] == "jest" }[:production]).to(be(false))
@@ -185,7 +185,7 @@ RSpec.describe(StillActive::SbomReader) do
       # scope/properties are legal on any component type; a self-`application`
       # marked excluded must not be read as "this SBOM marks dev" and silently
       # promote every unmarked library to production.
-      body = sbom({ "type" => "application", "name" => "self", "scope" => "excluded" }, lib("lodash"))
+      body = sbom({"type" => "application", "name" => "self", "scope" => "excluded"}, lib("lodash"))
       dep = described_class.read_string(body).find { |d| d[:name] == "lodash" }
       expect(dep).not_to(have_key(:production))
     end

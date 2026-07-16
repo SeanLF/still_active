@@ -111,7 +111,7 @@ RSpec.describe(StillActive::Sarif::Rules) do
       "low" => "note",
       # An unscored advisory (no CVSS score and no OSV label) fails closed to warning,
       # never an informational note -- the SARIF analogue of the CLI fail-closed gate.
-      nil => "warning",
+      nil => "warning"
     }.each do |label, expected|
       it("maps #{label.inspect} -> #{expected}") do
         expect(described_class.severity_to_level(label)).to(eq(expected))

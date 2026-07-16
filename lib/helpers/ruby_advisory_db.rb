@@ -72,7 +72,7 @@ module StillActive
         # No safe version a consumer can upgrade TO: the correlation bundler-audit
         # + `bundle outdated` can't produce alone. A factual read of the DB.
         no_fix_available: no_forward_fix?(advisory),
-        source: "ruby-advisory-db",
+        source: "ruby-advisory-db"
       }
     end
 

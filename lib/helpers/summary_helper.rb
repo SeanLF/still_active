@@ -43,7 +43,7 @@ module StillActive
         vulnerabilities: vulnerabilities,
         # The single worst per-gem verdict (plus EOL Ruby), so a consumer reads
         # one project-level posture without scanning every gem's status.
-        status: StatusHelper.project_status(result, ruby_info: ruby_info),
+        status: StatusHelper.project_status(result, ruby_info: ruby_info)
       }
       summary[:ruby_eol] = ruby_info[:eol] == true if ruby_info
       summary

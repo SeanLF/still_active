@@ -51,7 +51,7 @@ module StillActive
       return "`#{content}`" unless content.include?("`")
 
       fence = "`" * (content.scan(/`+/).map(&:length).max + 1)
-      pad = content.start_with?("`") || content.end_with?("`") ? " " : ""
+      pad = (content.start_with?("`") || content.end_with?("`")) ? " " : ""
       "#{fence}#{pad}#{content}#{pad}#{fence}"
     end
   end

@@ -5,7 +5,7 @@ require_relative "../../lib/still_active/poison_security_correlator"
 RSpec.describe(StillActive::PoisonSecurityCorrelator) do
   describe ".correlate" do
     def vuln(cvss3)
-      { id: "GHSA-x", cvss3_score: cvss3, source: "deps.dev" }
+      {id: "GHSA-x", cvss3_score: cvss3, source: "deps.dev"}
     end
 
     it "flags a poison cap as security-relevant when the capped dep has a HIGH advisory" do
@@ -15,9 +15,9 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
         "pypi/google-api-core@1.0.0" => {
           ecosystem: :pypi,
           name: "google-api-core",
-          constraints: [{ dependency: "protobuf", requirement: "< 5", majors_behind: 3, kind: :ceiling }],
+          constraints: [{dependency: "protobuf", requirement: "< 5", majors_behind: 3, kind: :ceiling}]
         },
-        "pypi/protobuf@4.21.6" => { ecosystem: :pypi, name: "protobuf", vulnerability_count: 1, vulnerabilities: [vuln(8.1)] },
+        "pypi/protobuf@4.21.6" => {ecosystem: :pypi, name: "protobuf", vulnerability_count: 1, vulnerabilities: [vuln(8.1)]}
       }
       described_class.correlate(result)
       expect(result["pypi/google-api-core@1.0.0"][:constraints].first[:capped_dep_vulnerable]).to(be(true))
@@ -26,8 +26,8 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
 
     it "fails CLOSED on an unscored advisory (a confirmed advisory we can't score could be severe)" do
       result = {
-        "pypi/capper@1.0.0" => { ecosystem: :pypi, name: "capper", constraints: [{ dependency: "dep", majors_behind: 3 }] },
-        "pypi/dep@1.0.0" => { ecosystem: :pypi, name: "dep", vulnerability_count: 1, vulnerabilities: [vuln(nil)] },
+        "pypi/capper@1.0.0" => {ecosystem: :pypi, name: "capper", constraints: [{dependency: "dep", majors_behind: 3}]},
+        "pypi/dep@1.0.0" => {ecosystem: :pypi, name: "dep", vulnerability_count: 1, vulnerabilities: [vuln(nil)]}
       }
       described_class.correlate(result)
       expect(result["pypi/capper@1.0.0"][:constraints].first[:capped_dep_vulnerable]).to(be(true))
@@ -35,8 +35,8 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
 
     it "does NOT flag when the capped dep's only advisory is low/medium (noise, not the stuck-below-a-fix story)" do
       result = {
-        "pypi/capper@1.0.0" => { ecosystem: :pypi, name: "capper", constraints: [{ dependency: "dep", majors_behind: 3 }] },
-        "pypi/dep@1.0.0" => { ecosystem: :pypi, name: "dep", vulnerability_count: 1, vulnerabilities: [vuln(4.2)] },
+        "pypi/capper@1.0.0" => {ecosystem: :pypi, name: "capper", constraints: [{dependency: "dep", majors_behind: 3}]},
+        "pypi/dep@1.0.0" => {ecosystem: :pypi, name: "dep", vulnerability_count: 1, vulnerabilities: [vuln(4.2)]}
       }
       described_class.correlate(result)
       expect(result["pypi/capper@1.0.0"][:constraints].first).not_to(have_key(:capped_dep_vulnerable))
@@ -45,8 +45,8 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
 
     it "does not flag a cap on a non-vulnerable dep" do
       result = {
-        "pypi/foo@1.0.0" => { ecosystem: :pypi, name: "foo", constraints: [{ dependency: "bar", majors_behind: 3 }] },
-        "pypi/bar@1.0.0" => { ecosystem: :pypi, name: "bar", vulnerability_count: 0 },
+        "pypi/foo@1.0.0" => {ecosystem: :pypi, name: "foo", constraints: [{dependency: "bar", majors_behind: 3}]},
+        "pypi/bar@1.0.0" => {ecosystem: :pypi, name: "bar", vulnerability_count: 0}
       }
       described_class.correlate(result)
       expect(result["pypi/foo@1.0.0"][:constraints].first).not_to(have_key(:capped_dep_vulnerable))
@@ -54,8 +54,8 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
 
     it "ecosystem-qualifies: a vulnerable dep in one ecosystem does not flag a same-named cap in another" do
       result = {
-        "pypi/foo@1.0.0" => { ecosystem: :pypi, name: "foo", constraints: [{ dependency: "redis", majors_behind: 3 }] },
-        "rubygems/redis@1.0.0" => { ecosystem: :rubygems, name: "redis", vulnerability_count: 1, vulnerabilities: [vuln(9.0)] },
+        "pypi/foo@1.0.0" => {ecosystem: :pypi, name: "foo", constraints: [{dependency: "redis", majors_behind: 3}]},
+        "rubygems/redis@1.0.0" => {ecosystem: :rubygems, name: "redis", vulnerability_count: 1, vulnerabilities: [vuln(9.0)]}
       }
       described_class.correlate(result)
       expect(result["pypi/foo@1.0.0"][:constraints].first).not_to(have_key(:capped_dep_vulnerable))
@@ -63,8 +63,8 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
 
     it "works on the native path shape (bare-name keys, no :ecosystem)" do
       result = {
-        "dormantgem" => { constraints: [{ dependency: "nokogiri", majors_behind: 2 }] },
-        "nokogiri" => { vulnerability_count: 1, vulnerabilities: [vuln(7.5)] },
+        "dormantgem" => {constraints: [{dependency: "nokogiri", majors_behind: 2}]},
+        "nokogiri" => {vulnerability_count: 1, vulnerabilities: [vuln(7.5)]}
       }
       described_class.correlate(result)
       expect(result["dormantgem"][:constraints].first[:capped_dep_vulnerable]).to(be(true))
@@ -75,20 +75,20 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
   describe ".correlate below the fix" do
     # Sentry: google-api-core caps protobuf `< 5` (3 majors behind, latest ~7). Whether
     # the cap holds you BELOW THE FIX depends on where the CVE's fix lands.
-    def sentry_result(fixed_versions, advisory: { id: "CVE-2026-0994", cvss3_score: 8.1 })
+    def sentry_result(fixed_versions, advisory: {id: "CVE-2026-0994", cvss3_score: 8.1})
       {
         "pypi/google-api-core@1.0.0" => {
           ecosystem: :pypi,
           name: "google-api-core",
-          constraints: [{ dependency: "protobuf", requirement: "< 5", dep_latest: "7.35.1", majors_behind: 3, kind: :ceiling }],
+          constraints: [{dependency: "protobuf", requirement: "< 5", dep_latest: "7.35.1", majors_behind: 3, kind: :ceiling}]
         },
         "pypi/protobuf@4.21.6" => {
           ecosystem: :pypi,
           name: "protobuf",
           version_used: "4.21.6",
           vulnerability_count: 1,
-          vulnerabilities: [advisory.merge(fixed_versions: fixed_versions, source: "deps.dev")],
-        },
+          vulnerabilities: [advisory.merge(fixed_versions: fixed_versions, source: "deps.dev")]
+        }
       }
     end
 
@@ -121,7 +121,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
     end
 
     it "does NOT establish below the fix from an UNSCORED advisory (no reliable fix analysis)" do
-      result = sentry_result(["5.29.6"], advisory: { id: "CVE-x", cvss3_score: nil })
+      result = sentry_result(["5.29.6"], advisory: {id: "CVE-x", cvss3_score: nil})
       described_class.correlate(result)
       cap = result["pypi/google-api-core@1.0.0"]
       expect(cap[:constraints].first[:capped_dep_vulnerable]).to(be(true)) # fail-closed still flags
@@ -129,7 +129,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
     end
 
     it "uses the OSV label to score a CVSS-4-only advisory (deps.dev 0) for below-the-fix (the flagship)" do
-      result = sentry_result(["5.29.6"], advisory: { id: "CVE-2026-0994", cvss3_score: 0, osv_severity: "HIGH" })
+      result = sentry_result(["5.29.6"], advisory: {id: "CVE-2026-0994", cvss3_score: 0, osv_severity: "HIGH"})
       described_class.correlate(result)
       expect(result["pypi/google-api-core@1.0.0"][:constraints].first[:capped_below_fix]).to(be(true))
     end
@@ -168,7 +168,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
 
   describe ".correlate npm/cargo below the fix (nested, patch-precision)" do
     def high(id, fixed_versions)
-      { id: id, cvss3_score: 8.1, fixed_versions: fixed_versions, source: "osv" }
+      {id: id, cvss3_score: 8.1, fixed_versions: fixed_versions, source: "osv"}
     end
 
     # A dormant npm capper declaring `requirement` on `dep`, plus one tree entry per
@@ -180,8 +180,8 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
         "#{eco}/capper@1.0.0" => {
           ecosystem: eco,
           name: "capper",
-          capped_deps: [{ dependency: "dep", requirement: requirement }],
-        },
+          capped_deps: [{dependency: "dep", requirement: requirement}]
+        }
       }
       copies.each do |version, vulns|
         result["#{eco}/dep@#{version}"] = {
@@ -189,7 +189,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
           name: "dep",
           version_used: version,
           vulnerability_count: vulns.length,
-          vulnerabilities: vulns,
+          vulnerabilities: vulns
         }
       end
       result
@@ -202,7 +202,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
       # suppress this -- patch-precision + the in-constraint view is what gets it right.
       result = nested_result(requirement: "^2.3.1", copies: [
         ["2.3.2", [high("GHSA-braces", ["3.0.3"])]],
-        ["3.0.3", []],
+        ["3.0.3", []]
       ])
       described_class.correlate(result)
 
@@ -219,7 +219,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
       # is possible within the cap, so the capper doesn't force a vulnerable version.
       result = nested_result(requirement: "^1.0.0", copies: [
         ["1.2.0", []],
-        ["1.7.0", [high("GHSA-y", ["2.0.0"])]],
+        ["1.7.0", [high("GHSA-y", ["2.0.0"])]]
       ])
       described_class.correlate(result)
 
@@ -233,7 +233,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
       # the capper -- not below the fix. (Major precision would agree here; the point is
       # the patch-precision path returns the right answer.)
       result = nested_result(requirement: "^1.0.0", copies: [
-        ["1.2.0", [high("GHSA-z", ["1.5.0"])]],
+        ["1.2.0", [high("GHSA-z", ["1.5.0"])]]
       ])
       described_class.correlate(result)
 
@@ -247,7 +247,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
       # The old major-precision reachable check reads 1.3.0 as reachable (same major) and
       # misses this; patch precision catches it -- the case the PoC said dominates npm.
       result = nested_result(requirement: "~1.2.0", copies: [
-        ["1.2.5", [high("GHSA-tilde", ["1.3.0"])]],
+        ["1.2.5", [high("GHSA-tilde", ["1.3.0"])]]
       ])
       described_class.correlate(result)
 
@@ -259,7 +259,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
     it "applies the cargo bare-version caret when deciding reachability" do
       # cargo `0.10.38` is a caret [0.10.38, 0.11.0). Fix 0.11.0 is outside -> below fix.
       result = nested_result(eco: :cargo, requirement: "0.10.38", copies: [
-        ["0.10.39", [high("RUSTSEC-x", ["0.11.0"])]],
+        ["0.10.39", [high("RUSTSEC-x", ["0.11.0"])]]
       ])
       described_class.correlate(result)
 
@@ -269,7 +269,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
 
     it "does not flag on a low/medium advisory (only HIGH+ establishes below-the-fix)" do
       result = nested_result(requirement: "^1.0.0", copies: [
-        ["1.2.0", [{ id: "GHSA-low", cvss3_score: 4.2, fixed_versions: ["2.0.0"], source: "osv" }]],
+        ["1.2.0", [{id: "GHSA-low", cvss3_score: 4.2, fixed_versions: ["2.0.0"], source: "osv"}]]
       ])
       described_class.correlate(result)
 
@@ -278,7 +278,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
 
     it "stays silent when the constraint is unparseable (never a false wall)" do
       result = nested_result(requirement: "not-a-range", copies: [
-        ["1.2.0", [high("GHSA-x", ["2.0.0"])]],
+        ["1.2.0", [high("GHSA-x", ["2.0.0"])]]
       ])
       described_class.correlate(result)
 
@@ -287,7 +287,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
 
     it "does not flag when the advisory has no known fix (no wall to establish)" do
       result = nested_result(requirement: "^1.0.0", copies: [
-        ["1.2.0", [high("GHSA-nofix", [])]],
+        ["1.2.0", [high("GHSA-nofix", [])]]
       ])
       described_class.correlate(result)
 
@@ -301,7 +301,7 @@ RSpec.describe(StillActive::PoisonSecurityCorrelator) do
       # below-fix. The correct caret + condition 5 keep it silent.
       result = nested_result(eco: :cargo, requirement: "1.2", copies: [
         ["1.2.1", [high("RUSTSEC-y", ["1.9.0"])]],
-        ["1.9.0", []],
+        ["1.9.0", []]
       ])
       described_class.correlate(result)
 

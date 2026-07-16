@@ -32,7 +32,7 @@ module StillActive
       "cargo" => :cargo,
       "maven" => :maven,
       "golang" => :go,
-      "nuget" => :nuget,
+      "nuget" => :nuget
     }.freeze
 
     # PURL types that are not package dependencies: CI actions and opaque
@@ -100,7 +100,7 @@ module StillActive
 
       name = component["name"]
       purl = component["purl"]
-      return [:unassessable, { ecosystem: nil, name: name, reason: :no_purl }] unless purl.is_a?(String) && !purl.empty?
+      return [:unassessable, {ecosystem: nil, name: name, reason: :no_purl}] unless purl.is_a?(String) && !purl.empty?
 
       classify_purl(purl, name)
     end
@@ -121,7 +121,7 @@ module StillActive
       "repo1.maven.org",
       "repo.maven.apache.org",
       "api.nuget.org",
-      "proxy.golang.org",
+      "proxy.golang.org"
     ].freeze
 
     def classify_purl(purl, name)
@@ -130,7 +130,7 @@ module StillActive
       ecosystem = ECOSYSTEMS[type]
 
       if ecosystem
-        return [:unassessable, { ecosystem: type, name: name, reason: :no_version }] if parsed.version.to_s.empty?
+        return [:unassessable, {ecosystem: type, name: name, reason: :no_version}] if parsed.version.to_s.empty?
 
         full_name = build_name(ecosystem, parsed.namespace, parsed.name)
         repository_url = parsed.qualifiers&.dig("repository_url")
@@ -143,14 +143,14 @@ module StillActive
         # from a public one, so it is still assessed by name. Best-effort, not a
         # guarantee that every private package is caught.
         if repository_url && !public_registry?(repository_url)
-          return [:unassessable, { ecosystem: ecosystem, name: full_name, version: parsed.version, reason: :private_registry, repository_url: repository_url }]
+          return [:unassessable, {ecosystem: ecosystem, name: full_name, version: parsed.version, reason: :private_registry, repository_url: repository_url}]
         end
 
-        [:dependency, { ecosystem: ecosystem, name: full_name, version: parsed.version }]
+        [:dependency, {ecosystem: ecosystem, name: full_name, version: parsed.version}]
       elsif NOISE_TYPES.include?(type)
         nil # CI actions / opaque binaries: not a package dependency
       else
-        [:unassessable, { ecosystem: type, name: name, reason: :unsupported_ecosystem }]
+        [:unassessable, {ecosystem: type, name: name, reason: :unsupported_ecosystem}]
       end
     rescue ArgumentError
       # InvalidPackageURL is a subclass of ArgumentError, but PackageURL.parse also
@@ -158,7 +158,7 @@ module StillActive
       # or bad percent-encoding, both common in real Syft/Trivy output. Catch both so
       # one malformed component degrades to unassessable, never a backtrace that drops
       # every other dependency's verdict (SbomReader's documented "never raises").
-      [:unassessable, { ecosystem: nil, name: name, reason: :malformed_purl }]
+      [:unassessable, {ecosystem: nil, name: name, reason: :malformed_purl}]
     end
 
     # Whether a repository_url points at a known public registry. We only read the

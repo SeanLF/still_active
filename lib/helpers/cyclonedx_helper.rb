@@ -34,9 +34,9 @@ module StillActive
         "version" => 1,
         "metadata" => {
           "timestamp" => now.iso8601,
-          "tools" => [{ "vendor" => "SeanLF", "name" => "still_active", "version" => tool_version }],
+          "tools" => [{"vendor" => "SeanLF", "name" => "still_active", "version" => tool_version}]
         },
-        "components" => components,
+        "components" => components
       }
       document["vulnerabilities"] = vulnerabilities unless vulnerabilities.empty?
       JSON.pretty_generate(document)
@@ -52,13 +52,13 @@ module StillActive
 
     def gem_component(name, data)
       version = data[:version_used]
-      component = { "type" => "library", "name" => name }
+      component = {"type" => "library", "name" => name}
       component["version"] = version if version
       component["bom-ref"] = bom_ref(name, data)
       component["purl"] = purl(name, version, data[:source_type]) if version
       component["licenses"] = licenses(data[:license]) if data[:license]
       if data[:repository_url]
-        component["externalReferences"] = [{ "type" => "vcs", "url" => data[:repository_url] }]
+        component["externalReferences"] = [{"type" => "vcs", "url" => data[:repository_url]}]
       end
       properties = gem_properties(data)
       component["properties"] = properties unless properties.empty?
@@ -78,7 +78,7 @@ module StillActive
     # false-matching a public gem of the same name; git/rubygems-sourced gems
     # get pkg:gem so a fork still matches the upstream gem's advisories.
     def purl(name, version, source_type)
-      type = source_type == :path ? "generic" : "gem"
+      type = (source_type == :path) ? "generic" : "gem"
       "pkg:#{type}/#{name}@#{version}"
     end
 
@@ -86,7 +86,7 @@ module StillActive
     # display; CycloneDX's license.id must be a single SPDX id, so split back
     # into one entry per license rather than emitting an invalid joined id.
     def licenses(license)
-      license.split(", ").map { |id| { "license" => { "id" => id } } }
+      license.split(", ").map { |id| {"license" => {"id" => id}} }
     end
 
     def gem_properties(data)
@@ -95,8 +95,8 @@ module StillActive
         "still_active:scorecard_score" => data[:scorecard_score]&.to_s,
         "still_active:libyear" => data[:libyear]&.to_s,
         "still_active:last_commit_date" => iso8601(data[:last_commit_date]),
-        "still_active:version_yanked" => boolean_property(data[:version_yanked]),
-      }.filter_map { |name, value| { "name" => name, "value" => value } unless value.nil? }
+        "still_active:version_yanked" => boolean_property(data[:version_yanked])
+      }.filter_map { |name, value| {"name" => name, "value" => value} unless value.nil? }
     end
 
     # The Ruby interpreter. CycloneDX's "platform" type fits semantically, but
@@ -116,9 +116,9 @@ module StillActive
         "purl" => "pkg:generic/ruby@#{version}",
         "cpe" => "cpe:2.3:a:ruby-lang:ruby:#{version}:*:*:*:*:*:*:*",
         "properties" => [
-          { "name" => "still_active:eol", "value" => boolean_property(ruby_info[:eol]) },
-          { "name" => "still_active:libyear", "value" => ruby_info[:libyear]&.to_s },
-        ].reject { |p| p["value"].nil? },
+          {"name" => "still_active:eol", "value" => boolean_property(ruby_info[:eol])},
+          {"name" => "still_active:libyear", "value" => ruby_info[:libyear]&.to_s}
+        ].reject { |p| p["value"].nil? }
       }
     end
 
@@ -133,9 +133,9 @@ module StillActive
       entry = {
         "bom-ref" => "#{advisory[:id]}:#{component_ref}",
         "id" => advisory[:id],
-        "affects" => [{ "ref" => component_ref }],
+        "affects" => [{"ref" => component_ref}]
       }
-      entry["source"] = { "name" => advisory[:source] } if advisory[:source]
+      entry["source"] = {"name" => advisory[:source]} if advisory[:source]
       advisory_rating = rating(advisory)
       entry["ratings"] = [advisory_rating] if advisory_rating
       entry
@@ -148,7 +148,7 @@ module StillActive
       score = VulnerabilityHelper.effective_score(advisory)
       return if score.nil?
 
-      rating = { "score" => score, "severity" => VulnerabilityHelper.highest_severity([advisory]) || "unknown", "method" => rating_method(advisory) }
+      rating = {"score" => score, "severity" => VulnerabilityHelper.highest_severity([advisory]) || "unknown", "method" => rating_method(advisory)}
       vector = advisory[:cvss3_vector] || advisory[:cvss_vector]
       rating["vector"] = vector if vector
       rating

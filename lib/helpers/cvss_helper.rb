@@ -27,7 +27,7 @@ module StillActive
 
       cvss = CvssSuite.new(vector.to_s)
       cvss.valid? ? cvss.overall_score : nil
-    rescue StandardError => e
+    rescue => e
       # We only reach here with cvss-suite loaded (available?), so a raise is the
       # installed gem failing this call site -- an incompatible version, a renamed
       # `overall_score` -- not a bad vector, which cvss-suite reports via valid?.
@@ -57,7 +57,7 @@ module StillActive
       return if @warned
 
       @warned = true
-      $stderr.puts("warning: cvss-suite scoring failed: #{error.class} (#{error.message}); CVSS numbers unavailable this run, check your cvss-suite version")
+      warn("warning: cvss-suite scoring failed: #{error.class} (#{error.message}); CVSS numbers unavailable this run, check your cvss-suite version")
     end
   end
 end

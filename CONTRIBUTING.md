@@ -6,7 +6,7 @@ Issues and PRs both welcome. The project moves fast.
 
 - For anything non-trivial, open an issue first so we can agree on the shape. Saves rework.
 - `bin/setup` installs deps and wires the git hooks. `rake` runs the full lint +
-  test suite (`rake spec` or `rake rubocop` for one). `bin/console` for a prompt.
+  test suite (`rake spec` or `rake standard` for one). `bin/console` for a prompt.
 
 ## What makes a contribution land
 

@@ -24,7 +24,7 @@ module StillActive
       body = HttpHelper.get_json(base_uri(host), "/api/v1/repos/#{owner}/#{name}", headers: auth_headers)
       return {} if body.nil?
 
-      { archived: body["archived"] == true, last_commit_date: parse_time(body["updated_at"], owner, name) }
+      {archived: body["archived"] == true, last_commit_date: parse_time(body["updated_at"], owner, name)}
     end
 
     private
@@ -34,7 +34,7 @@ module StillActive
 
       Time.parse(value)
     rescue ArgumentError
-      $stderr.puts("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
+      warn("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
       nil
     end
 
@@ -44,7 +44,7 @@ module StillActive
 
     def auth_headers
       token = StillActive.config.forgejo_token
-      token ? { "Authorization" => "token #{token}" } : {}
+      token ? {"Authorization" => "token #{token}"} : {}
     end
   end
 end

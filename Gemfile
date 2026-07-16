@@ -12,11 +12,9 @@ group :development, :test do
   gem "json_schemer"
   gem "rake", ">= 13.0"
   gem "rspec", ">= 4.0.0.beta1"
-  gem "rubocop"
-  gem "rubocop-performance"
-  gem "rubocop-rspec"
-  gem "rubocop-shopify"
   gem "simplecov", "~> 1.0.1", require: false
+  gem "standard"
+  gem "standard-rspec"
   gem "vcr"
   gem "webmock"
 end

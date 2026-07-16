@@ -8,9 +8,9 @@ module StillActive
     SOURCE_BY_HOST = {
       "github.com" => :github,
       "gitlab.com" => :gitlab,
-      "codeberg.org" => :forgejo,
+      "codeberg.org" => :forgejo
     }.freeze
-    REPO_REGEX = %r{(?<url>https?://(?:www\.)?(?<host>github\.com|gitlab\.com|codeberg\.org)/(?<owner>[\w.\-]+)/(?<name>[\w.\-]+))}i
+    REPO_REGEX = %r{(?<url>https?://(?:www\.)?(?<host>github\.com|gitlab\.com|codeberg\.org)/(?<owner>[\w.-]+)/(?<name>[\w.-]+))}i
 
     extend self
 
@@ -22,12 +22,12 @@ module StillActive
 
     def url_with_owner_and_name(url:)
       match = url&.match(REPO_REGEX)
-      return { source: :unhandled, owner: nil, name: nil } unless match
+      return {source: :unhandled, owner: nil, name: nil} unless match
 
       clean_url = match[:url].delete_suffix(".git")
       name = match[:name].delete_suffix(".git")
 
-      { url: clean_url, source: SOURCE_BY_HOST.fetch(match[:host].downcase), owner: match[:owner], name: name }
+      {url: clean_url, source: SOURCE_BY_HOST.fetch(match[:host].downcase), owner: match[:owner], name: name}
     end
   end
 end

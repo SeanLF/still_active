@@ -20,20 +20,20 @@ RSpec.describe(StillActive::CyclonedxHelper) do
         version_yanked: false,
         vulnerability_count: 1,
         vulnerabilities: [
-          { id: "GHSA-xxx", url: "https://osv.dev/GHSA-xxx", title: "XSS", aliases: ["CVE-1"], cvss3_score: 7.5, cvss3_vector: "CVSS:3.1/AV:N", cvss2_score: nil, source: "merged" },
-        ],
+          {id: "GHSA-xxx", url: "https://osv.dev/GHSA-xxx", title: "XSS", aliases: ["CVE-1"], cvss3_score: 7.5, cvss3_vector: "CVSS:3.1/AV:N", cvss2_score: nil, source: "merged"}
+        ]
       },
       "local_gem" => {
         source_type: :path,
         version_used: "0.1.0",
         license: nil,
         vulnerability_count: 0,
-        vulnerabilities: [],
-      },
+        vulnerabilities: []
+      }
     }
   end
 
-  let(:ruby_info) { { version: "3.4.0", eol: false, libyear: 0.0 } }
+  let(:ruby_info) { {version: "3.4.0", eol: false, libyear: 0.0} }
 
   def render(spec_version: "1.6")
     JSON.parse(described_class.render(result: result, ruby_info: ruby_info, tool_version: "1.5.0", spec_version: spec_version, now: fixed_time))
@@ -72,15 +72,15 @@ RSpec.describe(StillActive::CyclonedxHelper) do
 
     it("maps the license to the licenses array") do
       rack = components.find { |c| c["name"] == "rack" }
-      expect(rack["licenses"]).to(eq([{ "license" => { "id" => "MIT" } }]))
+      expect(rack["licenses"]).to(eq([{"license" => {"id" => "MIT"}}]))
     end
 
     it("splits a multi-license gem into one valid SPDX entry each (not a comma-joined id)") do
-      result["multi"] = { source_type: :rubygems, version_used: "1.0.0", license: "Hippocratic-2.1, MIT", vulnerability_count: 0, vulnerabilities: [] }
+      result["multi"] = {source_type: :rubygems, version_used: "1.0.0", license: "Hippocratic-2.1, MIT", vulnerability_count: 0, vulnerabilities: []}
       multi = components.find { |c| c["name"] == "multi" }
       expect(multi["licenses"]).to(eq([
-        { "license" => { "id" => "Hippocratic-2.1" } },
-        { "license" => { "id" => "MIT" } },
+        {"license" => {"id" => "Hippocratic-2.1"}},
+        {"license" => {"id" => "MIT"}}
       ]))
     end
 
@@ -95,7 +95,7 @@ RSpec.describe(StillActive::CyclonedxHelper) do
       expect(props).to(include(
         "still_active:archived" => "false",
         "still_active:scorecard_score" => "6.5",
-        "still_active:libyear" => "4.4",
+        "still_active:libyear" => "4.4"
       ))
     end
 
@@ -106,7 +106,7 @@ RSpec.describe(StillActive::CyclonedxHelper) do
     end
 
     it("gives a git-sourced gem a pkg:gem purl (matches upstream advisories for forks)") do
-      result["forked"] = { source_type: :git, version_used: "1.2.3" }
+      result["forked"] = {source_type: :git, version_used: "1.2.3"}
       forked = components.find { |c| c["name"] == "forked" }
       expect(forked["purl"]).to(eq("pkg:gem/forked@1.2.3"))
       expect(forked["bom-ref"]).to(eq("pkg:gem/forked@1.2.3"))
@@ -140,7 +140,7 @@ RSpec.describe(StillActive::CyclonedxHelper) do
       expect(vulnerabilities.length).to(eq(1))
       vuln = vulnerabilities.first
       expect(vuln["id"]).to(eq("GHSA-xxx"))
-      expect(vuln["affects"]).to(eq([{ "ref" => "pkg:gem/rack@2.0.0" }]))
+      expect(vuln["affects"]).to(eq([{"ref" => "pkg:gem/rack@2.0.0"}]))
     end
 
     it("maps CVSS into a rating with severity and vector") do
@@ -158,15 +158,15 @@ RSpec.describe(StillActive::CyclonedxHelper) do
           osv_cvss_score: 8.2,
           cvss_version: "4.0",
           cvss_vector: "CVSS:4.0/AV:N/VC:H",
-          source: "deps.dev",
-        },
+          source: "deps.dev"
+        }
       ]
       rating = vulnerabilities.first["ratings"].first
       expect(rating).to(include("score" => 8.2, "severity" => "high", "method" => "CVSSv4", "vector" => "CVSS:4.0/AV:N/VC:H"))
     end
 
     it("records the advisory source") do
-      expect(vulnerabilities.first["source"]).to(eq({ "name" => "merged" }))
+      expect(vulnerabilities.first["source"]).to(eq({"name" => "merged"}))
     end
 
     it("references only components that exist in the BOM") do

@@ -39,7 +39,7 @@ module StillActive
       rubygems: "rubygems.org",
       npm: "npmjs.org",
       pypi: "pypi.org",
-      cargo: "crates.io",
+      cargo: "crates.io"
     }.freeze
 
     # A transitive cap only holds the WHOLE tree hostage where the ecosystem
@@ -98,7 +98,7 @@ module StillActive
         # already fetched above (no extra call); nil when either date is missing.
         libyear: LibyearHelper.gem_libyear(
           version_used_release_date: parse_time(used_release_date),
-          latest_version_release_date: parse_time(latest_release_date),
+          latest_version_release_date: parse_time(latest_release_date)
         ),
         # Whether the pinned version is at or ahead of deps.dev's latest stable, so a
         # prerelease or an ahead-of-stable pin reads current (true), not "behind" --
@@ -110,7 +110,7 @@ module StillActive
         scorecard_score: scorecard&.dig(:score),
         scorecard_maintained: scorecard&.dig(:maintained),
         vulnerability_count: vulnerabilities.length,
-        vulnerabilities: vulnerabilities,
+        vulnerabilities: vulnerabilities
       }
       gem_data[:version_unresolved] = true if version_unresolved
       attach_constraints(gem_data, ecosystem: ecosystem, name: name, version: version, cache: constraint_cache)
@@ -239,7 +239,7 @@ module StillActive
       candidates = declared.filter_map do |dep|
         next if dep[:package_name].to_s.empty? || dep[:requirements].to_s.empty?
 
-        { dependency: dep[:package_name], requirement: dep[:requirements] }
+        {dependency: dep[:package_name], requirement: dep[:requirements]}
       end
       gem_data[:capped_deps] = candidates unless candidates.empty?
     end
@@ -262,7 +262,7 @@ module StillActive
       # fetch only enriches CVSS/title. A failed enrichment must not drop the
       # count to zero and read a known-vulnerable dep as clean, so a key whose
       # detail can't be loaded still contributes a minimal advisory.
-      deps_dev = advisory_keys.map { DepsDevClient.advisory_detail(advisory_id: _1) || { id: _1, source: "deps.dev" } }
+      deps_dev = advisory_keys.map { DepsDevClient.advisory_detail(advisory_id: _1) || {id: _1, source: "deps.dev"} }
       # No ruby-advisory-db here: that database is Ruby-only and the native
       # Bundler path already merges it. Cross-ecosystem advisories come from
       # deps.dev/OSV, which covers every system the lens serves.

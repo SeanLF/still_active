@@ -3,14 +3,14 @@
 require_relative "lib/still_active/version"
 
 Gem::Specification.new do |spec|
-  spec.name          = "still_active"
-  spec.version       = StillActive::VERSION
-  spec.authors       = ["Sean Floyd"]
-  spec.email         = ["contact@seanfloyd.dev"]
+  spec.name = "still_active"
+  spec.version = StillActive::VERSION
+  spec.authors = ["Sean Floyd"]
+  spec.email = ["contact@seanfloyd.dev"]
 
-  spec.summary       = "Audit your dependencies for maintenance health, abandonment, and below-the-fix vulnerabilities. " \
+  spec.summary = "Audit your dependencies for maintenance health, abandonment, and below-the-fix vulnerabilities. " \
     "Ruby gems natively; npm, PyPI, Cargo, Go, Maven, and NuGet via a CycloneDX SBOM."
-  spec.description   = "Analyses your Gemfile.lock for dependency health across the full transitive graph: " \
+  spec.description = "Analyses your Gemfile.lock for dependency health across the full transitive graph: " \
     "whether each gem is actively maintained (last activity on GitHub, GitLab, or Codeberg/Forgejo, plus " \
     "release recency), outdated versions, archived repos, OpenSSF Scorecard scores, known vulnerabilities " \
     "(deps.dev and OSV, merged with ruby-advisory-db, flagging advisories with no fix and pins that sit below " \
@@ -24,8 +24,8 @@ Gem::Specification.new do |spec|
     "with granular, committed suppression via .still_active.yml. " \
     "Complements bundle outdated, bundler-audit, and libyear-bundler by adding the maintenance signal they " \
     "don't, and folds their version, CVE, and libyear checks into one report."
-  spec.homepage      = "https://github.com/SeanLF/still_active"
-  spec.license       = "MIT"
+  spec.homepage = "https://github.com/SeanLF/still_active"
+  spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
@@ -36,12 +36,12 @@ Gem::Specification.new do |spec|
   spec.metadata["rubygems_mfa_required"] = "true"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
-    %x(git ls-files -z).split("\x0").select do |f|
+    `git ls-files -z`.split("\x0").select do |f|
       f.start_with?("lib/", "bin/still_active") || f.match?(/\A(LICENSE|README|CHANGELOG|still_active\.gemspec)\b/)
     end
   end
-  spec.bindir        = "bin"
-  spec.executables   = spec.files.grep(%r{\Abin/still_active}) { |f| File.basename(f) }
+  spec.bindir = "bin"
+  spec.executables = spec.files.grep(%r{\Abin/still_active}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
   # 2.0/2.1 ship a scheduler that breaks our fan-out (io_read); 2.2 is the
