@@ -20,7 +20,7 @@ module StillActive
 
     BASE_URI = URI("https://pypi.org/")
     # Polite identification, matching EcosystemsClient's convention.
-    USER_AGENT = "still_active/#{StillActive::VERSION} (+https://github.com/SeanLF/still_active)"
+    USER_AGENT = "still_active/#{StillActive::VERSION} (+https://github.com/SeanLF/still_active)".freeze
 
     # The PEP 440 `requires_python` specifier a release declares (e.g.
     # ">=3.8,<3.13"), or nil when the version is unreadable or declares none.

@@ -44,15 +44,6 @@ Gem::Specification.new do |spec|
   spec.executables   = spec.files.grep(%r{\Abin/still_active}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_development_dependency("bundler-audit")
-  spec.add_development_dependency("debug")
-  spec.add_development_dependency("faker")
-  spec.add_development_dependency("json_schemer")
-  spec.add_development_dependency("rubocop")
-  spec.add_development_dependency("rubocop-performance")
-  spec.add_development_dependency("rubocop-rspec")
-  spec.add_development_dependency("rubocop-shopify")
-
   # 2.0/2.1 ship a scheduler that breaks our fan-out (io_read); 2.2 is the
   # verified floor (checked against Ruby 3.3 in Docker). octokit/faraday-retry/
   # gems work down to ancient versions, so they stay unpinned rather than

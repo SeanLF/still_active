@@ -26,7 +26,7 @@ module StillActive
     # carries per-version declared dependency constraints (the poison-pill input).
     PACKAGES_BASE_URI = URI("https://packages.ecosyste.ms/")
     # ecosyste.ms asks consumers to identify themselves for its "polite pool".
-    USER_AGENT = "still_active/#{StillActive::VERSION} (+https://github.com/SeanLF/still_active)"
+    USER_AGENT = "still_active/#{StillActive::VERSION} (+https://github.com/SeanLF/still_active)".freeze
 
     # archived + last-commit date from a single repository call. ecosyste.ms's
     # pushed_at mirrors GitHub's, so this returns the same shape as GithubClient.
