@@ -73,7 +73,7 @@ module StillActive
         next unless data[:vulnerability_count].to_i.positive?
 
         name = data[:name] || key
-        map["#{data[:ecosystem]}/#{name}"] = { vulns: hashes(data[:vulnerabilities]), used_version: data[:version_used] }
+        map["#{data[:ecosystem]}/#{name}"] = {vulns: hashes(data[:vulnerabilities]), used_version: data[:version_used]}
       end
     end
 
@@ -85,7 +85,7 @@ module StillActive
     def copy_index(result_object)
       result_object.each_with_object({}) do |(key, data), map|
         name = data[:name] || key
-        (map["#{data[:ecosystem]}/#{name}"] ||= []) << { version: data[:version_used], vulns: hashes(data[:vulnerabilities]) }
+        (map["#{data[:ecosystem]}/#{name}"] ||= []) << {version: data[:version_used], vulns: hashes(data[:vulnerabilities])}
       end
     end
 
@@ -148,7 +148,7 @@ module StillActive
         capped_dep_vulnerable: true,
         capped_below_fix: true,
         below_fix_advisory: receipt[:id],
-        below_fix_fixed_in: nearest_fix(receipt, oldest),
+        below_fix_fixed_in: nearest_fix(receipt, oldest)
       }
     end
 

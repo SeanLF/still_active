@@ -35,13 +35,13 @@ module StillActive
       return {} if owner.nil? || name.nil?
 
       path = "/api/v1/hosts/GitHub/repositories/#{encode_repo(owner, name)}"
-      body = HttpHelper.get_json(BASE_URI, path, headers: { "User-Agent" => USER_AGENT }, params: politeness_params)
+      body = HttpHelper.get_json(BASE_URI, path, headers: {"User-Agent" => USER_AGENT}, params: politeness_params)
       # A non-Hash 200 body (error envelope rendered as an array, schema drift)
       # would otherwise raise on indexing and vanish the gem from the audit via
       # the workflow's rescue; degrade to "no signal" like any other read failure.
       return {} unless body.is_a?(Hash)
 
-      signals = { last_commit_date: parse_time(body["pushed_at"], owner, name) }
+      signals = {last_commit_date: parse_time(body["pushed_at"], owner, name)}
       # Only assert archived when the field is actually present. A missing field
       # must read as unknown, not be invented as false -- otherwise a partial
       # crawl could silently mask the most actionable verdict (gem is archived).
@@ -73,7 +73,7 @@ module StillActive
       return [] if name.nil? || version.nil?
 
       path = "/api/v1/registries/#{encode(registry)}/packages/#{encode(name)}/versions/#{encode(version)}"
-      body = HttpHelper.get_json(PACKAGES_BASE_URI, path, headers: { "User-Agent" => USER_AGENT }, params: politeness_params)
+      body = HttpHelper.get_json(PACKAGES_BASE_URI, path, headers: {"User-Agent" => USER_AGENT}, params: politeness_params)
       return [] unless body.is_a?(Hash)
 
       dependencies = body["dependencies"]
@@ -86,7 +86,7 @@ module StillActive
         requirements = dep["requirements"]
         next if package_name.nil? || requirements.nil?
 
-        { package_name: package_name, requirements: requirements }
+        {package_name: package_name, requirements: requirements}
       end
     end
 
@@ -98,7 +98,7 @@ module StillActive
     # lockfile and we don't attribute every user's traffic to one address.
     def politeness_params
       email = StillActive.config.ecosystems_email
-      email ? { mailto: email } : {}
+      email ? {mailto: email} : {}
     end
 
     # nil or a non-string (numeric/array from an off-spec payload) -> no date,
@@ -108,7 +108,7 @@ module StillActive
 
       Time.parse(value)
     rescue ArgumentError
-      $stderr.puts("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
+      warn("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
       nil
     end
 

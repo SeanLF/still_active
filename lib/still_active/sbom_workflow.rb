@@ -40,7 +40,7 @@ module StillActive
         runtime_ranges = {
           python: safe_support_window("Python") { PythonHelper.supported_python_range },
           dotnet: safe_support_window(".NET") { DotnetHelper.supported_dotnet_range },
-          dotnetfx: safe_support_window(".NET Framework") { DotnetHelper.supported_dotnetfx_range },
+          dotnetfx: safe_support_window(".NET Framework") { DotnetHelper.supported_dotnetfx_range }
         }
         barrier = Async::Barrier.new
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
@@ -63,15 +63,15 @@ module StillActive
             result["#{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}"] =
               EcosystemLens.assess(ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], constraint_cache: constraint_cache, runtime_ranges: runtime_ranges)
                 .merge(dep.slice(:production))
-          rescue StandardError => e
+          rescue => e
             # One dependency's failure must not abort the audit, but it must not
             # disappear either: record it as an unassessable entry (same shape as
             # the reader's, with a distinct reason) so it's counted and reported.
             # production rides along (when known, via slice) so a failed prod dep
             # stays distinguishable from a failed dev one.
-            failures << { ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], reason: :assessment_error, error: "#{e.class}: #{e.message}" }
+            failures << {ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], reason: :assessment_error, error: "#{e.class}: #{e.message}"}
               .merge(dep.slice(:production))
-            $stderr.puts("error assessing #{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}: #{e.class}\n\t#{e.message}")
+            warn("error assessing #{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}: #{e.class}\n\t#{e.message}")
           ensure
             completed += 1
             on_progress&.call(completed, total)
@@ -88,7 +88,7 @@ module StillActive
         # Stable, diffable order regardless of async completion order.
         Outcome.new(
           assessed: result.sort_by { |key, _| key }.to_h,
-          failures: failures.sort_by { |failure| "#{failure[:ecosystem]}/#{failure[:name]}@#{failure[:version]}" },
+          failures: failures.sort_by { |failure| "#{failure[:ecosystem]}/#{failure[:name]}@#{failure[:version]}" }
         )
       end.wait
     end
@@ -99,8 +99,8 @@ module StillActive
     # ceiling checks for that runtime) with a warning, never aborting the audit.
     def safe_support_window(label)
       yield
-    rescue StandardError => e
-      $stderr.puts("warning: #{label} support window lookup failed: #{e.class} (#{e.message}); skipping language-ceiling checks")
+    rescue => e
+      warn("warning: #{label} support window lookup failed: #{e.class} (#{e.message}); skipping language-ceiling checks")
       nil
     end
   end

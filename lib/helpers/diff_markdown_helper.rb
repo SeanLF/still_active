@@ -16,7 +16,7 @@ module StillActive
       fresher: "fresher",
       older_relative: "older relative to latest",
       neutral: nil,
-      unknown: nil,
+      unknown: nil
     }.freeze
 
     def render(diff, accepted: [])
@@ -31,7 +31,7 @@ module StillActive
         removed_section(diff.removed),
         bumps_section(diff.bumped),
         signal_changes_section(diff.signal_changes),
-        ruby_section(diff.ruby),
+        ruby_section(diff.ruby)
       ].reject(&:empty?)
 
       "#{sections.join("\n")}\n"
@@ -45,7 +45,7 @@ module StillActive
         ["added", diff.added.size],
         ["removed", diff.removed.size],
         ["bumped", diff.bumped.size],
-        ["signal-changes", diff.signal_changes.size],
+        ["signal-changes", diff.signal_changes.size]
       ]
       parts << ["accepted", accepted.size] unless accepted.empty?
       parts.map { |label, n| "#{n} #{label}" }.join(" · ")
@@ -124,7 +124,7 @@ module StillActive
         data["scorecard_score"] && "OpenSSF #{data["scorecard_score"]}",
         (data["vulnerability_count"].to_i.positive? ? "#{data["vulnerability_count"]} vulns" : nil),
         (data["archived"] ? "archived" : nil),
-        data["libyear"] && "#{data["libyear"]}y behind",
+        data["libyear"] && "#{data["libyear"]}y behind"
       ].compact
       "#{MarkdownEscape.code_span(added.name)} (#{MarkdownEscape.inline(bits.join(", "))})"
     end

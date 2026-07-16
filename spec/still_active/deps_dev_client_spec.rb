@@ -7,16 +7,16 @@ RSpec.describe(StillActive::DepsDevClient) do
     # "clean" (a silent false-negative on a tool that trades on no-false-positives).
     def stub_canary(body)
       stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/pypi/packages/django/versions/3\.0\.0})
-        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: body.to_json)
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: body.to_json)
     end
 
     it "is true when the canary package still carries advisoryKeys (schema intact)" do
-      stub_canary({ "advisoryKeys" => [{ "id" => "GHSA-x" }, { "id" => "GHSA-y" }] })
+      stub_canary({"advisoryKeys" => [{"id" => "GHSA-x"}, {"id" => "GHSA-y"}]})
       expect(described_class.advisory_schema_ok?).to(be(true))
     end
 
     it "is false when the canary comes back with no advisories (field renamed/dropped)" do
-      stub_canary({ "advisoryKeys" => [] })
+      stub_canary({"advisoryKeys" => []})
       expect(described_class.advisory_schema_ok?).to(be(false))
     end
 
@@ -33,7 +33,7 @@ RSpec.describe(StillActive::DepsDevClient) do
 
         expect(result).to(include(
           advisory_keys: an_instance_of(Array),
-          project_id: "github.com/sparklemotion/nokogiri",
+          project_id: "github.com/sparklemotion/nokogiri"
         ))
       end
     end
@@ -42,8 +42,8 @@ RSpec.describe(StillActive::DepsDevClient) do
       stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/pypi/packages/lxml/versions/6\.0\.2})
         .to_return(
           status: 200,
-          headers: { "Content-Type" => "application/json" },
-          body: { "advisoryKeys" => [], "publishedAt" => "2025-09-22T04:04:12Z" }.to_json,
+          headers: {"Content-Type" => "application/json"},
+          body: {"advisoryKeys" => [], "publishedAt" => "2025-09-22T04:04:12Z"}.to_json
         )
       result = described_class.version_info(gem_name: "lxml", version: "6.0.2", system: :pypi)
       expect(result[:published_at]).to(eq("2025-09-22T04:04:12Z"))
@@ -56,8 +56,8 @@ RSpec.describe(StillActive::DepsDevClient) do
       stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/pypi/packages/rpds-py/versions/1\.0\.0})
         .to_return(
           status: 200,
-          headers: { "Content-Type" => "application/json" },
-          body: { "advisoryKeys" => [], "links" => [{ "label" => "SOURCE_REPO", "url" => "https://github.com/sponsors/Julian" }] }.to_json,
+          headers: {"Content-Type" => "application/json"},
+          body: {"advisoryKeys" => [], "links" => [{"label" => "SOURCE_REPO", "url" => "https://github.com/sponsors/Julian"}]}.to_json
         )
       result = described_class.version_info(gem_name: "rpds-py", version: "1.0.0", system: :pypi)
       expect(result[:project_id]).to(be_nil)
@@ -72,8 +72,8 @@ RSpec.describe(StillActive::DepsDevClient) do
         stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/nuget/packages/newtonsoft\.json/versions/13\.0\.3:requirements})
           .to_return(
             status: 200,
-            headers: { "Content-Type" => "application/json" },
-            body: { "nuget" => { "targetFrameworks" => ["net45", "net6.0", "netstandard2.0"] } }.to_json,
+            headers: {"Content-Type" => "application/json"},
+            body: {"nuget" => {"targetFrameworks" => ["net45", "net6.0", "netstandard2.0"]}}.to_json
           )
         expect(described_class.target_frameworks(name: "newtonsoft.json", version: "13.0.3"))
           .to(eq(["net45", "net6.0", "netstandard2.0"]))
@@ -92,7 +92,7 @@ RSpec.describe(StillActive::DepsDevClient) do
 
     it("queries the rubygems system by default") do
       stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/rubygems/packages/nokogiri/versions/1\.19\.1})
-        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: "{}")
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: "{}")
 
       described_class.version_info(gem_name: "nokogiri", version: "1.19.1")
       expect(stub).to(have_been_requested)
@@ -100,7 +100,7 @@ RSpec.describe(StillActive::DepsDevClient) do
 
     it("queries the given ecosystem's deps.dev system path") do
       stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/express/versions/5\.2\.1})
-        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: "{}")
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: "{}")
 
       described_class.version_info(gem_name: "express", version: "5.2.1", system: :npm)
       expect(stub).to(have_been_requested)
@@ -110,7 +110,7 @@ RSpec.describe(StillActive::DepsDevClient) do
       # The scope slash must stay percent-encoded (%2F) so `core` isn't read as a
       # separate path segment. WebMock/Addressable decodes %40 back to @.
       stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/@babel%2Fcore/versions/7\.0\.0})
-        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: "{}")
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: "{}")
 
       described_class.version_info(gem_name: "@babel/core", version: "7.0.0", system: :npm)
       expect(stub).to(have_been_requested)
@@ -119,17 +119,17 @@ RSpec.describe(StillActive::DepsDevClient) do
 
   describe(".latest_release_date") do
     def package_body(versions)
-      { "versions" => versions }.to_json
+      {"versions" => versions}.to_json
     end
 
     it("returns the default version's publishedAt (the package's freshness signal)") do
       stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/pypi/packages/requests\z}).to_return(
         status: 200,
-        headers: { "Content-Type" => "application/json" },
+        headers: {"Content-Type" => "application/json"},
         body: package_body([
-          { "versionKey" => { "version" => "2.31.0" }, "isDefault" => false, "publishedAt" => "2023-05-22T15:12:42Z" },
-          { "versionKey" => { "version" => "2.32.5" }, "isDefault" => true, "publishedAt" => "2025-08-18T20:46:00Z" },
-        ]),
+          {"versionKey" => {"version" => "2.31.0"}, "isDefault" => false, "publishedAt" => "2023-05-22T15:12:42Z"},
+          {"versionKey" => {"version" => "2.32.5"}, "isDefault" => true, "publishedAt" => "2025-08-18T20:46:00Z"}
+        ])
       )
 
       expect(described_class.latest_release_date(name: "requests", system: :pypi)).to(eq("2025-08-18T20:46:00Z"))
@@ -137,7 +137,7 @@ RSpec.describe(StillActive::DepsDevClient) do
 
     it("queries the rubygems system by default") do
       stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/rubygems/packages/nokogiri\z})
-        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: package_body([]))
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: package_body([]))
 
       described_class.latest_release_date(name: "nokogiri")
       expect(stub).to(have_been_requested)
@@ -150,15 +150,15 @@ RSpec.describe(StillActive::DepsDevClient) do
       # upgrade. The latest STABLE version by version number is the honest latest.
       stub_request(:get, /api\.deps\.dev/).to_return(
         status: 200,
-        headers: { "Content-Type" => "application/json" },
+        headers: {"Content-Type" => "application/json"},
         body: package_body([
-          { "versionKey" => { "version" => "0.7.0" }, "isDefault" => true, "publishedAt" => "2019-08-29T15:32:47Z" },
-          { "versionKey" => { "version" => "0.14.7+wasi-0.2.4" }, "isDefault" => false, "publishedAt" => "2025-09-01T00:00:00Z" },
-        ]),
+          {"versionKey" => {"version" => "0.7.0"}, "isDefault" => true, "publishedAt" => "2019-08-29T15:32:47Z"},
+          {"versionKey" => {"version" => "0.14.7+wasi-0.2.4"}, "isDefault" => false, "publishedAt" => "2025-09-01T00:00:00Z"}
+        ])
       )
 
       expect(described_class.default_version_info(name: "wasi", system: :cargo))
-        .to(eq({ version: "0.14.7+wasi-0.2.4", published_at: "2025-09-01T00:00:00Z" }))
+        .to(eq({version: "0.14.7+wasi-0.2.4", published_at: "2025-09-01T00:00:00Z"}))
     end
 
     it("skips a deprecated (yanked) release even when it is the newest by version") do
@@ -168,11 +168,11 @@ RSpec.describe(StillActive::DepsDevClient) do
       # would be exactly the kind of confident-wrong answer this tool must avoid.
       stub_request(:get, /api\.deps\.dev/).to_return(
         status: 200,
-        headers: { "Content-Type" => "application/json" },
+        headers: {"Content-Type" => "application/json"},
         body: package_body([
-          { "versionKey" => { "version" => "1.0.0" }, "isDefault" => false, "isDeprecated" => false, "publishedAt" => "2024-01-01T00:00:00Z" },
-          { "versionKey" => { "version" => "2.0.0" }, "isDefault" => false, "isDeprecated" => true, "publishedAt" => "2025-01-01T00:00:00Z" },
-        ]),
+          {"versionKey" => {"version" => "1.0.0"}, "isDefault" => false, "isDeprecated" => false, "publishedAt" => "2024-01-01T00:00:00Z"},
+          {"versionKey" => {"version" => "2.0.0"}, "isDefault" => false, "isDeprecated" => true, "publishedAt" => "2025-01-01T00:00:00Z"}
+        ])
       )
 
       expect(described_class.default_version_info(name: "pkg", system: :cargo)&.dig(:version)).to(eq("1.0.0"))
@@ -183,11 +183,11 @@ RSpec.describe(StillActive::DepsDevClient) do
       # 0.28.1; a current 0.28.1 pin must not read as "behind 1.0.0.dev3".
       stub_request(:get, /api\.deps\.dev/).to_return(
         status: 200,
-        headers: { "Content-Type" => "application/json" },
+        headers: {"Content-Type" => "application/json"},
         body: package_body([
-          { "versionKey" => { "version" => "0.28.1" }, "isDefault" => false, "publishedAt" => "2024-12-06T00:00:00Z" },
-          { "versionKey" => { "version" => "1.0.0.dev3" }, "isDefault" => true, "publishedAt" => "2025-01-01T00:00:00Z" },
-        ]),
+          {"versionKey" => {"version" => "0.28.1"}, "isDefault" => false, "publishedAt" => "2024-12-06T00:00:00Z"},
+          {"versionKey" => {"version" => "1.0.0.dev3"}, "isDefault" => true, "publishedAt" => "2025-01-01T00:00:00Z"}
+        ])
       )
 
       expect(described_class.default_version_info(name: "httpx", system: :pypi)&.dig(:version)).to(eq("0.28.1"))
@@ -198,11 +198,11 @@ RSpec.describe(StillActive::DepsDevClient) do
       # to the newest date rather than reading a prerelease-only package as dormant.
       stub_request(:get, /api\.deps\.dev/).to_return(
         status: 200,
-        headers: { "Content-Type" => "application/json" },
+        headers: {"Content-Type" => "application/json"},
         body: package_body([
-          { "versionKey" => { "version" => "0.1.0-rc1" }, "isDefault" => false, "publishedAt" => "2024-01-01T00:00:00Z" },
-          { "versionKey" => { "version" => "0.2.0-rc1" }, "isDefault" => false, "publishedAt" => "2024-06-01T00:00:00Z" },
-        ]),
+          {"versionKey" => {"version" => "0.1.0-rc1"}, "isDefault" => false, "publishedAt" => "2024-01-01T00:00:00Z"},
+          {"versionKey" => {"version" => "0.2.0-rc1"}, "isDefault" => false, "publishedAt" => "2024-06-01T00:00:00Z"}
+        ])
       )
 
       expect(described_class.latest_release_date(name: "all-pre", system: :cargo)).to(eq("2024-06-01T00:00:00Z"))
@@ -220,7 +220,7 @@ RSpec.describe(StillActive::DepsDevClient) do
 
     it("returns nil when the package has no versions") do
       stub_request(:get, /api\.deps\.dev/).to_return(
-        status: 200, headers: { "Content-Type" => "application/json" }, body: package_body([]),
+        status: 200, headers: {"Content-Type" => "application/json"}, body: package_body([])
       )
 
       expect(described_class.latest_release_date(name: "empty", system: :npm)).to(be_nil)
@@ -242,15 +242,15 @@ RSpec.describe(StillActive::DepsDevClient) do
   describe(".advisory_detail") do
     it("returns advisory details for a known advisory") do
       body = {
-        "advisoryKey" => { "id" => "GHSA-test-1234" },
+        "advisoryKey" => {"id" => "GHSA-test-1234"},
         "url" => "https://github.com/advisories/GHSA-test-1234",
         "title" => "Test vulnerability",
         "aliases" => ["CVE-2024-1234"],
         "cvss3Score" => 9.8,
-        "cvss3Vector" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "cvss3Vector" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
       }
       stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/}).to_return(
-        status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" },
+        status: 200, body: body.to_json, headers: {"Content-Type" => "application/json"}
       )
 
       result = described_class.advisory_detail(advisory_id: "GHSA-test-1234")
@@ -259,7 +259,7 @@ RSpec.describe(StillActive::DepsDevClient) do
         title: "Test vulnerability",
         cvss3_score: 9.8,
         aliases: ["CVE-2024-1234"],
-        source: "deps.dev",
+        source: "deps.dev"
       ))
     end
 
@@ -268,11 +268,11 @@ RSpec.describe(StillActive::DepsDevClient) do
       # previous object-shape stubs never matched reality, so every CVE alias was
       # silently dropped and findings arrived with an empty aliases list.
       body = {
-        "advisoryKey" => { "id" => "GHSA-real-shape" },
-        "aliases" => ["CVE-2026-54906", "GHSA-xj5v-6v4g-jfw6"],
+        "advisoryKey" => {"id" => "GHSA-real-shape"},
+        "aliases" => ["CVE-2026-54906", "GHSA-xj5v-6v4g-jfw6"]
       }
       stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/}).to_return(
-        status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" },
+        status: 200, body: body.to_json, headers: {"Content-Type" => "application/json"}
       )
 
       expect(described_class.advisory_detail(advisory_id: "GHSA-real-shape")[:aliases])
@@ -281,11 +281,11 @@ RSpec.describe(StillActive::DepsDevClient) do
 
     it("still tolerates the legacy object shape defensively (alpha API could regress)") do
       body = {
-        "advisoryKey" => { "id" => "GHSA-nullalias" },
-        "aliases" => [{ "id" => "CVE-2024-9" }, { "foo" => "bar" }, {}, "CVE-2024-10"],
+        "advisoryKey" => {"id" => "GHSA-nullalias"},
+        "aliases" => [{"id" => "CVE-2024-9"}, {"foo" => "bar"}, {}, "CVE-2024-10"]
       }
       stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/}).to_return(
-        status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" },
+        status: 200, body: body.to_json, headers: {"Content-Type" => "application/json"}
       )
 
       expect(described_class.advisory_detail(advisory_id: "GHSA-nullalias")[:aliases]).to(eq(["CVE-2024-9", "CVE-2024-10"]))
@@ -293,16 +293,16 @@ RSpec.describe(StillActive::DepsDevClient) do
 
     it("extracts cvss2_score when present") do
       body = {
-        "advisoryKey" => { "id" => "GHSA-old-vuln" },
+        "advisoryKey" => {"id" => "GHSA-old-vuln"},
         "url" => "https://github.com/advisories/GHSA-old-vuln",
         "title" => "Old vulnerability",
         "aliases" => [],
         "cvss3Score" => nil,
         "cvss3Vector" => nil,
-        "cvss2Score" => 7.5,
+        "cvss2Score" => 7.5
       }
       stub_request(:get, %r{api\.deps\.dev/v3alpha/advisories/}).to_return(
-        status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" },
+        status: 200, body: body.to_json, headers: {"Content-Type" => "application/json"}
       )
 
       result = described_class.advisory_detail(advisory_id: "GHSA-old-vuln")
@@ -326,7 +326,7 @@ RSpec.describe(StillActive::DepsDevClient) do
 
         expect(result).to(include(
           score: a_value > 0,
-          date: a_string_matching(/\d{4}-\d{2}-\d{2}/),
+          date: a_string_matching(/\d{4}-\d{2}-\d{2}/)
         ))
       end
     end
@@ -344,17 +344,17 @@ RSpec.describe(StillActive::DepsDevClient) do
     it("extracts the OpenSSF 'Maintained' sub-check score") do
       stub_request(:get, /api\.deps\.dev/).to_return(
         status: 200,
-        headers: { "Content-Type" => "application/json" },
+        headers: {"Content-Type" => "application/json"},
         body: {
           scorecard: {
             overallScore: 7.5,
             date: "2026-01-02",
             checks: [
-              { name: "Code-Review", score: 8 },
-              { name: "Maintained", score: 10 },
-            ],
-          },
-        }.to_json,
+              {name: "Code-Review", score: 8},
+              {name: "Maintained", score: 10}
+            ]
+          }
+        }.to_json
       )
 
       result = described_class.project_scorecard(project_id: "github.com/some/repo")
@@ -365,8 +365,8 @@ RSpec.describe(StillActive::DepsDevClient) do
     it("reports a nil 'Maintained' score when the check is absent") do
       stub_request(:get, /api\.deps\.dev/).to_return(
         status: 200,
-        headers: { "Content-Type" => "application/json" },
-        body: { scorecard: { overallScore: 6.0, date: "2026-01-02", checks: [] } }.to_json,
+        headers: {"Content-Type" => "application/json"},
+        body: {scorecard: {overallScore: 6.0, date: "2026-01-02", checks: []}}.to_json
       )
 
       expect(described_class.project_scorecard(project_id: "github.com/some/repo")).to(include(maintained: nil))
@@ -375,10 +375,10 @@ RSpec.describe(StillActive::DepsDevClient) do
     it("degrades to a nil 'Maintained' score on a malformed checks payload (does not crash the gem)") do
       stub_request(:get, /api\.deps\.dev/).to_return(
         status: 200,
-        headers: { "Content-Type" => "application/json" },
+        headers: {"Content-Type" => "application/json"},
         # A non-array `checks` is a contract violation; it must not raise and
         # vanish the gem from the whole audit via the per-gem rescue.
-        body: { scorecard: { overallScore: 6.0, date: "2026-01-02", checks: { "Maintained" => 10 } } }.to_json,
+        body: {scorecard: {overallScore: 6.0, date: "2026-01-02", checks: {"Maintained" => 10}}}.to_json
       )
 
       expect(described_class.project_scorecard(project_id: "github.com/some/repo")).to(include(maintained: nil))
@@ -387,7 +387,7 @@ RSpec.describe(StillActive::DepsDevClient) do
 
   describe("#extract_project_id (SOURCE_REPO URL parsing)") do
     def project_id(url)
-      described_class.send(:extract_project_id, { "links" => [{ "label" => "SOURCE_REPO", "url" => url }] })
+      described_class.send(:extract_project_id, {"links" => [{"label" => "SOURCE_REPO", "url" => url}]})
     end
 
     it("keeps the full path for a GitLab subgroup project") do
@@ -443,7 +443,7 @@ RSpec.describe(StillActive::DepsDevClient) do
     end
 
     it("returns nil when there is no SOURCE_REPO link") do
-      expect(described_class.send(:extract_project_id, { "links" => [] })).to(be_nil)
+      expect(described_class.send(:extract_project_id, {"links" => []})).to(be_nil)
     end
   end
 end

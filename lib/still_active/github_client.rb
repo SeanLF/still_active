@@ -29,9 +29,9 @@ module StillActive
       end
       return {} unless repo
 
-      { archived: repo.archived, last_commit_date: as_time(repo.pushed_at, owner, name) }
+      {archived: repo.archived, last_commit_date: as_time(repo.pushed_at, owner, name)}
     rescue Octokit::Error, Faraday::Error => e
-      $stderr.puts("warning: repo signals failed for #{owner}/#{name}: #{e.class}")
+      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}")
       {}
     end
 
@@ -54,7 +54,7 @@ module StillActive
       end
       nil
     rescue Octokit::Error, Faraday::Error => e
-      $stderr.puts("warning: unreleased-commits check failed for #{owner}/#{name}: #{e.class}")
+      warn("warning: unreleased-commits check failed for #{owner}/#{name}: #{e.class}")
       nil
     end
 
@@ -75,12 +75,12 @@ module StillActive
           # Hourly-limit exhaustion (or a far reset): not worth auto-waiting.
           # Surface the one actionable hint rather than a generic class name,
           # then return nil so this signal is simply absent for the gem.
-          $stderr.puts("rate limited on #{label}; set GITHUB_TOKEN to raise your limit, or run less often")
+          warn("rate limited on #{label}; set GITHUB_TOKEN to raise your limit, or run less often")
           return
         end
 
         retried = true
-        $stderr.puts("rate limited on #{label}; waiting #{wait}s for reset")
+        warn("rate limited on #{label}; waiting #{wait}s for reset")
         sleep(wait)
         retry
       end
@@ -119,7 +119,7 @@ module StillActive
 
       Time.parse(value)
     rescue ArgumentError
-      $stderr.puts("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
+      warn("warning: could not parse repo date for #{owner}/#{name}: #{value.inspect}")
       nil
     end
   end

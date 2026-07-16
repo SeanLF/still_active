@@ -47,13 +47,13 @@ module StillActive
       # nil (the note is then suppressed) rather than returning nil, which would
       # silently disable criticals too.
       latest = cycles.first["latest"]
-      latest_stable = latest && Gem::Version.correct?(latest) ? Gem::Version.new(latest) : nil
+      latest_stable = (latest && Gem::Version.correct?(latest)) ? Gem::Version.new(latest) : nil
 
       {
         oldest_supported: supported.map { |cycle| cycle[:version] }.min,
         latest_stable: latest_stable,
         latest_stable_fresh: !latest_stable.nil? && latest_stable_fresh?(cycles.first),
-        cycles: normalized,
+        cycles: normalized
       }
     end
 
@@ -100,7 +100,7 @@ module StillActive
       {
         version: Gem::Version.new(version),
         eol: eol_reached?(cycle["eol"]) == true,
-        eol_date: parse_eol(cycle["eol"]),
+        eol_date: parse_eol(cycle["eol"])
       }
     end
 

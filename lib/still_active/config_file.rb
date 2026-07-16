@@ -26,7 +26,7 @@ module StillActive
       return {} if data.nil?
 
       unless data.is_a?(Hash)
-        $stderr.puts("warning: #{FILENAME} must be a mapping of settings; ignoring it")
+        warn("warning: #{FILENAME} must be a mapping of settings; ignoring it")
         return {}
       end
 
@@ -34,7 +34,7 @@ module StillActive
     rescue Psych::Exception => e
       # Covers a syntax error and a disallowed tag (e.g. !ruby/object); either
       # way the committed file must never take the audit down with it.
-      $stderr.puts("warning: #{FILENAME} could not be loaded (#{e.message}); ignoring it")
+      warn("warning: #{FILENAME} could not be loaded (#{e.message}); ignoring it")
       {}
     end
 
@@ -89,7 +89,7 @@ module StillActive
       count = bundler_audit_ignore_count(path)
       return unless count.positive?
 
-      noun = count == 1 ? "advisory" : "advisories"
+      noun = (count == 1) ? "advisory" : "advisories"
       "#{BUNDLER_AUDIT_FILE} lists #{count} accepted #{noun}; add `import: [#{BUNDLER_AUDIT_FILE}]` to #{FILENAME} to honour them in still_active's --fail-if-vulnerable gate too"
     end
 
@@ -197,7 +197,7 @@ module StillActive
           next []
         end
 
-        Array(imported["ignore"]).map { |advisory| { "advisory" => advisory, "reason" => "imported from #{rel}" } }
+        Array(imported["ignore"]).map { |advisory| {"advisory" => advisory, "reason" => "imported from #{rel}"} }
       rescue Psych::Exception => e
         warnings << "#{FILENAME}: import target #{rel} could not be loaded (#{e.message}), skipping it"
         []

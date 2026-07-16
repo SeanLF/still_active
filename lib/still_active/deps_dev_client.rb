@@ -15,7 +15,7 @@ module StillActive
     # `[]` -- so a rename or drop of that field would silently turn every count to
     # 0 and read a known-vulnerable package as clean (exit 0). django 3.0.0 carries
     # 30+ permanent advisories; if the canary returns none, the schema drifted.
-    ADVISORY_CANARY = { system: "pypi", name: "django", version: "3.0.0" }.freeze
+    ADVISORY_CANARY = {system: "pypi", name: "django", version: "3.0.0"}.freeze
 
     # Is deps.dev still returning advisories in the shape we parse? False when the
     # canary comes back empty (schema drift) or unreachable (can't confirm). The
@@ -42,7 +42,7 @@ module StillActive
         # The locked version's release date -- the cross-ecosystem libyear input
         # (paired with the package's latest-release date). Already in this response,
         # so no extra fetch; nil when the feed omits it.
-        published_at: body["publishedAt"],
+        published_at: body["publishedAt"]
       }
     end
 
@@ -74,7 +74,7 @@ module StillActive
         newest_version(versions)
       return if entry.nil?
 
-      { version: entry.dig("versionKey", "version"), published_at: entry["publishedAt"] }
+      {version: entry.dig("versionKey", "version"), published_at: entry["publishedAt"]}
     end
 
     # The newest non-prerelease version by version number (not publishedAt: a
@@ -117,7 +117,7 @@ module StillActive
         # activity directly -- still_active's core question -- so we surface it
         # alongside the aggregate. nil when the check is absent (never 0, which
         # would read as "unmaintained" rather than "not measured").
-        maintained: maintained_check_score(scorecard),
+        maintained: maintained_check_score(scorecard)
       }
     end
 
@@ -153,7 +153,7 @@ module StillActive
         cvss3_score: body["cvss3Score"],
         cvss3_vector: body["cvss3Vector"],
         cvss2_score: body["cvss2Score"],
-        source: "deps.dev",
+        source: "deps.dev"
       }
     end
 
@@ -177,7 +177,7 @@ module StillActive
       return if @alias_drift_warned
 
       @alias_drift_warned = true
-      $stderr.puts("warning: deps.dev returned a non-string advisory alias (#{raw.class}); the ALPHA API schema may have drifted")
+      warn("warning: deps.dev returned a non-string advisory alias (#{raw.class}); the ALPHA API schema may have drifted")
     end
 
     # The OpenSSF "Maintained" check score (0-10), or nil when it's absent. A
@@ -221,7 +221,7 @@ module StillActive
     # link). Parsing it as owner/repo yields a 404 and a blank repo cell, so treat a
     # reserved first segment as "no repo" rather than a bogus lookup.
     GITHUB_RESERVED_PATHS = [
-      "sponsors", "orgs", "marketplace", "apps", "topics", "settings", "notifications", "about", "pricing", "features", "security", "contact",
+      "sponsors", "orgs", "marketplace", "apps", "topics", "settings", "notifications", "about", "pricing", "features", "security", "contact"
     ].freeze
 
     def repo_path_segments(host, segments)

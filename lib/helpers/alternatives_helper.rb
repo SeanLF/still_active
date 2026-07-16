@@ -35,7 +35,7 @@ module StillActive
     def downloads(gem_name)
       info = Gems.info(gem_name)
       info && info["downloads"]
-    rescue StandardError
+    rescue
       nil
     end
   end

@@ -19,7 +19,7 @@ module StillActive
 
     def pad(text, width)
       padding = width - visible_length(text)
-      padding > 0 ? "#{text}#{" " * padding}" : text
+      (padding > 0) ? "#{text}#{" " * padding}" : text
     end
   end
 end

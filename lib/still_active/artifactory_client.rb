@@ -48,10 +48,10 @@ module StillActive
     end
 
     def warn_unauthorized_host(gem_name:, host:)
-      $stderr.puts(
+      warn(
         "warning: an Artifactory token is set but #{host} (source for #{gem_name}) is not an authorized host, " \
           "so the token will not be sent. " \
-          "To allow it, set --artifactory-host=#{host} or STILL_ACTIVE_ARTIFACTORY_HOST=#{host}",
+          "To allow it, set --artifactory-host=#{host} or STILL_ACTIVE_ARTIFACTORY_HOST=#{host}"
       )
     end
 
@@ -61,9 +61,9 @@ module StillActive
 
       if creds.include?(":")
         user, pass = creds.split(":", 2).map { |part| CGI.unescape(part) }
-        { "Authorization" => "Basic #{["#{user}:#{pass}"].pack("m0")}" }
+        {"Authorization" => "Basic #{["#{user}:#{pass}"].pack("m0")}"}
       else
-        { "Authorization" => "Bearer #{creds}" }
+        {"Authorization" => "Bearer #{creds}"}
       end
     end
 
@@ -99,8 +99,8 @@ module StillActive
         base = URI(artifactory_base)
         path = "#{base.path}#{AQL_PATH}"
         query = {
-          "name" => { "$match" => "#{gem_name}-*.gem" },
-          "repo" => repo_key,
+          "name" => {"$match" => "#{gem_name}-*.gem"},
+          "repo" => repo_key
         }
         body = %(items.find(#{JSON.generate(query)}).include("repo", "path", "name", "created"))
         response = HttpHelper.post_json(base, path, body: body, headers: headers.merge("Content-Type" => "text/plain"))
@@ -115,7 +115,7 @@ module StillActive
       def parse_source_url(source_uri)
         match = source_uri.match(SOURCE_URL_PATTERN)
         unless match
-          $stderr.puts("warning: unrecognized Artifactory source URL for AQL fallback: #{source_uri}")
+          warn("warning: unrecognized Artifactory source URL for AQL fallback: #{source_uri}")
           return [nil, nil]
         end
 
@@ -131,7 +131,7 @@ module StillActive
             {
               "number" => version,
               "created_at" => item["created"],
-              "prerelease" => Gem::Version.new(version).prerelease?,
+              "prerelease" => Gem::Version.new(version).prerelease?
             }
           end
           .uniq { |h| h["number"] }

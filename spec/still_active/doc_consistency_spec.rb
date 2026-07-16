@@ -21,7 +21,7 @@ RSpec.describe("documentation consistency") do # rubocop:disable RSpec/DescribeC
       undocumented = rule_ids - documented_ids
       expect(undocumented).to(
         be_empty,
-        "rules defined in lib/still_active/sarif/rules.rb but missing a `## <id>` section in docs/rules.md: #{undocumented.join(", ")}",
+        "rules defined in lib/still_active/sarif/rules.rb but missing a `## <id>` section in docs/rules.md: #{undocumented.join(", ")}"
       )
     end
 
@@ -30,7 +30,7 @@ RSpec.describe("documentation consistency") do # rubocop:disable RSpec/DescribeC
       rule_ids.each do |id|
         expect(rules_md).to(
           include("{##{id.downcase}}"),
-          "docs/rules.md is missing the {##{id.downcase}} anchor for #{id}",
+          "docs/rules.md is missing the {##{id.downcase}} anchor for #{id}"
         )
       end
     end
@@ -45,11 +45,11 @@ RSpec.describe("documentation consistency") do # rubocop:disable RSpec/DescribeC
       match = readme.match(/Rule reference \((SA\d+)\s*[-–—]\s*(SA\d+)\)/)
       expect(match).not_to(
         be_nil,
-        "README.md is missing the `Rule reference (SAxxx-SAyyy)` line",
+        "README.md is missing the `Rule reference (SAxxx-SAyyy)` line"
       )
       expect([match[1], match[2]]).to(
         eq([lowest, highest]),
-        "README SA-range reference is #{match[1]}-#{match[2]} but the code catalog spans #{lowest}-#{highest} (add the new rule to docs and update the range)",
+        "README SA-range reference is #{match[1]}-#{match[2]} but the code catalog spans #{lowest}-#{highest} (add the new rule to docs and update the range)"
       )
     end
   end
@@ -83,7 +83,7 @@ RSpec.describe("documentation consistency") do # rubocop:disable RSpec/DescribeC
       missing = expected.reject { |flag| cli_help_block.include?(flag) }
       expect(missing).to(
         be_empty,
-        "flags defined in lib/still_active/options.rb but missing from the docs/cli.md help block: #{missing.join(", ")}",
+        "flags defined in lib/still_active/options.rb but missing from the docs/cli.md help block: #{missing.join(", ")}"
       )
     end
   end

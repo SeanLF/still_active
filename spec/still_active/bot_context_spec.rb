@@ -19,14 +19,14 @@ RSpec.describe(StillActive::BotContext) do
     context("when the GitHub event payload names the PR author") do
       def event_file(login)
         f = Tempfile.new(["event", ".json"])
-        f.write({ "pull_request" => { "user" => { "login" => login, "type" => "Bot" } } }.to_json)
+        f.write({"pull_request" => {"user" => {"login" => login, "type" => "Bot"}}}.to_json)
         f.flush
         f
       end
 
       it("detects Dependabot from pull_request.user.login") do
         f = event_file("dependabot[bot]")
-        result = described_class.detect(env: { "GITHUB_EVENT_PATH" => f.path }, head_subject: nil)
+        result = described_class.detect(env: {"GITHUB_EVENT_PATH" => f.path}, head_subject: nil)
         expect(result[:bot]).to(eq("dependabot"))
       ensure
         f.close!
@@ -34,7 +34,7 @@ RSpec.describe(StillActive::BotContext) do
 
       it("detects Renovate from pull_request.user.login") do
         f = event_file("renovate[bot]")
-        result = described_class.detect(env: { "GITHUB_EVENT_PATH" => f.path }, head_subject: nil)
+        result = described_class.detect(env: {"GITHUB_EVENT_PATH" => f.path}, head_subject: nil)
         expect(result[:bot]).to(eq("renovate"))
       ensure
         f.close!
@@ -45,8 +45,8 @@ RSpec.describe(StillActive::BotContext) do
       it("trusts the PR author over a human GITHUB_ACTOR") do
         f = event_file("dependabot[bot]")
         result = described_class.detect(
-          env: { "GITHUB_EVENT_PATH" => f.path, "GITHUB_ACTOR" => "octocat" },
-          head_subject: "Bump rack from 2.0.0 to 2.0.6",
+          env: {"GITHUB_EVENT_PATH" => f.path, "GITHUB_ACTOR" => "octocat"},
+          head_subject: "Bump rack from 2.0.0 to 2.0.6"
         )
         expect(result[:bot]).to(eq("dependabot"))
       ensure
@@ -54,7 +54,7 @@ RSpec.describe(StillActive::BotContext) do
       end
 
       it("falls through when the event file is missing or unreadable") do
-        result = described_class.detect(env: { "GITHUB_EVENT_PATH" => "/no/such/event.json", "GITHUB_ACTOR" => "renovate[bot]" }, head_subject: nil)
+        result = described_class.detect(env: {"GITHUB_EVENT_PATH" => "/no/such/event.json", "GITHUB_ACTOR" => "renovate[bot]"}, head_subject: nil)
         expect(result[:bot]).to(eq("renovate"))
       end
 
@@ -65,7 +65,7 @@ RSpec.describe(StillActive::BotContext) do
           f.write(malformed)
           f.flush
           result = nil
-          expect { result = described_class.detect(env: { "GITHUB_EVENT_PATH" => f.path }, head_subject: nil) }.not_to(raise_error)
+          expect { result = described_class.detect(env: {"GITHUB_EVENT_PATH" => f.path}, head_subject: nil) }.not_to(raise_error)
           expect(result).to(be_nil)
         ensure
           f.close!
@@ -75,24 +75,24 @@ RSpec.describe(StillActive::BotContext) do
 
     context("when GITHUB_ACTOR is set") do
       it("detects Dependabot") do
-        result = described_class.detect(env: { "GITHUB_ACTOR" => "dependabot[bot]" }, head_subject: nil)
+        result = described_class.detect(env: {"GITHUB_ACTOR" => "dependabot[bot]"}, head_subject: nil)
         expect(result[:bot]).to(eq("dependabot"))
       end
 
       it("detects Renovate") do
-        result = described_class.detect(env: { "GITHUB_ACTOR" => "renovate[bot]" }, head_subject: nil)
+        result = described_class.detect(env: {"GITHUB_ACTOR" => "renovate[bot]"}, head_subject: nil)
         expect(result[:bot]).to(eq("renovate"))
       end
     end
 
     context("when the branch has a bot prefix") do
       it("detects Dependabot from a dependabot/ branch") do
-        result = described_class.detect(env: { "GITHUB_HEAD_REF" => "dependabot/bundler/rack-2.0.6" }, head_subject: nil)
+        result = described_class.detect(env: {"GITHUB_HEAD_REF" => "dependabot/bundler/rack-2.0.6"}, head_subject: nil)
         expect(result[:bot]).to(eq("dependabot"))
       end
 
       it("detects Renovate from a renovate/ branch") do
-        result = described_class.detect(env: { "GITHUB_HEAD_REF" => "renovate/rack-2.x" }, head_subject: nil)
+        result = described_class.detect(env: {"GITHUB_HEAD_REF" => "renovate/rack-2.x"}, head_subject: nil)
         expect(result[:bot]).to(eq("renovate"))
       end
     end
@@ -101,19 +101,19 @@ RSpec.describe(StillActive::BotContext) do
       it("detects Dependabot's default (unprefixed, capitalized) subject and extracts the bump") do
         result = described_class.detect(env: {}, head_subject: "Bump rack from 2.0.0 to 2.0.6")
         expect(result[:bot]).to(eq("dependabot"))
-        expect(result[:bumps]).to(eq([{ gem: "rack", from: "2.0.0", to: "2.0.6" }]))
+        expect(result[:bumps]).to(eq([{gem: "rack", from: "2.0.0", to: "2.0.6"}]))
       end
 
       it("detects Dependabot's conventional-commit prefixed subject") do
         result = described_class.detect(env: {}, head_subject: "build(deps): bump rack from 2.0.0 to 2.0.6")
         expect(result[:bot]).to(eq("dependabot"))
-        expect(result[:bumps]).to(eq([{ gem: "rack", from: "2.0.0", to: "2.0.6" }]))
+        expect(result[:bumps]).to(eq([{gem: "rack", from: "2.0.0", to: "2.0.6"}]))
       end
 
       it("detects Renovate's default subject (no from version available)") do
         result = described_class.detect(env: {}, head_subject: "Update dependency rack to v2.0.6")
         expect(result[:bot]).to(eq("renovate"))
-        expect(result[:bumps]).to(eq([{ gem: "rack", from: nil, to: "2.0.6" }]))
+        expect(result[:bumps]).to(eq([{gem: "rack", from: nil, to: "2.0.6"}]))
       end
 
       it("detects Renovate's conventional-commit prefixed subject") do
@@ -130,27 +130,27 @@ RSpec.describe(StillActive::BotContext) do
         "chore(deps): bump rack from 2.0.0 to 2.0.6",
         "chore: bump rack from 2.0.0 to 2.0.6",
         "deps: bump rack from 2.0.0 to 2.0.6",
-        "build(deps-dev): bump rack from 2.0.0 to 2.0.6",
+        "build(deps-dev): bump rack from 2.0.0 to 2.0.6"
       ].each do |subject|
         it("still extracts the bump from #{subject.inspect}") do
-          result = described_class.detect(env: { "GITHUB_ACTOR" => "dependabot[bot]" }, head_subject: subject)
-          expect(result[:bumps]).to(eq([{ gem: "rack", from: "2.0.0", to: "2.0.6" }]))
+          result = described_class.detect(env: {"GITHUB_ACTOR" => "dependabot[bot]"}, head_subject: subject)
+          expect(result[:bumps]).to(eq([{gem: "rack", from: "2.0.0", to: "2.0.6"}]))
         end
       end
     end
 
     context("when Renovate is configured with a custom commit-message prefix") do
       it("extracts the bump from a prefixed Renovate subject") do
-        result = described_class.detect(env: { "GITHUB_ACTOR" => "renovate[bot]" }, head_subject: "chore(deps): update dependency rack to v2.0.6")
-        expect(result[:bumps]).to(eq([{ gem: "rack", from: nil, to: "2.0.6" }]))
+        result = described_class.detect(env: {"GITHUB_ACTOR" => "renovate[bot]"}, head_subject: "chore(deps): update dependency rack to v2.0.6")
+        expect(result[:bumps]).to(eq([{gem: "rack", from: nil, to: "2.0.6"}]))
       end
     end
 
     context("when the bot is detected but the subject does not parse (e.g. grouped update)") do
       it("returns the bot with no bumps") do
         result = described_class.detect(
-          env: { "GITHUB_HEAD_REF" => "dependabot/bundler/the-bundler-group" },
-          head_subject: "Bump the bundler group with 3 updates",
+          env: {"GITHUB_HEAD_REF" => "dependabot/bundler/the-bundler-group"},
+          head_subject: "Bump the bundler group with 3 updates"
         )
         expect(result[:bot]).to(eq("dependabot"))
         expect(result[:bumps]).to(eq([]))
@@ -159,8 +159,8 @@ RSpec.describe(StillActive::BotContext) do
 
     it("prefers GITHUB_ACTOR over branch and subject") do
       result = described_class.detect(
-        env: { "GITHUB_ACTOR" => "dependabot[bot]", "GITHUB_HEAD_REF" => "renovate/x" },
-        head_subject: "Update dependency rack to v2.0.6",
+        env: {"GITHUB_ACTOR" => "dependabot[bot]", "GITHUB_HEAD_REF" => "renovate/x"},
+        head_subject: "Update dependency rack to v2.0.6"
       )
       expect(result[:bot]).to(eq("dependabot"))
     end
@@ -168,22 +168,22 @@ RSpec.describe(StillActive::BotContext) do
 
   describe(".summary") do
     it("describes a single Dependabot bump with from and to") do
-      summary = described_class.summary({ bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] })
+      summary = described_class.summary({bot: "dependabot", bumps: [{gem: "rack", from: "2.0.0", to: "2.0.6"}]})
       expect(summary).to(eq("Dependabot bump: rack 2.0.0 → 2.0.6"))
     end
 
     it("describes a single Renovate update without a from version") do
-      summary = described_class.summary({ bot: "renovate", bumps: [{ gem: "rack", from: nil, to: "2.0.6" }] })
+      summary = described_class.summary({bot: "renovate", bumps: [{gem: "rack", from: nil, to: "2.0.6"}]})
       expect(summary).to(eq("Renovate update: rack → 2.0.6"))
     end
 
     it("summarizes multiple bumps by count") do
-      summary = described_class.summary({ bot: "dependabot", bumps: [{ gem: "a" }, { gem: "b" }] })
+      summary = described_class.summary({bot: "dependabot", bumps: [{gem: "a"}, {gem: "b"}]})
       expect(summary).to(eq("Dependabot: 2 dependency updates"))
     end
 
     it("falls back to a generic line when there are no parsed bumps") do
-      summary = described_class.summary({ bot: "dependabot", bumps: [] })
+      summary = described_class.summary({bot: "dependabot", bumps: []})
       expect(summary).to(eq("Dependabot dependency update"))
     end
   end

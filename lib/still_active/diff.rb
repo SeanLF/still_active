@@ -25,7 +25,7 @@ module StillActive
       new_gem_archived: :activity,
       archived: :activity,
       new_gem_stale: :libyear,
-      libyear_worsened: :libyear,
+      libyear_worsened: :libyear
     }.freeze
 
     class UnsupportedSchemaError < StandardError; end
@@ -70,7 +70,7 @@ module StillActive
             after_version: after["version_used"],
             kind: classify_bump(before, after),
             before: before,
-            after: after,
+            after: after
           )
         end
         changes = collect_signal_changes(before, after)
@@ -82,7 +82,7 @@ module StillActive
         added: added,
         bumped: bumped,
         signal_changes: signal_changes,
-        ruby_delta: ruby,
+        ruby_delta: ruby
       )
 
       Result.new(
@@ -91,7 +91,7 @@ module StillActive
         bumped: bumped,
         signal_changes: signal_changes,
         regressions: regressions,
-        ruby: ruby,
+        ruby: ruby
       )
     end
 
@@ -181,7 +181,7 @@ module StillActive
       changes = []
 
       if !before["archived"] && after["archived"]
-        changes << { kind: :archived, from: false, to: true }
+        changes << {kind: :archived, from: false, to: true}
       end
 
       opened = vuln_count(after) - vuln_count(before)
@@ -191,7 +191,7 @@ module StillActive
         # "new" in this list even though it's a re-keying of the same issue.
         # The vulnerability_count gate above keeps that to detail-string noise.
         new_ids = advisory_ids(after) - advisory_ids(before)
-        changes << { kind: :new_vulnerability, from: vuln_count(before), to: vuln_count(after), ids: new_ids.first(3) }
+        changes << {kind: :new_vulnerability, from: vuln_count(before), to: vuln_count(after), ids: new_ids.first(3)}
       end
 
       if before["scorecard_score"] && after["scorecard_score"]
@@ -200,7 +200,7 @@ module StillActive
         # -> 7.0 dip is noise within the safe zone). Only drops below 7.0 cross.
         crossed = before["scorecard_score"] >= SCORECARD_GOOD_THRESHOLD && after["scorecard_score"] < SCORECARD_GOOD_THRESHOLD
         if drop >= SCORECARD_DROP_THRESHOLD || crossed
-          changes << { kind: :scorecard_dropped, from: before["scorecard_score"], to: after["scorecard_score"], crossed_good: crossed }
+          changes << {kind: :scorecard_dropped, from: before["scorecard_score"], to: after["scorecard_score"], crossed_good: crossed}
         end
       end
 
@@ -211,12 +211,12 @@ module StillActive
         # technically grows (because upstream is releasing faster).
         delta = after["libyear"] - before["libyear"]
         if delta > LIBYEAR_DELTA_THRESHOLD
-          changes << { kind: :libyear_worsened, from: before["libyear"], to: after["libyear"], delta: delta.round(2) }
+          changes << {kind: :libyear_worsened, from: before["libyear"], to: after["libyear"], delta: delta.round(2)}
         end
       end
 
       if !before["version_yanked"] && after["version_yanked"]
-        changes << { kind: :version_yanked }
+        changes << {kind: :version_yanked}
       end
 
       changes
@@ -241,7 +241,7 @@ module StillActive
           regs << Regression.new(
             kind: :bump_introduced_vulns,
             gem: b.name,
-            detail: "#{b.before_version} -> #{b.after_version}",
+            detail: "#{b.before_version} -> #{b.after_version}"
           )
         end
       end
@@ -263,7 +263,7 @@ module StillActive
             regs << Regression.new(
               kind: :libyear_worsened,
               gem: sc.name,
-              detail: "libyear #{ch[:from]} -> #{ch[:to]} (+#{ch[:delta]}y; same pinned version)",
+              detail: "libyear #{ch[:from]} -> #{ch[:to]} (+#{ch[:delta]}y; same pinned version)"
             )
           end
         end
@@ -287,7 +287,7 @@ module StillActive
         to: after["version"],
         newly_eol: !before["eol"] && !!after["eol"],
         libyear_before: before["libyear"],
-        libyear_after: after["libyear"],
+        libyear_after: after["libyear"]
       }
     end
 

@@ -174,7 +174,7 @@ module StillActive
     end
 
     def presence(value)
-      value && !value.empty? ? value : nil
+      (value && !value.empty?) ? value : nil
     end
   end
 end

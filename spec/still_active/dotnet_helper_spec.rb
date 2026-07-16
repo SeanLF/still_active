@@ -5,19 +5,19 @@ require_relative "../../lib/helpers/dotnet_helper"
 RSpec.describe(StillActive::DotnetHelper) do
   describe(".classify") do
     it("maps a .NET 5+ moniker to the dotnet runtime, major-only cycle") do
-      expect(described_class.classify("net6.0")).to(eq({ family: :dotnet, version: Gem::Version.new("6") }))
-      expect(described_class.classify("net10.0")).to(eq({ family: :dotnet, version: Gem::Version.new("10") }))
+      expect(described_class.classify("net6.0")).to(eq({family: :dotnet, version: Gem::Version.new("6")}))
+      expect(described_class.classify("net10.0")).to(eq({family: :dotnet, version: Gem::Version.new("10")}))
     end
 
     it("maps a netcoreapp moniker to the dotnet runtime, keeping the minor") do
-      expect(described_class.classify("netcoreapp3.1")).to(eq({ family: :dotnet, version: Gem::Version.new("3.1") }))
-      expect(described_class.classify("netcoreapp2.1")).to(eq({ family: :dotnet, version: Gem::Version.new("2.1") }))
+      expect(described_class.classify("netcoreapp3.1")).to(eq({family: :dotnet, version: Gem::Version.new("3.1")}))
+      expect(described_class.classify("netcoreapp2.1")).to(eq({family: :dotnet, version: Gem::Version.new("2.1")}))
     end
 
     it("maps a .NET Framework moniker (no dot) to dotnetfx, expanding the digits") do
-      expect(described_class.classify("net48")).to(eq({ family: :dotnetfx, version: Gem::Version.new("4.8") }))
-      expect(described_class.classify("net461")).to(eq({ family: :dotnetfx, version: Gem::Version.new("4.6.1") }))
-      expect(described_class.classify("net45")).to(eq({ family: :dotnetfx, version: Gem::Version.new("4.5") }))
+      expect(described_class.classify("net48")).to(eq({family: :dotnetfx, version: Gem::Version.new("4.8")}))
+      expect(described_class.classify("net461")).to(eq({family: :dotnetfx, version: Gem::Version.new("4.6.1")}))
+      expect(described_class.classify("net45")).to(eq({family: :dotnetfx, version: Gem::Version.new("4.5")}))
     end
 
     it("excludes netstandard (a compatibility contract, not a runtime)") do
@@ -26,14 +26,14 @@ RSpec.describe(StillActive::DotnetHelper) do
     end
 
     it("strips a platform suffix before classifying") do
-      expect(described_class.classify("net6.0-windows")).to(eq({ family: :dotnet, version: Gem::Version.new("6") }))
-      expect(described_class.classify("net7.0-android")).to(eq({ family: :dotnet, version: Gem::Version.new("7") }))
+      expect(described_class.classify("net6.0-windows")).to(eq({family: :dotnet, version: Gem::Version.new("6")}))
+      expect(described_class.classify("net7.0-android")).to(eq({family: :dotnet, version: Gem::Version.new("7")}))
     end
 
     it("tolerates the long-form and case variants deps.dev also emits") do
-      expect(described_class.classify(".NETFramework4.7.2")).to(eq({ family: :dotnetfx, version: Gem::Version.new("4.7.2") }))
+      expect(described_class.classify(".NETFramework4.7.2")).to(eq({family: :dotnetfx, version: Gem::Version.new("4.7.2")}))
       expect(described_class.classify(".NETStandard2.0")).to(be_nil)
-      expect(described_class.classify(".NETCoreApp3.1")).to(eq({ family: :dotnet, version: Gem::Version.new("3.1") }))
+      expect(described_class.classify(".NETCoreApp3.1")).to(eq({family: :dotnet, version: Gem::Version.new("3.1")}))
     end
 
     it("returns nil for an unrecognized moniker rather than guessing") do
@@ -47,7 +47,7 @@ RSpec.describe(StillActive::DotnetHelper) do
     # A minimal support window shaped like EndoflifeHelper.support_window: only
     # the cycles list is read by analyze.
     def window(cycles)
-      { cycles: cycles.map { |v, eol, date| { version: Gem::Version.new(v), eol: eol, eol_date: date && Time.parse(date) } } }
+      {cycles: cycles.map { |v, eol, date| {version: Gem::Version.new(v), eol: eol, eol_date: date && Time.parse(date)} }}
     end
 
     let(:dotnet) do

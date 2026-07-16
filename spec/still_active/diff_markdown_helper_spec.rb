@@ -11,7 +11,7 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
       bumped: [],
       signal_changes: [],
       regressions: [],
-      ruby: nil,
+      ruby: nil
     )
   end
 
@@ -19,7 +19,7 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
     let(:accepted) do
       [StillActive::Diff::Accepted.new(
         regression: StillActive::Diff::Regression.new(kind: :new_gem_archived, gem: "simplecov-html", detail: "added gem points at archived repo"),
-        reason: "dev-only coverage reporter",
+        reason: "dev-only coverage reporter"
       )]
     end
 
@@ -68,7 +68,7 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
         bumped: [],
         signal_changes: [],
         regressions: [],
-        ruby: nil,
+        ruby: nil
       )
       expect { described_class.render(result) }.not_to(raise_error)
     end
@@ -82,9 +82,9 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
           signal_changes: [],
           regressions: [
             StillActive::Diff::Regression.new(kind: :new_gem_archived, gem: "newly_added", detail: "added gem points at archived repo"),
-            StillActive::Diff::Regression.new(kind: :new_vulnerability, gem: "untouched", detail: "0 -> 1 (CVE-new)"),
+            StillActive::Diff::Regression.new(kind: :new_vulnerability, gem: "untouched", detail: "0 -> 1 (CVE-new)")
           ],
-          ruby: nil,
+          ruby: nil
         )
       end
 
@@ -106,12 +106,12 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
     context("with added gems") do
       let(:result) do
         StillActive::Diff::Result.new(
-          added: [StillActive::Diff::Added.new(name: "new_gem", data: { "version_used" => "1.0", "archived" => true, "scorecard_score" => 7.5 })],
+          added: [StillActive::Diff::Added.new(name: "new_gem", data: {"version_used" => "1.0", "archived" => true, "scorecard_score" => 7.5})],
           removed: [],
           bumped: [],
           signal_changes: [],
           regressions: [],
-          ruby: nil,
+          ruby: nil
         )
       end
 
@@ -135,13 +135,13 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
               before_version: "7.0",
               after_version: "7.1",
               kind: :closed_vulns,
-              before: { "vulnerability_count" => 1 },
-              after: { "vulnerability_count" => 0 },
-            ),
+              before: {"vulnerability_count" => 1},
+              after: {"vulnerability_count" => 0}
+            )
           ],
           signal_changes: [],
           regressions: [],
-          ruby: nil,
+          ruby: nil
         )
       end
 
@@ -163,7 +163,7 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
           bumped: [],
           signal_changes: [],
           regressions: [],
-          ruby: { version_changed: true, from: "3.3.0", to: "3.4.0", newly_eol: false },
+          ruby: {version_changed: true, from: "3.3.0", to: "3.4.0", newly_eol: false}
         )
         md = described_class.render(result)
         expect(md).to(include("### Ruby"))
@@ -178,7 +178,7 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
           bumped: [],
           signal_changes: [],
           regressions: [],
-          ruby: { version_changed: false, from: "3.3.0", to: "3.3.0", newly_eol: false },
+          ruby: {version_changed: false, from: "3.3.0", to: "3.3.0", newly_eol: false}
         )
         md = described_class.render(result)
         expect(md).not_to(include("### Ruby"))
@@ -193,7 +193,7 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
           bumped: [],
           signal_changes: [],
           ruby: nil,
-          regressions: [StillActive::Diff::Regression.new(kind: :archived, gem: "ev`il", detail: "x")],
+          regressions: [StillActive::Diff::Regression.new(kind: :archived, gem: "ev`il", detail: "x")]
         )
         # longest backtick run is 1, so a 2-backtick fence keeps the name intact
         expect(described_class.render(result)).to(include("``ev`il``"))
@@ -201,12 +201,12 @@ RSpec.describe(StillActive::DiffMarkdownHelper) do
 
       it("neutralises a newline in an added gem name so the bullet list can't be forged") do
         result = StillActive::Diff::Result.new(
-          added: [StillActive::Diff::Added.new(name: "foo\n- INJECTED", data: { "version_used" => "1.0" })],
+          added: [StillActive::Diff::Added.new(name: "foo\n- INJECTED", data: {"version_used" => "1.0"})],
           removed: [],
           bumped: [],
           signal_changes: [],
           regressions: [],
-          ruby: nil,
+          ruby: nil
         )
         expect(described_class.render(result)).not_to(include("foo\n- INJECTED"))
       end

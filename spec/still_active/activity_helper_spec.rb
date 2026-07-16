@@ -11,7 +11,7 @@ RSpec.describe(StillActive::ActivityHelper) do
     {
       last_commit_date: last_commit,
       latest_version_release_date: release,
-      latest_pre_release_version_release_date: pre_release,
+      latest_pre_release_version_release_date: pre_release
     }
   end
 

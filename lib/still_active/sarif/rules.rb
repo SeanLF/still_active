@@ -60,8 +60,8 @@ module StillActive
           neutral: {
             short: "Package's source repository is archived",
             full: "The package's upstream repository has been marked archived. No further fixes, including security patches, should be expected.",
-            help_text: "Look for a maintained fork or alternative. If you must keep the package, vendor or fork it so you can apply patches yourself.",
-          },
+            help_text: "Look for a maintained fork or alternative. If you must keep the package, vendor or fork it so you can apply patches yourself."
+          }
         },
         {
           id: "SA002",
@@ -75,8 +75,8 @@ module StillActive
           neutral: {
             short: "Package has had no release for over 3 years",
             full: "The package's latest release is over 3 years old. Not formally archived, but a strong abandonment signal: a consumer cannot pull fixes that were never released. For a package with no releases at all (e.g. git-sourced), the last commit date is used instead.",
-            help_text: "Verify the package still works on your supported runtime and consider a maintained alternative.",
-          },
+            help_text: "Verify the package still works on your supported runtime and consider a maintained alternative."
+          }
         },
         {
           id: "SA003",
@@ -88,8 +88,8 @@ module StillActive
           security_severity: "7.0", # default; per-result override from CVSS
           tags: ["security", "vulnerability", "external/cwe/cwe-1104"],
           neutral: {
-            short: "Package has known vulnerabilities (via deps.dev / OSV)",
-          },
+            short: "Package has known vulnerabilities (via deps.dev / OSV)"
+          }
         },
         {
           id: "SA004",
@@ -102,8 +102,8 @@ module StillActive
           tags: ["maintenance", "libyear"],
           neutral: {
             short: "Package is significantly behind the latest release",
-            help_text: "Schedule an upgrade to the latest release.",
-          },
+            help_text: "Schedule an upgrade to the latest release."
+          }
         },
         {
           id: "SA005",
@@ -115,8 +115,8 @@ module StillActive
           security_severity: nil,
           tags: ["supply-chain", "openssf"],
           neutral: {
-            short: "Package's OpenSSF Scorecard is low",
-          },
+            short: "Package's OpenSSF Scorecard is low"
+          }
         },
         {
           id: "SA006",
@@ -127,7 +127,7 @@ module StillActive
           level: "error",
           security_severity: "8.5",
           tags: ["security", "runtime", "external/cwe/cwe-1104"],
-          native_only: true,
+          native_only: true
         },
         {
           id: "SA007",
@@ -141,8 +141,8 @@ module StillActive
           neutral: {
             short: "Resolved package version has been yanked from its registry",
             full: "The resolved version has been yanked by the package owner, typically for a serious bug or vulnerability.",
-            help_text: "Update to a non-yanked version immediately.",
-          },
+            help_text: "Update to a non-yanked version immediately."
+          }
         },
         {
           id: "SA008",
@@ -156,8 +156,8 @@ module StillActive
           neutral: {
             short: "Dormant package caps a dependency below its latest major",
             full: "A dormant (abandoned or archived) package declares a runtime constraint that caps one of its dependencies below that dependency's current latest major. Because nobody is shipping the package, the cap will never lift, and it grows more constraining as the capped dependency releases new majors: the tree is held below a ceiling no upstream release will raise.",
-            help_text: "Replace or fork the dormant package, or vendor a version that relaxes the constraint. For a transitive pill, target the direct dependency that pulls it in.",
-          },
+            help_text: "Replace or fork the dormant package, or vendor a version that relaxes the constraint. For a transitive pill, target the direct dependency that pulls it in."
+          }
         },
         {
           id: "SA009",
@@ -167,8 +167,8 @@ module StillActive
           help_text: "If a newer release of the package lifts the cap, upgrade it. Otherwise replace or fork the package, or contribute support for the newer runtime upstream.",
           level: "note",
           security_severity: nil, # maintenance/compatibility, not a CVE (as SA002/SA004/SA005/SA008)
-          tags: ["maintenance", "runtime", "external/cwe/cwe-1104"],
-        },
+          tags: ["maintenance", "runtime", "external/cwe/cwe-1104"]
+        }
       ].freeze
 
       # Builds a frozen catalog for one wording flavour. `:neutral` applies each
@@ -181,10 +181,10 @@ module StillActive
         neutral = flavour == :neutral
         rules = neutral ? RAW_RULES.reject { |r| r[:native_only] } : RAW_RULES
         rules.map do |r|
-          resolved = neutral && r[:neutral] ? r.merge(r[:neutral]) : r
+          resolved = (neutral && r[:neutral]) ? r.merge(r[:neutral]) : r
           resolved.except(:neutral, :native_only).merge(
             tags: r[:tags].dup.freeze,
-            help_markdown: "#{resolved[:help_text]}\n\nSee [#{r[:id]} docs](#{help_uri(r[:id])}) for full guidance.",
+            help_markdown: "#{resolved[:help_text]}\n\nSee [#{r[:id]} docs](#{help_uri(r[:id])}) for full guidance."
           ).freeze
         end.freeze
       end
@@ -194,7 +194,7 @@ module StillActive
 
       # flavour: :ruby (default, native Gemfile path) or :neutral (SBOM path).
       def all(flavour = :ruby)
-        flavour == :neutral ? NEUTRAL_CATALOG : CATALOG
+        (flavour == :neutral) ? NEUTRAL_CATALOG : CATALOG
       end
 
       def find(id, flavour = :ruby)

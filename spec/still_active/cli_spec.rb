@@ -29,21 +29,21 @@ RSpec.describe(StillActive::CLI) do
       latest_version: "1.0.0",
       latest_pre_release_version: nil,
       scorecard_score: nil,
-      vulnerability_count: nil,
+      vulnerability_count: nil
     }
   end
 
   describe("--baseline") do
-    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+    let(:workflow_result) { {"rails" => gem_data(last_commit_date: recent_date)} }
 
     before { allow($stdout).to(receive(:tty?).and_return(false)) }
 
     def write_baseline(path, gems)
       File.write(path, {
         schema_version: 1,
-        tool: { name: "still_active", version: "1.4.0" },
+        tool: {name: "still_active", version: "1.4.0"},
         generated_at: "2026-05-01T00:00:00Z",
-        gems: gems,
+        gems: gems
       }.to_json)
     end
 
@@ -51,7 +51,7 @@ RSpec.describe(StillActive::CLI) do
       captured = nil
       allow($stdout).to(receive(:puts)) { |arg| captured = arg }
       Tempfile.create(["baseline", ".json"]) do |f|
-        write_baseline(f.path, { "rails" => { version_used: "1.0.0", archived: false, vulnerability_count: 0 } })
+        write_baseline(f.path, {"rails" => {version_used: "1.0.0", archived: false, vulnerability_count: 0}})
         expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }.not_to(raise_error)
       end
       expect(captured).to(include("## still_active diff"))
@@ -64,7 +64,7 @@ RSpec.describe(StillActive::CLI) do
         write_baseline(f.path, {})
         # Override workflow_result for this test
         allow(StillActive::Workflow).to(receive(:call).and_return({
-          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true),
+          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true)
         }))
         expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
           .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
@@ -72,16 +72,16 @@ RSpec.describe(StillActive::CLI) do
     end
 
     def stub_config_ignore(entries)
-      allow(StillActive::ConfigFile).to(receive(:load).and_return({ "ignore" => entries }))
+      allow(StillActive::ConfigFile).to(receive(:load).and_return({"ignore" => entries}))
     end
 
     it("does not exit when the only regression is accepted by a .still_active.yml suppression") do
       allow($stdout).to(receive(:puts))
-      stub_config_ignore([{ "gem" => "rails", "signal" => "activity", "reason" => "vendored" }])
+      stub_config_ignore([{"gem" => "rails", "signal" => "activity", "reason" => "vendored"}])
       Tempfile.create(["baseline", ".json"]) do |f|
         write_baseline(f.path, {})
         allow(StillActive::Workflow).to(receive(:call).and_return({
-          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true),
+          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true)
         }))
         expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }.not_to(raise_error)
       end
@@ -89,11 +89,11 @@ RSpec.describe(StillActive::CLI) do
 
     it("still exits 1 when the suppression targets a different gem than the regression") do
       allow($stdout).to(receive(:puts))
-      stub_config_ignore([{ "gem" => "other", "signal" => "activity" }])
+      stub_config_ignore([{"gem" => "other", "signal" => "activity"}])
       Tempfile.create(["baseline", ".json"]) do |f|
         write_baseline(f.path, {})
         allow(StillActive::Workflow).to(receive(:call).and_return({
-          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true),
+          "rails" => gem_data(last_commit_date: recent_date).merge(archived: true)
         }))
         expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
           .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
@@ -108,8 +108,8 @@ RSpec.describe(StillActive::CLI) do
         allow(StillActive::Workflow).to(receive(:call).and_return({
           "rails" => gem_data(last_commit_date: recent_date).merge(
             vulnerability_count: 1,
-            vulnerabilities: [{ id: "CVE-9999-0001", aliases: [] }],
-          ),
+            vulnerabilities: [{id: "CVE-9999-0001", aliases: []}]
+          )
         }))
         expect { cli.run(["--gems=rails", "--baseline=#{f.path}"]) }
           .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
@@ -138,7 +138,7 @@ RSpec.describe(StillActive::CLI) do
       captured = nil
       allow($stdout).to(receive(:puts)) { |arg| captured = arg }
       Tempfile.create(["baseline", ".json"]) do |f|
-        write_baseline(f.path, { "rails" => { version_used: "1.0.0", archived: false } })
+        write_baseline(f.path, {"rails" => {version_used: "1.0.0", archived: false}})
         cli.run(["--gems=rails", "--json", "--sarif=-", "--baseline=#{f.path}"])
       end
       # Output should be markdown diff, not SARIF or wrapped JSON
@@ -149,7 +149,7 @@ RSpec.describe(StillActive::CLI) do
   end
 
   describe("--sarif") do
-    let(:workflow_result) { { "rails" => gem_data(last_commit_date: ancient_date).merge(archived: true) } }
+    let(:workflow_result) { {"rails" => gem_data(last_commit_date: ancient_date).merge(archived: true)} }
     let(:fake_lockfile) { "GEM\n  remote: https://rubygems.org/\n  specs:\n    rails (1.0)\n" }
 
     before { allow($stdout).to(receive(:tty?).and_return(false)) }
@@ -217,8 +217,8 @@ RSpec.describe(StillActive::CLI) do
   end
 
   describe("JSON envelope") do
-    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
-    let(:ruby_info) { { version: "3.4.0", eol: false } }
+    let(:workflow_result) { {"rails" => gem_data(last_commit_date: recent_date)} }
+    let(:ruby_info) { {version: "3.4.0", eol: false} }
 
     before do
       allow($stdout).to(receive(:tty?).and_return(false))
@@ -252,10 +252,10 @@ RSpec.describe(StillActive::CLI) do
       # API carried) into the JSON; a bare Time#to_json emits "2026-01-02
       # 01:04:05 +0200", a different format and timezone from generated_at.
       tz_time = Time.new(2026, 1, 2, 3, 4, 5, "+02:00")
-      result = { "rails" => gem_data(last_commit_date: tz_time).merge(latest_version_release_date: tz_time) }
+      result = {"rails" => gem_data(last_commit_date: tz_time).merge(latest_version_release_date: tz_time)}
       allow(StillActive::Workflow).to(receive_messages(
         call: result,
-        ruby_freshness: { version: "3.4.0", eol: false, release_date: tz_time },
+        ruby_freshness: {version: "3.4.0", eol: false, release_date: tz_time}
       ))
       captured = nil
       allow($stdout).to(receive(:puts)) { |arg| captured = arg }
@@ -295,14 +295,14 @@ RSpec.describe(StillActive::CLI) do
           eol: false,
           latest_version: "3.4.1",
           latest_release_date: Time.new(2026, 1, 1, 0, 0, 0, "+00:00"),
-          libyear: 0.1,
+          libyear: 0.1
         }
       end
 
       # A bot context carrying every `pr_context` field (bot, bumps, and a bump's
       # gem/from/to).
       def exhaustive_pr_context
-        { bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] }
+        {bot: "dependabot", bumps: [{gem: "rack", from: "2.0.0", to: "2.0.6"}]}
       end
 
       # A result that exercises EVERY per-gem / vulnerability / constraint /
@@ -340,7 +340,7 @@ RSpec.describe(StillActive::CLI) do
             version_yanked: false,
             license: "MIT",
             libyear: 1.2,
-            unreleased_commits: 17,
+            unreleased_commits: 17
           },
           "rack" => {
             source_type: :rubygems,
@@ -357,7 +357,7 @@ RSpec.describe(StillActive::CLI) do
             # cvss_version/cvss_vector/fixed_versions, ruby-advisory-db's
             # no_fix_available). osv_cvss_score is a real number here (the null half is
             # implicit for un-enriched advisories) so both branches of its type hold.
-            vulnerabilities: [{ id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "merged", osv_severity: "MODERATE", osv_cvss_score: 8.1, cvss_version: "3.0", cvss_vector: "CVSS:3.0/AV:N/AC:L", fixed_versions: ["2.0.6", "1.6.11"], no_fix_available: false }],
+            vulnerabilities: [{id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "merged", osv_severity: "MODERATE", osv_cvss_score: 8.1, cvss_version: "3.0", cvss_vector: "CVSS:3.0/AV:N/AC:L", fixed_versions: ["2.0.6", "1.6.11"], no_fix_available: false}]
           },
           # A poison-pill gem: every constraint field including the security below-
           # the-fix keys the correlator sets.
@@ -368,7 +368,7 @@ RSpec.describe(StillActive::CLI) do
             poison_severity: :critical,
             poison_security_relevant: true,
             poison_below_fix: true,
-            constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling, capped_dep_vulnerable: true, capped_below_fix: true, below_fix_advisory: "CVE-2024-9", below_fix_fixed_in: "5.0.0" }],
+            constraints: [{dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling, capped_dep_vulnerable: true, capped_below_fix: true, below_fix_advisory: "CVE-2024-9", below_fix_fixed_in: "5.0.0"}]
           },
           # A language-ceiling gem: every language_ceiling field, including
           # upgrade_blocked (set by CeilingReconciler when a poison cap blocks the
@@ -389,9 +389,9 @@ RSpec.describe(StillActive::CLI) do
               oldest_supported: "3.3",
               latest_stable: "4.0.5",
               fixed_by_upgrade: false,
-              upgrade_blocked: true,
-            },
-          },
+              upgrade_blocked: true
+            }
+          }
         }
       end
 
@@ -427,7 +427,7 @@ RSpec.describe(StillActive::CLI) do
           "language_ceiling" => gems.filter_map { |g| g["language_ceiling"] }.flat_map(&:keys),
           "ruby" => payload.fetch("ruby").keys,
           "summary" => payload.fetch("summary").keys,
-          "pr_context" => payload.fetch("pr_context").keys,
+          "pr_context" => payload.fetch("pr_context").keys
         }
         emitted.each do |defn, keys|
           missing = schema.dig("$defs", defn, "properties").keys - keys.uniq
@@ -484,7 +484,7 @@ RSpec.describe(StillActive::CLI) do
       captured = nil
       allow($stdout).to(receive(:puts)) { |arg| captured = arg }
       allow(StillActive::Workflow).to(receive(:call).and_return(
-        "paperclip" => gem_data(last_commit_date: ancient_date).merge(archived: true, alternatives: ["shrine", "carrierwave"]),
+        "paperclip" => gem_data(last_commit_date: ancient_date).merge(archived: true, alternatives: ["shrine", "carrierwave"])
       ))
       cli.run(["--gems=paperclip", "--json"])
       payload = JSON.parse(captured)
@@ -493,7 +493,7 @@ RSpec.describe(StillActive::CLI) do
   end
 
   describe("output format auto-detection") do
-    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+    let(:workflow_result) { {"rails" => gem_data(last_commit_date: recent_date)} }
 
     context("when stdout is a TTY") do
       before { allow($stdout).to(receive(:tty?).and_return(true)) }
@@ -525,7 +525,7 @@ RSpec.describe(StillActive::CLI) do
 
   describe("--fail-if-critical") do
     context("when a gem has critical activity warning") do
-      let(:workflow_result) { { "stale_gem" => gem_data(last_commit_date: ancient_date) } }
+      let(:workflow_result) { {"stale_gem" => gem_data(last_commit_date: ancient_date)} }
 
       it("exits 1") do
         expect { cli.run(["--gems=stale_gem", "--json", "--fail-if-critical"]) }
@@ -534,7 +534,7 @@ RSpec.describe(StillActive::CLI) do
     end
 
     context("when no gems have critical activity warning") do
-      let(:workflow_result) { { "fresh_gem" => gem_data(last_commit_date: recent_date) } }
+      let(:workflow_result) { {"fresh_gem" => gem_data(last_commit_date: recent_date)} }
 
       it("exits 0") do
         expect { cli.run(["--gems=fresh_gem", "--json", "--fail-if-critical"]) }
@@ -548,7 +548,7 @@ RSpec.describe(StillActive::CLI) do
       let(:workflow_result) do
         {
           "stale_gem" => gem_data(last_commit_date: ancient_date),
-          "fresh_gem" => gem_data(last_commit_date: recent_date),
+          "fresh_gem" => gem_data(last_commit_date: recent_date)
         }
       end
 
@@ -562,7 +562,7 @@ RSpec.describe(StillActive::CLI) do
       let(:workflow_result) do
         {
           "stale_gem" => gem_data(last_commit_date: ancient_date),
-          "fresh_gem" => gem_data(last_commit_date: recent_date),
+          "fresh_gem" => gem_data(last_commit_date: recent_date)
         }
       end
 
@@ -581,49 +581,49 @@ RSpec.describe(StillActive::CLI) do
     def vuln_gem(ids)
       gem_data(last_commit_date: recent_date).merge(
         vulnerability_count: ids.size,
-        vulnerabilities: ids.map { |id| { id: id, aliases: [] } },
+        vulnerabilities: ids.map { |id| {id: id, aliases: []} }
       )
     end
 
     it("does not exit when the only critical gem has its activity signal suppressed") do
       StillActive.config.fail_if_critical = true
-      suppress([{ "gem" => "stale_gem", "signal" => "activity", "reason" => "vendored, frozen" }])
-      expect { cli.send(:check_exit_status, { "stale_gem" => gem_data(last_commit_date: ancient_date) }) }
+      suppress([{"gem" => "stale_gem", "signal" => "activity", "reason" => "vendored, frozen"}])
+      expect { cli.send(:check_exit_status, {"stale_gem" => gem_data(last_commit_date: ancient_date)}) }
         .not_to(raise_error)
     end
 
     it("still exits when an activity suppression targets a different gem") do
       StillActive.config.fail_if_critical = true
-      suppress([{ "gem" => "other", "signal" => "activity" }])
-      expect { cli.send(:check_exit_status, { "stale_gem" => gem_data(last_commit_date: ancient_date) }) }
+      suppress([{"gem" => "other", "signal" => "activity"}])
+      expect { cli.send(:check_exit_status, {"stale_gem" => gem_data(last_commit_date: ancient_date)}) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 
     it("suppresses one advisory but still fails on a different unaccepted one") do
       StillActive.config.fail_if_vulnerable = true
-      suppress([{ "gem" => "vuln_gem", "advisory" => "CVE-1", "reason" => "no fix" }])
-      expect { cli.send(:check_exit_status, { "vuln_gem" => vuln_gem(["CVE-1", "CVE-2"]) }) }
+      suppress([{"gem" => "vuln_gem", "advisory" => "CVE-1", "reason" => "no fix"}])
+      expect { cli.send(:check_exit_status, {"vuln_gem" => vuln_gem(["CVE-1", "CVE-2"])}) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 
     it("does not exit when every advisory on the gem is suppressed") do
       StillActive.config.fail_if_vulnerable = true
-      suppress([{ "gem" => "vuln_gem", "advisory" => "CVE-1" }, { "gem" => "vuln_gem", "advisory" => "CVE-2" }])
-      expect { cli.send(:check_exit_status, { "vuln_gem" => vuln_gem(["CVE-1", "CVE-2"]) }) }
+      suppress([{"gem" => "vuln_gem", "advisory" => "CVE-1"}, {"gem" => "vuln_gem", "advisory" => "CVE-2"}])
+      expect { cli.send(:check_exit_status, {"vuln_gem" => vuln_gem(["CVE-1", "CVE-2"])}) }
         .not_to(raise_error)
     end
 
     it("does not let an advisory suppression hide the same gem going critical") do
       StillActive.config.fail_if_critical = true
-      suppress([{ "gem" => "g", "advisory" => "CVE-1" }])
-      expect { cli.send(:check_exit_status, { "g" => gem_data(last_commit_date: ancient_date) }) }
+      suppress([{"gem" => "g", "advisory" => "CVE-1"}])
+      expect { cli.send(:check_exit_status, {"g" => gem_data(last_commit_date: ancient_date)}) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 
     it("re-surfaces (exits 1) once a suppression has lapsed") do
       StillActive.config.fail_if_critical = true
-      suppress([{ "gem" => "stale_gem", "signal" => "activity", "expires" => "2000-01-01" }])
-      expect { cli.send(:check_exit_status, { "stale_gem" => gem_data(last_commit_date: ancient_date) }) }
+      suppress([{"gem" => "stale_gem", "signal" => "activity", "expires" => "2000-01-01"}])
+      expect { cli.send(:check_exit_status, {"stale_gem" => gem_data(last_commit_date: ancient_date)}) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
   end
@@ -631,7 +631,7 @@ RSpec.describe(StillActive::CLI) do
   describe("archived repo with --fail-if-critical") do
     context("when a gem's repo is archived") do
       let(:workflow_result) do
-        { "dead_gem" => gem_data(last_commit_date: recent_date).merge(archived: true) }
+        {"dead_gem" => gem_data(last_commit_date: recent_date).merge(archived: true)}
       end
 
       it("exits 1") do
@@ -647,8 +647,8 @@ RSpec.describe(StillActive::CLI) do
         {
           "vuln_gem" => gem_data(last_commit_date: recent_date).merge(
             vulnerability_count: 2,
-            vulnerabilities: [{ id: "CVE-1", cvss3_score: 9.1 }, { id: "CVE-2", cvss3_score: 5.0 }],
-          ),
+            vulnerabilities: [{id: "CVE-1", cvss3_score: 9.1}, {id: "CVE-2", cvss3_score: 5.0}]
+          )
         }
       end
 
@@ -660,7 +660,7 @@ RSpec.describe(StillActive::CLI) do
 
     context("when no gems have vulnerabilities") do
       let(:workflow_result) do
-        { "safe_gem" => gem_data(last_commit_date: recent_date).merge(vulnerability_count: 0, vulnerabilities: []) }
+        {"safe_gem" => gem_data(last_commit_date: recent_date).merge(vulnerability_count: 0, vulnerabilities: [])}
       end
 
       it("exits 0") do
@@ -674,9 +674,9 @@ RSpec.describe(StillActive::CLI) do
         {
           "vuln_gem" => gem_data(last_commit_date: recent_date).merge(
             vulnerability_count: 1,
-            vulnerabilities: [{ id: "CVE-1", cvss3_score: 9.0 }],
+            vulnerabilities: [{id: "CVE-1", cvss3_score: 9.0}]
           ),
-          "safe_gem" => gem_data(last_commit_date: recent_date).merge(vulnerability_count: 0, vulnerabilities: []),
+          "safe_gem" => gem_data(last_commit_date: recent_date).merge(vulnerability_count: 0, vulnerabilities: [])
         }
       end
 
@@ -691,8 +691,8 @@ RSpec.describe(StillActive::CLI) do
         {
           "low_vuln_gem" => gem_data(last_commit_date: recent_date).merge(
             vulnerability_count: 1,
-            vulnerabilities: [{ id: "CVE-1", cvss3_score: 3.0 }],
-          ),
+            vulnerabilities: [{id: "CVE-1", cvss3_score: 3.0}]
+          )
         }
       end
 
@@ -712,8 +712,8 @@ RSpec.describe(StillActive::CLI) do
         {
           "fresh_cve_gem" => gem_data(last_commit_date: recent_date).merge(
             vulnerability_count: 1,
-            vulnerabilities: [{ id: "CVE-fresh", cvss3_score: nil, cvss2_score: nil }],
-          ),
+            vulnerabilities: [{id: "CVE-fresh", cvss3_score: nil, cvss2_score: nil}]
+          )
         }
       end
 
@@ -740,7 +740,7 @@ RSpec.describe(StillActive::CLI) do
   describe("--fail-if-outdated") do
     context("when a gem exceeds libyear threshold") do
       let(:workflow_result) do
-        { "old_gem" => gem_data(last_commit_date: recent_date).merge(libyear: 4.0) }
+        {"old_gem" => gem_data(last_commit_date: recent_date).merge(libyear: 4.0)}
       end
 
       it("exits 1") do
@@ -751,7 +751,7 @@ RSpec.describe(StillActive::CLI) do
 
     context("when all gems are within threshold") do
       let(:workflow_result) do
-        { "fresh_gem" => gem_data(last_commit_date: recent_date).merge(libyear: 1.5) }
+        {"fresh_gem" => gem_data(last_commit_date: recent_date).merge(libyear: 1.5)}
       end
 
       it("exits 0") do
@@ -762,7 +762,7 @@ RSpec.describe(StillActive::CLI) do
 
     context("when libyear is nil") do
       let(:workflow_result) do
-        { "unknown_gem" => gem_data(last_commit_date: recent_date) }
+        {"unknown_gem" => gem_data(last_commit_date: recent_date)}
       end
 
       it("skips nil libyears gracefully") do
@@ -773,7 +773,7 @@ RSpec.describe(StillActive::CLI) do
   end
 
   describe("--cyclonedx") do
-    let(:workflow_result) { { "rack" => gem_data(last_commit_date: recent_date).merge(license: "MIT") } }
+    let(:workflow_result) { {"rack" => gem_data(last_commit_date: recent_date).merge(license: "MIT")} }
 
     before { allow($stdout).to(receive(:tty?).and_return(false)) }
 
@@ -836,8 +836,8 @@ RSpec.describe(StillActive::CLI) do
   end
 
   describe("Dependabot/Renovate context") do
-    let(:workflow_result) { { "rack" => gem_data(last_commit_date: recent_date) } }
-    let(:context) { { bot: "dependabot", bumps: [{ gem: "rack", from: "2.0.0", to: "2.0.6" }] } }
+    let(:workflow_result) { {"rack" => gem_data(last_commit_date: recent_date)} }
+    let(:context) { {bot: "dependabot", bumps: [{gem: "rack", from: "2.0.0", to: "2.0.6"}]} }
 
     before do
       allow($stdout).to(receive(:tty?).and_return(false))
@@ -850,7 +850,7 @@ RSpec.describe(StillActive::CLI) do
       cli.run(["--gems=rack", "--json"])
       parsed = JSON.parse(captured)
       expect(parsed["pr_context"]).to(include("bot" => "dependabot"))
-      expect(parsed["pr_context"]["bumps"]).to(eq([{ "gem" => "rack", "from" => "2.0.0", "to" => "2.0.6" }]))
+      expect(parsed["pr_context"]["bumps"]).to(eq([{"gem" => "rack", "from" => "2.0.0", "to" => "2.0.6"}]))
     end
 
     it("prepends a narrative header to markdown output") do
@@ -871,7 +871,7 @@ RSpec.describe(StillActive::CLI) do
 
   describe("--markdown alternatives") do
     let(:workflow_result) do
-      { "paperclip" => gem_data(last_commit_date: ancient_date).merge(archived: true, alternatives: ["shrine", "carrierwave"]) }
+      {"paperclip" => gem_data(last_commit_date: ancient_date).merge(archived: true, alternatives: ["shrine", "carrierwave"])}
     end
 
     it("appends an Alternatives section to markdown output") do
@@ -889,8 +889,8 @@ RSpec.describe(StillActive::CLI) do
       {
         "protected_attributes" => gem_data(last_commit_date: ancient_date).merge(
           poison: true,
-          constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling }],
-        ),
+          constraints: [{dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling}]
+        )
       }
     end
 
@@ -909,51 +909,51 @@ RSpec.describe(StillActive::CLI) do
       gem_data(last_commit_date: ancient_date).merge(
         poison: true,
         poison_severity: severity,
-        constraints: [{ dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling }],
+        constraints: [{dependency: "activemodel", requirement: "< 5.0", dep_latest: "8.0.1", majors_behind: 4, kind: :ceiling}]
       )
     end
 
     it("exits 1 when a critical poison-pill meets the default (warning) threshold") do
       StillActive.config.fail_if_poison = true
-      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem(:critical) }) }
+      expect { cli.send(:check_exit_status, {"protected_attributes" => poison_gem(:critical)}) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 
     it("does NOT exit on a note-level poison-pill under the default (warning) threshold") do
       StillActive.config.fail_if_poison = true
-      expect { cli.send(:check_exit_status, { "tty-reader" => poison_gem(:note) }) }.not_to(raise_error)
+      expect { cli.send(:check_exit_status, {"tty-reader" => poison_gem(:note)}) }.not_to(raise_error)
     end
 
     it("exits on a note-level pill when the threshold is lowered to note") do
       StillActive.config.fail_if_poison = :note
-      expect { cli.send(:check_exit_status, { "tty-reader" => poison_gem(:note) }) }
+      expect { cli.send(:check_exit_status, {"tty-reader" => poison_gem(:note)}) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 
     it("does not exit when no gem is a poison-pill") do
       StillActive.config.fail_if_poison = true
-      expect { cli.send(:check_exit_status, { "rails" => gem_data(last_commit_date: recent_date) }) }
+      expect { cli.send(:check_exit_status, {"rails" => gem_data(last_commit_date: recent_date)}) }
         .not_to(raise_error)
     end
 
     it("does not exit when the flag is off, even with a poison gem") do
-      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem }) }
+      expect { cli.send(:check_exit_status, {"protected_attributes" => poison_gem}) }
         .not_to(raise_error)
     end
 
     it("does not exit when the poison gem is --ignore'd") do
       StillActive.config.fail_if_poison = true
       StillActive.config.ignored_gems = ["protected_attributes"]
-      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem }) }
+      expect { cli.send(:check_exit_status, {"protected_attributes" => poison_gem}) }
         .not_to(raise_error)
     end
 
     it("does not exit when the gem's poison signal is suppressed in .still_active.yml") do
       StillActive.config.fail_if_poison = true
       StillActive.config.suppressions = StillActive::Suppressions.from(
-        [{ "gem" => "protected_attributes", "signal" => "poison", "reason" => "vendored, accepted" }],
+        [{"gem" => "protected_attributes", "signal" => "poison", "reason" => "vendored, accepted"}]
       )
-      expect { cli.send(:check_exit_status, { "protected_attributes" => poison_gem }) }
+      expect { cli.send(:check_exit_status, {"protected_attributes" => poison_gem}) }
         .not_to(raise_error)
     end
   end
@@ -961,7 +961,7 @@ RSpec.describe(StillActive::CLI) do
   describe("--fail-if-language-ceiling") do
     def ceiling_gem(severity = :critical)
       gem_data(last_commit_date: recent_date).merge(
-        language_ceiling: { requirement: "< 3.2", eol_forced: severity == :critical, severity: severity },
+        language_ceiling: {requirement: "< 3.2", eol_forced: severity == :critical, severity: severity}
       )
     end
 
@@ -970,37 +970,37 @@ RSpec.describe(StillActive::CLI) do
     # :critical (the real blocker), not the :warning poison uses.
     it("exits 1 when an EOL-forcing (critical) ceiling meets the default (critical) threshold") do
       StillActive.config.fail_if_language_ceiling = true
-      expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem(:critical) }) }
+      expect { cli.send(:check_exit_status, {"cfpropertylist" => ceiling_gem(:critical)}) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 
     it("does NOT exit on a note-level ceiling under the default (critical) threshold") do
       StillActive.config.fail_if_language_ceiling = true
-      expect { cli.send(:check_exit_status, { "somegem" => ceiling_gem(:note) }) }.not_to(raise_error)
+      expect { cli.send(:check_exit_status, {"somegem" => ceiling_gem(:note)}) }.not_to(raise_error)
     end
 
     it("exits on a note-level ceiling when the threshold is lowered to note") do
       StillActive.config.fail_if_language_ceiling = :note
-      expect { cli.send(:check_exit_status, { "somegem" => ceiling_gem(:note) }) }
+      expect { cli.send(:check_exit_status, {"somegem" => ceiling_gem(:note)}) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
     end
 
     it("does not exit when the flag is off, even with a ceiling gem") do
-      expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem }) }.not_to(raise_error)
+      expect { cli.send(:check_exit_status, {"cfpropertylist" => ceiling_gem}) }.not_to(raise_error)
     end
 
     it("does not exit when the gem's language_ceiling signal is suppressed in .still_active.yml") do
       StillActive.config.fail_if_language_ceiling = true
       StillActive.config.suppressions = StillActive::Suppressions.from(
-        [{ "gem" => "cfpropertylist", "signal" => "language_ceiling", "reason" => "pinned on purpose" }],
+        [{"gem" => "cfpropertylist", "signal" => "language_ceiling", "reason" => "pinned on purpose"}]
       )
-      expect { cli.send(:check_exit_status, { "cfpropertylist" => ceiling_gem }) }.not_to(raise_error)
+      expect { cli.send(:check_exit_status, {"cfpropertylist" => ceiling_gem}) }.not_to(raise_error)
     end
   end
 
   describe("--fail-if-warning") do
     context("when a gem has warning activity") do
-      let(:workflow_result) { { "aging_gem" => gem_data(last_commit_date: old_date) } }
+      let(:workflow_result) { {"aging_gem" => gem_data(last_commit_date: old_date)} }
 
       it("exits 1") do
         expect { cli.run(["--gems=aging_gem", "--json", "--fail-if-warning"]) }
@@ -1009,7 +1009,7 @@ RSpec.describe(StillActive::CLI) do
     end
 
     context("when a gem has critical activity warning") do
-      let(:workflow_result) { { "stale_gem" => gem_data(last_commit_date: ancient_date) } }
+      let(:workflow_result) { {"stale_gem" => gem_data(last_commit_date: ancient_date)} }
 
       it("exits 1") do
         expect { cli.run(["--gems=stale_gem", "--json", "--fail-if-warning"]) }
@@ -1018,7 +1018,7 @@ RSpec.describe(StillActive::CLI) do
     end
 
     context("when all gems are fresh") do
-      let(:workflow_result) { { "fresh_gem" => gem_data(last_commit_date: recent_date) } }
+      let(:workflow_result) { {"fresh_gem" => gem_data(last_commit_date: recent_date)} }
 
       it("exits 0") do
         expect { cli.run(["--gems=fresh_gem", "--json", "--fail-if-warning"]) }
@@ -1031,7 +1031,7 @@ RSpec.describe(StillActive::CLI) do
   # default). The apply/load units are tested in isolation; this exercises the
   # ordering through CLI#run with a real file on disk, the contract a user sees.
   describe("config precedence") do
-    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+    let(:workflow_result) { {"rails" => gem_data(last_commit_date: recent_date)} }
 
     around do |example|
       Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
@@ -1056,7 +1056,7 @@ RSpec.describe(StillActive::CLI) do
   end
 
   describe("stale suppression warnings") do
-    let(:workflow_result) { { "rails" => gem_data(last_commit_date: recent_date) } }
+    let(:workflow_result) { {"rails" => gem_data(last_commit_date: recent_date)} }
 
     around do |example|
       Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
@@ -1075,9 +1075,9 @@ RSpec.describe(StillActive::CLI) do
     let(:sbom_body) do
       {
         components: [
-          { type: "library", name: "flask", purl: "pkg:pypi/flask@2.0.0" },
-          { type: "library", name: "Alamofire", purl: "pkg:cocoapods/Alamofire@5.0.0" },
-        ],
+          {type: "library", name: "flask", purl: "pkg:pypi/flask@2.0.0"},
+          {type: "library", name: "Alamofire", purl: "pkg:cocoapods/Alamofire@5.0.0"}
+        ]
       }.to_json
     end
 
@@ -1090,7 +1090,7 @@ RSpec.describe(StillActive::CLI) do
         last_commit_date: recent_date,
         archived: false,
         vulnerability_count: vulnerable ? 1 : 0,
-        vulnerabilities: vulnerable ? [{ id: "CVE-2026-0001", severity: "high" }] : [],
+        vulnerabilities: vulnerable ? [{id: "CVE-2026-0001", severity: "high"}] : []
       }
     end
 
@@ -1112,7 +1112,7 @@ RSpec.describe(StillActive::CLI) do
     before do
       allow($stdout).to(receive(:tty?).and_return(false))
       allow($stderr).to(receive(:tty?).and_return(false))
-      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({ "pypi/flask@2.0.0" => lens_data })))
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({"pypi/flask@2.0.0" => lens_data})))
       # deps.dev vuln-schema canary runs once per SBOM audit; keep it green by
       # default so unrelated cases stay network-free. The degraded case is its own test.
       allow(StillActive::DepsDevClient).to(receive(:advisory_schema_ok?).and_return(true))
@@ -1142,7 +1142,7 @@ RSpec.describe(StillActive::CLI) do
 
     it("surfaces a dependency's production flag in the JSON when the SBOM marked it") do
       allow(StillActive::SbomWorkflow).to(receive(:call)
-        .and_return(outcome({ "pypi/flask@2.0.0" => lens_data.merge(production: false) })))
+        .and_return(outcome({"pypi/flask@2.0.0" => lens_data.merge(production: false)})))
       captured = nil
       allow($stdout).to(receive(:puts)) { |arg| captured = arg }
       cli.run(["--sbom=sbom.json"])
@@ -1175,12 +1175,12 @@ RSpec.describe(StillActive::CLI) do
       expect { cli.run(["--sbom=sbom.json"]) }.to(output(/1 dependency could not be assessed/).to_stderr)
       unassessable = JSON.parse(captured).fetch("unassessable")
       expect(unassessable).to(contain_exactly(
-        include("name" => "Alamofire", "ecosystem" => "cocoapods", "reason" => "unsupported_ecosystem"),
+        include("name" => "Alamofire", "ecosystem" => "cocoapods", "reason" => "unsupported_ecosystem")
       ))
     end
 
     it("applies the vulnerability gate to lens data, exiting 1 on a vulnerable dependency") do
-      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({ "pypi/flask@2.0.0" => lens_data(vulnerable: true) })))
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({"pypi/flask@2.0.0" => lens_data(vulnerable: true)})))
       allow($stdout).to(receive(:puts))
       expect { cli.run(["--sbom=sbom.json", "--fail-if-vulnerable"]) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
@@ -1189,8 +1189,8 @@ RSpec.describe(StillActive::CLI) do
     it("fails a =high severity gate closed on an unscored advisory, same as the native path") do
       # The cross-ecosystem lens emits a minimal advisory (no CVSS) when detail
       # fetch fails; a severity gate must not silently pass it.
-      vuln = lens_data.merge(vulnerability_count: 1, vulnerabilities: [{ id: "CVE-unscored", cvss3_score: nil, cvss2_score: nil }])
-      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({ "pypi/flask@2.0.0" => vuln })))
+      vuln = lens_data.merge(vulnerability_count: 1, vulnerabilities: [{id: "CVE-unscored", cvss3_score: nil, cvss2_score: nil}])
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({"pypi/flask@2.0.0" => vuln})))
       allow($stdout).to(receive(:puts))
       allow($stderr).to(receive(:puts))
       expect { cli.run(["--sbom=sbom.json", "--fail-if-vulnerable=high"]) }
@@ -1200,7 +1200,7 @@ RSpec.describe(StillActive::CLI) do
     it("surfaces an assessment-time failure (a raised lens call) in the JSON and the stderr count, never silently dropping it") do
       # A rate-limited/flaky deps.dev raises mid-assess; the dep must still reach
       # the report, or a transient hiccup shrinks the audit scope invisibly.
-      failure = { ecosystem: :pypi, name: "flask", version: "2.0.0", reason: :assessment_error, error: "Net::ReadTimeout: timed out" }
+      failure = {ecosystem: :pypi, name: "flask", version: "2.0.0", reason: :assessment_error, error: "Net::ReadTimeout: timed out"}
       allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({}, failures: [failure])))
       captured = nil
       allow($stdout).to(receive(:puts)) { |arg| captured = arg }
@@ -1210,7 +1210,7 @@ RSpec.describe(StillActive::CLI) do
       expect(payload.dig("summary", "total_assessed")).to(eq(0))
       expect(payload.dig("summary", "unassessable_count")).to(eq(2))
       expect(payload.fetch("unassessable")).to(include(
-        include("name" => "flask", "reason" => "assessment_error", "error" => /ReadTimeout/),
+        include("name" => "flask", "reason" => "assessment_error", "error" => /ReadTimeout/)
       ))
     end
 
@@ -1272,7 +1272,7 @@ RSpec.describe(StillActive::CLI) do
           repository_url: "https://github.com/stevemao/left-pad",
           scorecard_score: 3.0,
           vulnerability_count: 0,
-          vulnerabilities: [],
+          vulnerabilities: []
         }
       end
 
@@ -1287,19 +1287,19 @@ RSpec.describe(StillActive::CLI) do
           last_commit_date: recent_date.iso8601,
           archived: false,
           vulnerability_count: 0,
-          vulnerabilities: [],
+          vulnerabilities: []
         }
       end
 
       before do
         File.write("sbom.json", {
           components: [
-            { type: "library", name: "left-pad", purl: "pkg:npm/left-pad@1.0.0" },
-            { type: "library", name: "gin", purl: "pkg:golang/github.com/gin-gonic/gin@1.9.1" },
-          ],
+            {type: "library", name: "left-pad", purl: "pkg:npm/left-pad@1.0.0"},
+            {type: "library", name: "gin", purl: "pkg:golang/github.com/gin-gonic/gin@1.9.1"}
+          ]
         }.to_json)
         allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
-          outcome({ "npm/left-pad@1.0.0" => npm_flagged, "go/github.com/gin-gonic/gin@1.9.1" => go_ok }),
+          outcome({"npm/left-pad@1.0.0" => npm_flagged, "go/github.com/gin-gonic/gin@1.9.1" => go_ok})
         ))
       end
 
@@ -1342,10 +1342,10 @@ RSpec.describe(StillActive::CLI) do
           archived: false,
           vulnerability_count: 0,
           vulnerabilities: [],
-          language_ceiling: { runtime: "python", severity: :note, eol_forced: false, latest_stable: "3.13", requirement: "<3.10", fixed_by_upgrade: false },
+          language_ceiling: {runtime: "python", severity: :note, eol_forced: false, latest_stable: "3.13", requirement: "<3.10", fixed_by_upgrade: false}
         }
         allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
-          outcome({ "npm/left-pad@1.0.0" => npm_flagged, "pypi/oldpkg@1.0.0" => ceiling }),
+          outcome({"npm/left-pad@1.0.0" => npm_flagged, "pypi/oldpkg@1.0.0" => ceiling})
         ))
         cli.run(["--sbom=sbom.json", "--sarif=out.sarif.json"])
         doc = JSON.parse(File.read("out.sarif.json"))
@@ -1399,7 +1399,7 @@ RSpec.describe(StillActive::CLI) do
 
       it("keeps the fail-if gate working alongside a format flag (regression guard)") do
         allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
-          outcome({ "npm/left-pad@1.0.0" => npm_flagged.merge(vulnerability_count: 1, vulnerabilities: [{ id: "CVE-2026-0002", severity: "high" }]) }),
+          outcome({"npm/left-pad@1.0.0" => npm_flagged.merge(vulnerability_count: 1, vulnerabilities: [{id: "CVE-2026-0002", severity: "high"}])})
         ))
         allow($stdout).to(receive(:puts))
         expect { cli.run(["--sbom=sbom.json", "--markdown", "--fail-if-vulnerable"]) }
@@ -1450,7 +1450,7 @@ RSpec.describe(StillActive::CLI) do
         # findings into one alert and silently drops a pinned copy's coverage.
         allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({
           "npm/left-pad@1.0.0" => npm_flagged,
-          "npm/left-pad@1.3.0" => npm_flagged.merge(version_used: "1.3.0"),
+          "npm/left-pad@1.3.0" => npm_flagged.merge(version_used: "1.3.0")
         })))
         captured = nil
         allow($stdout).to(receive(:puts)) { |arg| captured = arg }

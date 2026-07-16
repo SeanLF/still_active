@@ -34,15 +34,15 @@ module StillActive
       cargo: "crates.io",
       maven: "Maven",
       go: "Go",
-      nuget: "NuGet",
+      nuget: "NuGet"
     }.freeze
 
     # Prefer the newest CVSS version a record carries (v4 is the whole point: it's the
     # one deps.dev can't score). `severity[].score` is the vector STRING, oddly named.
-    CVSS_PRIORITY = { "CVSS_V4" => 3, "CVSS_V3" => 2, "CVSS_V2" => 1 }.freeze
+    CVSS_PRIORITY = {"CVSS_V4" => 3, "CVSS_V3" => 2, "CVSS_V2" => 1}.freeze
     # A v2 vector has no `CVSS:X.Y` prefix, so the version can't be read from the
     # string; fall back to the entry type so the CycloneDX rating method labels it v2.
-    TYPE_VERSIONS = { "CVSS_V4" => "4.0", "CVSS_V3" => "3.1", "CVSS_V2" => "2.0" }.freeze
+    TYPE_VERSIONS = {"CVSS_V4" => "4.0", "CVSS_V3" => "3.1", "CVSS_V2" => "2.0"}.freeze
 
     # Enrich each advisory in place with the OSV severity label and the fixed
     # versions for the audited package. A missing/failed lookup is a no-op on that
@@ -57,12 +57,12 @@ module StillActive
         advisory[:cvss_version] = record[:cvss_version]
         advisory[:cvss_vector] = record[:cvss_vector]
         advisory[:fixed_versions] = fixed_versions(record, ecosystem: ecosystem, name: name)
-      rescue StandardError => e
+      rescue => e
         # Enrichment is additive and best-effort. An unexpected OSV shape must never
         # raise out through the workflow's per-gem rescue, which would DROP the whole
         # gem and read a known-vulnerable dependency as clean. Leave the advisory
         # exactly as deps.dev produced it.
-        $stderr.puts("warning: OSV enrichment for #{advisory[:id]} failed: #{e.class} (#{e.message}); leaving advisory unchanged")
+        warn("warning: OSV enrichment for #{advisory[:id]} failed: #{e.class} (#{e.message}); leaving advisory unchanged")
       end
     end
 
@@ -83,7 +83,7 @@ module StillActive
         cvss_score: cvss[:score],
         cvss_version: cvss[:version],
         cvss_vector: cvss[:vector],
-        affected: Array(body["affected"]).filter_map { |entry| parse_affected(entry) },
+        affected: Array(body["affected"]).filter_map { |entry| parse_affected(entry) }
       }
     end
 
@@ -100,7 +100,7 @@ module StillActive
       return {} if entry.nil?
 
       vector = entry["score"]
-      { score: CvssHelper.score(vector), version: cvss_version(vector) || TYPE_VERSIONS[entry["type"]], vector: vector }
+      {score: CvssHelper.score(vector), version: cvss_version(vector) || TYPE_VERSIONS[entry["type"]], vector: vector}
     end
 
     # The X.Y version from a "CVSS:X.Y/..." vector prefix, or nil.
@@ -137,7 +137,7 @@ module StillActive
 
         Array(range["events"]).filter_map { |event| event["fixed"] if event.is_a?(Hash) }
       end
-      { ecosystem: package["ecosystem"], name: package["name"], fixed: fixed }
+      {ecosystem: package["ecosystem"], name: package["name"], fixed: fixed}
     end
 
     def encode(value)

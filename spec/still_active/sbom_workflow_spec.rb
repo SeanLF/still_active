@@ -18,17 +18,17 @@ RSpec.describe(StillActive::SbomWorkflow) do
       allow(StillActive::PythonHelper).to(receive(:supported_python_range).and_return(nil))
       allow(StillActive::DotnetHelper).to(receive_messages(supported_dotnet_range: nil, supported_dotnetfx_range: nil))
       allow(StillActive::EcosystemLens).to(receive(:assess)) do |ecosystem:, name:, version:, **_|
-        base = { ecosystem:, name:, version_used: version }
+        base = {ecosystem:, name:, version_used: version}
         if name == "foo"
-          base.merge(language_ceiling: { runtime: "Python", eol_forced: true, fixed_by_upgrade: true, requirement: "< 3.10" })
+          base.merge(language_ceiling: {runtime: "Python", eol_forced: true, fixed_by_upgrade: true, requirement: "< 3.10"})
         else
-          base.merge(constraints: [{ dependency: "foo", requirement: "< 1.0", dep_latest: "2.0.0", majors_behind: 2, kind: :ceiling }])
+          base.merge(constraints: [{dependency: "foo", requirement: "< 1.0", dep_latest: "2.0.0", majors_behind: 2, kind: :ceiling}])
         end
       end
 
       out = described_class.call(result_with([
-        { ecosystem: :pypi, name: "foo", version: "1.0.0" },
-        { ecosystem: :pypi, name: "bar", version: "0.1.0" },
+        {ecosystem: :pypi, name: "foo", version: "1.0.0"},
+        {ecosystem: :pypi, name: "bar", version: "0.1.0"}
       ]))
 
       ceiling = out.assessed["pypi/foo@1.0.0"][:language_ceiling]
@@ -38,10 +38,10 @@ RSpec.describe(StillActive::SbomWorkflow) do
 
     it("runs the lens over each dependency, keyed by ecosystem/name@version") do
       deps = [
-        { ecosystem: :npm, name: "express", version: "5.2.1" },
-        { ecosystem: :pypi, name: "requests", version: "2.32.5" },
+        {ecosystem: :npm, name: "express", version: "5.2.1"},
+        {ecosystem: :pypi, name: "requests", version: "2.32.5"}
       ]
-      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| {ecosystem:, name:, version_used: version} }
 
       out = described_class.call(result_with(deps))
 
@@ -52,10 +52,10 @@ RSpec.describe(StillActive::SbomWorkflow) do
 
     it("does not let an npm and a pypi package of the same name collide") do
       deps = [
-        { ecosystem: :npm, name: "foo", version: "1.0.0" },
-        { ecosystem: :pypi, name: "foo", version: "2.0.0" },
+        {ecosystem: :npm, name: "foo", version: "1.0.0"},
+        {ecosystem: :pypi, name: "foo", version: "2.0.0"}
       ]
-      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| {ecosystem:, name:, version_used: version} }
 
       out = described_class.call(result_with(deps))
 
@@ -69,10 +69,10 @@ RSpec.describe(StillActive::SbomWorkflow) do
       # name they'd collide and one verdict would be silently dropped; keyed by
       # ecosystem/name@version both survive with their own assessment.
       deps = [
-        { ecosystem: :pypi, name: "attrs", version: "25.4.0" },
-        { ecosystem: :pypi, name: "attrs", version: "26.1.0" },
+        {ecosystem: :pypi, name: "attrs", version: "25.4.0"},
+        {ecosystem: :pypi, name: "attrs", version: "26.1.0"}
       ]
-      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| {ecosystem:, name:, version_used: version} }
 
       out = described_class.call(result_with(deps))
 
@@ -82,13 +82,13 @@ RSpec.describe(StillActive::SbomWorkflow) do
 
     it("keeps assessing the rest when one dependency's lens raises, and reports the failure instead of dropping it") do
       deps = [
-        { ecosystem: :npm, name: "good", version: "1.0.0" },
-        { ecosystem: :cargo, name: "boom", version: "0.1.0" },
+        {ecosystem: :npm, name: "good", version: "1.0.0"},
+        {ecosystem: :cargo, name: "boom", version: "0.1.0"}
       ]
       allow(StillActive::EcosystemLens).to(receive(:assess)) do |ecosystem:, name:, version:, **_|
         raise "kaboom" if name == "boom"
 
-        { ecosystem:, name:, version_used: version }
+        {ecosystem:, name:, version_used: version}
       end
 
       out = described_class.call(result_with(deps))
@@ -97,7 +97,7 @@ RSpec.describe(StillActive::SbomWorkflow) do
       # The raised dep is surfaced as a failure, not silently gone: it must reach
       # the report so the audit can't read "all clear" while skipping it.
       expect(out.failures).to(contain_exactly(
-        include(ecosystem: :cargo, name: "boom", version: "0.1.0", reason: :assessment_error),
+        include(ecosystem: :cargo, name: "boom", version: "0.1.0", reason: :assessment_error)
       ))
       expect(out.failures.first[:error]).to(include("kaboom"))
     end
@@ -106,10 +106,10 @@ RSpec.describe(StillActive::SbomWorkflow) do
       # SbomReader marks production vs dev/test when the SBOM says so; that verdict
       # has to reach the output so a consumer can separate prod risk from test debt.
       deps = [
-        { ecosystem: :npm, name: "express", version: "5.2.1", production: true },
-        { ecosystem: :npm, name: "jest", version: "29.7.0", production: false },
+        {ecosystem: :npm, name: "express", version: "5.2.1", production: true},
+        {ecosystem: :npm, name: "jest", version: "29.7.0", production: false}
       ]
-      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| {ecosystem:, name:, version_used: version} }
 
       out = described_class.call(result_with(deps))
 
@@ -121,8 +121,8 @@ RSpec.describe(StillActive::SbomWorkflow) do
       # A syft-style SBOM carries no scope: SbomReader leaves the key absent. The
       # workflow must not invent a `production: nil` -- absent means unknown, and a
       # false would wrongly read as "test-only".
-      deps = [{ ecosystem: :npm, name: "lodash", version: "4.17.21" }]
-      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| { ecosystem:, name:, version_used: version } }
+      deps = [{ecosystem: :npm, name: "lodash", version: "4.17.21"}]
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| {ecosystem:, name:, version_used: version} }
 
       out = described_class.call(result_with(deps))
 
@@ -132,18 +132,18 @@ RSpec.describe(StillActive::SbomWorkflow) do
     it("preserves the production flag on a dependency whose lens raises") do
       # A failed prod dependency must stay distinguishable from a failed dev one, so
       # the failure entry carries the same production verdict as an assessed one.
-      deps = [{ ecosystem: :cargo, name: "boom", version: "0.1.0", production: true }]
+      deps = [{ecosystem: :cargo, name: "boom", version: "0.1.0", production: true}]
       allow(StillActive::EcosystemLens).to(receive(:assess)) { raise "kaboom" }
 
       out = described_class.call(result_with(deps))
 
       expect(out.failures).to(contain_exactly(
-        include(ecosystem: :cargo, name: "boom", version: "0.1.0", reason: :assessment_error, production: true),
+        include(ecosystem: :cargo, name: "boom", version: "0.1.0", reason: :assessment_error, production: true)
       ))
     end
 
     it("reports progress as each dependency completes") do
-      deps = [{ ecosystem: :npm, name: "a", version: "1" }, { ecosystem: :npm, name: "b", version: "1" }]
+      deps = [{ecosystem: :npm, name: "a", version: "1"}, {ecosystem: :npm, name: "b", version: "1"}]
       allow(StillActive::EcosystemLens).to(receive(:assess).and_return({}))
       seen = []
 

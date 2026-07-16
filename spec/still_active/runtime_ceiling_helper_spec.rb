@@ -9,13 +9,13 @@ RSpec.describe(StillActive::RuntimeCeilingHelper) do
       oldest_supported: Gem::Version.new("3.3"),
       latest_stable: Gem::Version.new("4.0.5"),
       cycles: [
-        { version: Gem::Version.new("4.0"), eol: false, eol_date: Time.parse("2029-03-31") },
-        { version: Gem::Version.new("3.4"), eol: false, eol_date: Time.parse("2028-03-31") },
-        { version: Gem::Version.new("3.3"), eol: false, eol_date: Time.parse("2027-03-31") },
-        { version: Gem::Version.new("3.2"), eol: true, eol_date: Time.parse("2026-03-31") },
-        { version: Gem::Version.new("3.1"), eol: true, eol_date: Time.parse("2025-03-31") },
-        { version: Gem::Version.new("3.0"), eol: true, eol_date: Time.parse("2024-04-23") },
-      ],
+        {version: Gem::Version.new("4.0"), eol: false, eol_date: Time.parse("2029-03-31")},
+        {version: Gem::Version.new("3.4"), eol: false, eol_date: Time.parse("2028-03-31")},
+        {version: Gem::Version.new("3.3"), eol: false, eol_date: Time.parse("2027-03-31")},
+        {version: Gem::Version.new("3.2"), eol: true, eol_date: Time.parse("2026-03-31")},
+        {version: Gem::Version.new("3.1"), eol: true, eol_date: Time.parse("2025-03-31")},
+        {version: Gem::Version.new("3.0"), eol: true, eol_date: Time.parse("2024-04-23")}
+      ]
     }
   end
 

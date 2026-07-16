@@ -32,20 +32,20 @@ module StillActive
       # Apply the committed .still_active.yml first so CLI flags (parsed next)
       # win over it: CLI flag > env var > config file > default.
       config_data = ConfigFile.load
-      ConfigFile.apply(StillActive.config, config_data).each { |warning| $stderr.puts("warning: #{warning}") }
+      ConfigFile.apply(StillActive.config, config_data).each { |warning| warn("warning: #{warning}") }
       options = begin
         Options.new.parse!(args)
       rescue ArgumentError, OptionParser::ParseError => e
         # Bad CLI input (conflicting flags, a missing file, an unknown flag, a bad
         # enum value) is a user error: print it and exit 2, matching the SBOM/baseline
         # paths, rather than letting the raise bubble into a Ruby backtrace.
-        $stderr.puts("error: #{e.message}")
+        warn("error: #{e.message}")
         exit(2)
       end
       # After CLI flags resolve, nudge (don't auto-inherit) an un-imported
       # bundler-audit ignore list when the vulnerability gate is on.
       hint = ConfigFile.import_hint(config_data)
-      $stderr.puts("hint: #{hint}") if hint
+      warn("hint: #{hint}") if hint
       # An SBOM audit is cross-ecosystem: it runs the deps.dev/ecosyste.ms lens
       # over the SBOM's packages, not Bundler over a lockfile. Dispatch before the
       # Bundler resolution below so a Gemfile is never required (or read).
@@ -55,7 +55,7 @@ module StillActive
         begin
           StillActive.config.gems = BundlerHelper.gemfile_dependencies
         rescue MissingLockfileError => e
-          $stderr.puts("error: #{e.message}")
+          warn("error: #{e.message}")
           exit(2)
         end
       end
@@ -85,7 +85,7 @@ module StillActive
           output = {
             "$schema": SCHEMA_URL,
             schema_version: 1,
-            tool: { name: "still_active", version: StillActive::VERSION },
+            tool: {name: "still_active", version: StillActive::VERSION},
             generated_at: Time.now.utc.iso8601,
             # A one-object digest of the audit's posture, so a machine/LLM
             # consumer reads the headline counts without iterating every gem.
@@ -95,9 +95,9 @@ module StillActive
             gems: result.transform_values do |data|
               data.merge(
                 activity_level: ActivityHelper.activity_level(data),
-                status: StatusHelper.gem_status(data),
+                status: StatusHelper.gem_status(data)
               )
-            end,
+            end
           }
           output[:ruby] = ruby_info if ruby_info
           output[:pr_context] = pr_context if pr_context
@@ -127,7 +127,7 @@ module StillActive
       # field rename would silently zero every vuln count. Canary the schema once
       # and warn loudly so a degraded run never reads as an authoritative all-clear.
       unless DepsDevClient.advisory_schema_ok?
-        $stderr.puts("warning: deps.dev vulnerability schema check failed (its `advisoryKeys` field may have changed, or the API is unreachable); vulnerability counts may be understated -- a clean result is NOT authoritative")
+        warn("warning: deps.dev vulnerability schema check failed (its `advisoryKeys` field may have changed, or the API is unreachable); vulnerability counts may be understated -- a clean result is NOT authoritative")
       end
       sbom = SbomReader.parse(path)
       outcome = if $stderr.tty?
@@ -174,7 +174,7 @@ module StillActive
     end
 
     def unsupported_sbom_format!(flag)
-      $stderr.puts("error: #{flag} output is not supported in --sbom mode (it needs the native Ruby audit's lockfile/snapshot, which a cross-ecosystem SBOM can't supply); use --sarif, --markdown, --terminal, or --json")
+      warn("error: #{flag} output is not supported in --sbom mode (it needs the native Ruby audit's lockfile/snapshot, which a cross-ecosystem SBOM can't supply); use --sarif, --markdown, --terminal, or --json")
       exit(2)
     end
 
@@ -182,7 +182,7 @@ module StillActive
       sarif_json = SarifHelper.render_sbom(
         result: result,
         source_uri: File.basename(sbom_path),
-        tool_version: StillActive::VERSION,
+        tool_version: StillActive::VERSION
       )
 
       write_output(sarif_path, sarif_json)
@@ -190,7 +190,7 @@ module StillActive
 
     # "-" means stdout (the SARIF/CycloneDX convention); any other PATH is a file.
     def write_output(path, content)
-      path == "-" ? puts(content) : File.write(path, content)
+      (path == "-") ? puts(content) : File.write(path, content)
     end
 
     # SbomReader never raises (a malformed file degrades to an empty result), which
@@ -204,15 +204,15 @@ module StillActive
       # Matches SbomReader's own parse contract (a `components` array is what it
       # reads). A metadata-only CycloneDX has nothing to audit, so the message
       # names the missing array rather than over-claiming "not CycloneDX".
-      $stderr.puts("error: #{path} has no CycloneDX `components` array to audit")
+      warn("error: #{path} has no CycloneDX `components` array to audit")
       exit(2)
     rescue JSON::ParserError
-      $stderr.puts("error: #{path} is not valid JSON")
+      warn("error: #{path} is not valid JSON")
       exit(2)
     rescue SystemCallError => e
       # Options checked the path exists, not that it's readable (a permission
       # denial, or a directory). Exit cleanly instead of crashing with a trace.
-      $stderr.puts("error: cannot read SBOM file #{path}: #{e.message}")
+      warn("error: cannot read SBOM file #{path}: #{e.message}")
       exit(2)
     end
 
@@ -222,16 +222,16 @@ module StillActive
     def emit_sbom_json(result, unassessable)
       output = {
         schema_version: 1,
-        tool: { name: "still_active", version: StillActive::VERSION },
+        tool: {name: "still_active", version: StillActive::VERSION},
         generated_at: Time.now.utc.iso8601,
         summary: sbom_summary(result, unassessable),
         dependencies: result.transform_values do |data|
           data.merge(
             activity_level: ActivityHelper.activity_level(data),
-            status: StatusHelper.gem_status(data),
+            status: StatusHelper.gem_status(data)
           )
         end,
-        unassessable:,
+        unassessable:
       }
       puts iso8601_times(output).to_json
     end
@@ -244,7 +244,7 @@ module StillActive
         # The single worst per-dependency verdict, so a consumer reads one
         # project-level posture without scanning every dependency.
         status: StatusHelper.project_status(result),
-        status_counts: statuses.tally,
+        status_counts: statuses.tally
       }
     end
 
@@ -253,8 +253,8 @@ module StillActive
     def warn_unassessable(unassessable)
       return if unassessable.empty?
 
-      noun = unassessable.size == 1 ? "dependency" : "dependencies"
-      $stderr.puts("warning: #{unassessable.size} #{noun} could not be assessed " \
+      noun = (unassessable.size == 1) ? "dependency" : "dependencies"
+      warn("warning: #{unassessable.size} #{noun} could not be assessed " \
         "(a private/alternative registry, unsupported ecosystem, missing version, no package URL, or a lookup failure); " \
         "see \"unassessable\" in the JSON output")
     end
@@ -278,7 +278,7 @@ module StillActive
     def warn_stale_suppressions
       present = StillActive.config.gems.map { |gem| gem[:name] }
       StillActive.config.suppressions.stale_gem_warnings(present).each do |warning|
-        $stderr.puts("warning: #{warning}")
+        warn("warning: #{warning}")
       end
     end
 
@@ -288,10 +288,10 @@ module StillActive
     def warn_output_flag_conflicts(options)
       modes = active_output_modes
       if modes.size > 1
-        $stderr.puts("warning: multiple output modes set (#{modes.join(", ")}); using #{modes.first}, ignoring #{modes.drop(1).join(", ")}")
+        warn("warning: multiple output modes set (#{modes.join(", ")}); using #{modes.first}, ignoring #{modes.drop(1).join(", ")}")
       end
       if options[:provided_cyclonedx_version] && StillActive.config.cyclonedx_path.nil?
-        $stderr.puts("warning: --cyclonedx-version has no effect without --cyclonedx")
+        warn("warning: --cyclonedx-version has no effect without --cyclonedx")
       end
     end
 
@@ -301,14 +301,14 @@ module StillActive
       [
         ("--baseline" if config.baseline_path),
         ("--sarif" if config.sarif_path),
-        ("--cyclonedx" if config.cyclonedx_path),
+        ("--cyclonedx" if config.cyclonedx_path)
       ].compact
     end
 
     def emit_sarif(result, ruby_info, sarif_path)
       lockfile = resolve_lockfile_path(StillActive.config.gemfile_path)
       unless File.exist?(lockfile)
-        $stderr.puts("error: --sarif requires a lockfile at #{lockfile}")
+        warn("error: --sarif requires a lockfile at #{lockfile}")
         exit(2)
       end
 
@@ -316,7 +316,7 @@ module StillActive
         result: result,
         ruby_info: ruby_info,
         lockfile_path: lockfile,
-        tool_version: StillActive::VERSION,
+        tool_version: StillActive::VERSION
       )
 
       write_output(sarif_path, sarif_json)
@@ -327,7 +327,7 @@ module StillActive
         result: result,
         ruby_info: ruby_info,
         tool_version: StillActive::VERSION,
-        spec_version: StillActive.config.cyclonedx_version,
+        spec_version: StillActive.config.cyclonedx_version
       )
 
       write_output(cyclonedx_path, sbom)
@@ -349,13 +349,13 @@ module StillActive
       puts DiffMarkdownHelper.render(diff, accepted: accepted)
       exit(1) if diff.regressions.any?
     rescue JSON::ParserError => e
-      $stderr.puts("error: --baseline file is not valid JSON: #{e.message}")
+      warn("error: --baseline file is not valid JSON: #{e.message}")
       exit(2)
     rescue Diff::UnsupportedSchemaError => e
-      $stderr.puts("error: #{e.message}")
+      warn("error: #{e.message}")
       exit(2)
     rescue Errno::ENOENT, Errno::EACCES, Errno::EISDIR => e
-      $stderr.puts("error: cannot read baseline file: #{e.message}")
+      warn("error: cannot read baseline file: #{e.message}")
       exit(2)
     end
 
@@ -383,9 +383,9 @@ module StillActive
     def current_snapshot(result, ruby_info)
       snapshot = {
         "schema_version" => 1,
-        "tool" => { "name" => "still_active", "version" => StillActive::VERSION },
+        "tool" => {"name" => "still_active", "version" => StillActive::VERSION},
         "generated_at" => Time.now.utc.iso8601,
-        "gems" => JSON.parse(result.to_json),
+        "gems" => JSON.parse(result.to_json)
       }
       snapshot["ruby"] = JSON.parse(ruby_info.to_json) if ruby_info
       snapshot
@@ -406,11 +406,11 @@ module StillActive
         gem_data[:last_activity_warning_emoji] = EmojiHelper.inactive_gem_emoji(gem_data)
         gem_data[:up_to_date_emoji] = EmojiHelper.using_latest_emoji(
           using_last_release: VersionHelper.up_to_date(
-            version_used: gem_data[:version_used], latest_version: gem_data[:latest_version],
+            version_used: gem_data[:version_used], latest_version: gem_data[:latest_version]
           ),
           using_last_pre_release: VersionHelper.up_to_date(
-            version_used: gem_data[:version_used], latest_pre_release_version: gem_data[:latest_pre_release_version],
-          ),
+            version_used: gem_data[:version_used], latest_pre_release_version: gem_data[:latest_pre_release_version]
+          )
         )
 
         puts MarkdownHelper.markdown_table_body_line(gem_name: name, data: gem_data)
@@ -460,7 +460,7 @@ module StillActive
 
         ids = unknown.filter_map { |vuln| vuln[:id] }.join(", ")
         labelled = ids.empty? ? "" : " (#{ids})"
-        $stderr.puts("warning: #{gem} has an advisory of unknown severity#{labelled}; failing --fail-if-vulnerable=#{threshold} because it can't be ruled out below the threshold (review, then fix or suppress it in .still_active.yml)")
+        warn("warning: #{gem} has an advisory of unknown severity#{labelled}; failing --fail-if-vulnerable=#{threshold} because it can't be ruled out below the threshold (review, then fix or suppress it in .still_active.yml)")
       end
     end
 
@@ -485,7 +485,7 @@ module StillActive
 
       # Bare --fail-if-poison fails at :warning and above (a 1-behind :note is FYI,
       # not a build breaker); --fail-if-poison=TIER sets an explicit threshold.
-      threshold = config.fail_if_poison == true ? :warning : config.fail_if_poison
+      threshold = (config.fail_if_poison == true) ? :warning : config.fail_if_poison
       ConstraintHelper.severity_at_or_above?(data[:poison_severity], threshold)
     end
 
@@ -498,7 +498,7 @@ module StillActive
       # bare flag defaults to :critical (the genuine blocker: no supported runtime
       # is reachable). A latest-not-yet :note is an FYI/contribution lead that gates
       # only when the user explicitly opts in with =note.
-      threshold = config.fail_if_language_ceiling == true ? :critical : config.fail_if_language_ceiling
+      threshold = (config.fail_if_language_ceiling == true) ? :critical : config.fail_if_language_ceiling
       ConstraintHelper.severity_at_or_above?(data.dig(:language_ceiling, :severity), threshold)
     end
 

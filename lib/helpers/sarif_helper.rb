@@ -40,7 +40,7 @@ module StillActive
         ruby_info: ruby_info,
         line_index: line_index,
         ruby_line: ruby_line,
-        lockfile_uri: lockfile_uri,
+        lockfile_uri: lockfile_uri
       )
 
       JSON.pretty_generate(document(results: results, tool_version: tool_version, flavour: :ruby))
@@ -64,7 +64,7 @@ module StillActive
         ruby_info: nil,
         line_index: {},
         ruby_line: nil,
-        lockfile_uri: source_uri,
+        lockfile_uri: source_uri
       )
 
       JSON.pretty_generate(document(results: results, tool_version: tool_version, flavour: :neutral))
@@ -95,13 +95,13 @@ module StillActive
               "version" => tool_version,
               "semanticVersion" => VersionHelper.to_semver(tool_version),
               "informationUri" => TOOL_URI,
-              "rules" => catalog.map { |r| sarif_rule(r) },
-            },
+              "rules" => catalog.map { |r| sarif_rule(r) }
+            }
           },
-          "originalUriBaseIds" => { "%SRCROOT%" => { "uri" => "file:///" } },
+          "originalUriBaseIds" => {"%SRCROOT%" => {"uri" => "file:///"}},
           "results" => results.map { |res| stamp_rule_index(res, index_by_id) },
-          "columnKind" => "utf16CodeUnits",
-        }],
+          "columnKind" => "utf16CodeUnits"
+        }]
       }
     end
 
@@ -113,17 +113,17 @@ module StillActive
     end
 
     def sarif_rule(r)
-      properties = { "tags" => r[:tags], "precision" => "high" }
+      properties = {"tags" => r[:tags], "precision" => "high"}
       properties["security-severity"] = r[:security_severity] if r[:security_severity]
       {
         "id" => r[:id],
         "name" => r[:name],
-        "shortDescription" => { "text" => r[:short] },
-        "fullDescription" => { "text" => r[:full] },
-        "help" => { "text" => r[:help_text], "markdown" => r[:help_markdown] },
+        "shortDescription" => {"text" => r[:short]},
+        "fullDescription" => {"text" => r[:full]},
+        "help" => {"text" => r[:help_text], "markdown" => r[:help_markdown]},
         "helpUri" => Sarif::Rules.help_uri(r[:id]),
-        "defaultConfiguration" => { "level" => r[:level] },
-        "properties" => properties,
+        "defaultConfiguration" => {"level" => r[:level]},
+        "properties" => properties
       }
     end
 
@@ -157,16 +157,16 @@ module StillActive
         if ActivityHelper.activity_level(data) == :critical
           activity = ActivityHelper.last_activity(data)
           years = ((Time.now - activity[:date]) / SECONDS_PER_YEAR).round(1)
-          noun = activity[:kind] == :release ? "no release" : "no commits"
+          noun = (activity[:kind] == :release) ? "no release" : "no commits"
           out << mark_suppressed(
             result(
               "SA002",
               name,
               "#{display} #{version}: #{noun} in #{years} years (last #{activity[:date].utc.strftime("%Y-%m-%d")})#{alternatives_suffix(data)}#{transitive_suffix(data)}.",
-              location,
+              location
             ),
             display,
-            :activity,
+            :activity
           )
         end
       end
@@ -220,7 +220,7 @@ module StillActive
     end
 
     def language_ceiling_level(data)
-      { critical: "error", warning: "warning", note: "note" }.fetch(data[:language_ceiling][:severity], "note")
+      {critical: "error", warning: "warning", note: "note"}.fetch(data[:language_ceiling][:severity], "note")
     end
 
     def language_ceiling_message(display, version, data)
@@ -234,7 +234,7 @@ module StillActive
         else
           "no #{runtime} #{ceiling[:latest_stable]} support yet"
         end
-      fix = ceiling[:fixed_by_upgrade] && data[:latest_version] ? "; upgrade to #{data[:latest_version]} to lift it" : ""
+      fix = (ceiling[:fixed_by_upgrade] && data[:latest_version]) ? "; upgrade to #{data[:latest_version]} to lift it" : ""
       "#{display} #{version}: requires #{runtime} #{ceiling[:requirement]}, #{body}#{fix}#{transitive_suffix(data)}."
     end
 
@@ -250,7 +250,7 @@ module StillActive
       # security finding, not the maintenance-tier signal poison usually is.
       return "error" if data[:poison_security_relevant]
 
-      { critical: "error", warning: "warning", note: "note" }.fetch(data[:poison_severity], "warning")
+      {critical: "error", warning: "warning", note: "note"}.fetch(data[:poison_severity], "warning")
     end
 
     def poison_message(display, version, data)
@@ -290,14 +290,14 @@ module StillActive
     def mark_suppressed(result_hash, gem_name, signal, advisory: nil, aliases: [])
       config = StillActive.config
       if config.ignored_gems.include?(gem_name)
-        result_hash["suppressions"] = [{ "kind" => "external", "justification" => "ignored via --ignore" }]
+        result_hash["suppressions"] = [{"kind" => "external", "justification" => "ignored via --ignore"}]
         return result_hash
       end
 
       entry = config.suppressions.match(gem: gem_name, signal: signal, advisory: advisory, aliases: aliases)
       return result_hash unless entry
 
-      suppression = { "kind" => "external" }
+      suppression = {"kind" => "external"}
       suppression["justification"] = entry.reason if entry.reason
       result_hash["suppressions"] = [suppression]
       result_hash
@@ -331,9 +331,9 @@ module StillActive
         "#{display} #{version}: #{advisory_id}#{title}#{alias_suffix}#{no_fix}#{transitive_suffix(data)}.",
         location,
         level: level,
-        fp_extra: advisory_id,
+        fp_extra: advisory_id
       )
-      base["properties"] = { "security-severity" => severity } if severity
+      base["properties"] = {"security-severity" => severity} if severity
       mark_suppressed(base, display, :vulnerability, advisory: vuln[:id], aliases: Array(vuln[:aliases]))
     end
 
@@ -354,13 +354,13 @@ module StillActive
       base = {
         "ruleId" => "SA006",
         "level" => "error",
-        "message" => { "text" => "Ruby #{version} has reached end-of-life#{eol_part}.#{latest_part}" },
+        "message" => {"text" => "Ruby #{version} has reached end-of-life#{eol_part}.#{latest_part}"},
         "locations" => [{
           "physicalLocation" => {
-            "artifactLocation" => { "uri" => lockfile_uri, "uriBaseId" => "%SRCROOT%" },
-            "region" => { "startLine" => ruby_line },
-          },
-        }],
+            "artifactLocation" => {"uri" => lockfile_uri, "uriBaseId" => "%SRCROOT%"},
+            "region" => {"startLine" => ruby_line}
+          }
+        }]
       }
       apply_fingerprint(base, fingerprint("SA006", "ruby"))
     end
@@ -370,8 +370,8 @@ module StillActive
       base = {
         "ruleId" => rule_id,
         "level" => level,
-        "message" => { "text" => message },
-        "locations" => [location],
+        "message" => {"text" => message},
+        "locations" => [location]
       }
       apply_fingerprint(base, fingerprint(rule_id, gem_name, fp_extra))
     end
@@ -379,7 +379,7 @@ module StillActive
     def apply_fingerprint(result, fp)
       result["partialFingerprints"] = {
         "primaryLocationLineHash" => fp,
-        "stillActiveFinding/v1" => fp,
+        "stillActiveFinding/v1" => fp
       }
       result
     end
@@ -387,9 +387,9 @@ module StillActive
     def location_for(gem_name, line_index, lockfile_uri)
       {
         "physicalLocation" => {
-          "artifactLocation" => { "uri" => lockfile_uri, "uriBaseId" => "%SRCROOT%" },
-          "region" => { "startLine" => line_index[gem_name] || 1 },
-        },
+          "artifactLocation" => {"uri" => lockfile_uri, "uriBaseId" => "%SRCROOT%"},
+          "region" => {"startLine" => line_index[gem_name] || 1}
+        }
       }
     end
 

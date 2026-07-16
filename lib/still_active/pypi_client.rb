@@ -30,7 +30,7 @@ module StillActive
       return if name.nil? || version.nil?
 
       path = "/pypi/#{encode(name)}/#{encode(version)}/json"
-      body = HttpHelper.get_json(BASE_URI, path, headers: { "User-Agent" => USER_AGENT })
+      body = HttpHelper.get_json(BASE_URI, path, headers: {"User-Agent" => USER_AGENT})
       return unless body.is_a?(Hash)
 
       # Guard the nested read: a non-Hash `info` (schema drift) would make

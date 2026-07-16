@@ -99,9 +99,9 @@ module StillActive
       finding = {
         requirement: runtimes.map { |r| r[:moniker] }.uniq.sort.join(", "),
         eol_forced: true,
-        runtime: ceiling[:family] == :dotnetfx ? ".NET Framework" : ".NET",
+        runtime: (ceiling[:family] == :dotnetfx) ? ".NET Framework" : ".NET",
         ceiling_version: ceiling[:version].to_s,
-        ceiling_eol_date: ceiling[:cycle][:eol_date],
+        ceiling_eol_date: ceiling[:cycle][:eol_date]
       }
       finding.merge(severity: ConstraintHelper.constraint_severity(finding))
     end
@@ -122,14 +122,14 @@ module StillActive
     def build(family, version)
       return unless version && Gem::Version.correct?(version)
 
-      { family: family, version: Gem::Version.new(version) }
+      {family: family, version: Gem::Version.new(version)}
     end
 
     # The endoflife cycle for a classified target, or nil when the feed is down or
     # the cycle isn't tracked (an ancient net20 predating the feed) -- unknown, not
     # assumed EOL.
     def cycle_for(classification, dotnet:, dotnetfx:)
-      window = classification[:family] == :dotnetfx ? dotnetfx : dotnet
+      window = (classification[:family] == :dotnetfx) ? dotnetfx : dotnet
       return if window.nil?
 
       # Match on the release segment, ignoring any prerelease suffix: endoflife

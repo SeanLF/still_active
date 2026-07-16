@@ -82,7 +82,7 @@ module StillActive
         ceiling_version: ceiling[:version].to_s,
         ceiling_eol_date: ceiling[:eol_date],
         oldest_supported: support_window[:oldest_supported].to_s,
-        latest_stable: support_window[:latest_stable].to_s,
+        latest_stable: support_window[:latest_stable].to_s
       }
       finding.merge(severity: ConstraintHelper.constraint_severity(finding))
     end
@@ -92,7 +92,7 @@ module StillActive
         requirement: requirement,
         eol_forced: false,
         oldest_supported: support_window[:oldest_supported].to_s,
-        latest_stable: support_window[:latest_stable].to_s,
+        latest_stable: support_window[:latest_stable].to_s
       }
       finding.merge(severity: ConstraintHelper.constraint_severity(finding))
     end

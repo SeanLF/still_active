@@ -50,7 +50,7 @@ RSpec.describe(StillActive::Diff) do
       end
 
       it("rejects a baseline whose gems section is not an object") do
-        malformed = { "schema_version" => 1, "gems" => [] }
+        malformed = {"schema_version" => 1, "gems" => []}
         expect { described_class.call(baseline: malformed, current: current) }
           .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /gems/))
       end
@@ -59,7 +59,7 @@ RSpec.describe(StillActive::Diff) do
         # "rails" is in both snapshots, so a null/scalar value here would reach
         # the intersection branch: a nil crashes (before["version_used"]), a
         # string silently produces a wrong diff. Both must be a clean rejection.
-        malformed = { "schema_version" => 1, "gems" => { "rails" => nil } }
+        malformed = {"schema_version" => 1, "gems" => {"rails" => nil}}
         expect { described_class.call(baseline: malformed, current: current) }
           .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /rails/))
       end
@@ -67,25 +67,25 @@ RSpec.describe(StillActive::Diff) do
       it("rejects a non-numeric numeric field instead of silently fabricating a count") do
         # vuln_count does .to_i, so "two" would silently become 0 and feed a
         # bogus vulnerability regression. Reject rather than fabricate.
-        malformed = { "schema_version" => 1, "gems" => { "rails" => { "vulnerability_count" => "two" } } }
+        malformed = {"schema_version" => 1, "gems" => {"rails" => {"vulnerability_count" => "two"}}}
         expect { described_class.call(baseline: malformed, current: current) }
           .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /rails/))
       end
 
       it("rejects a vulnerabilities field that is not an array instead of silently dropping advisory ids") do
-        malformed = { "schema_version" => 1, "gems" => { "rails" => { "vulnerabilities" => "lots" } } }
+        malformed = {"schema_version" => 1, "gems" => {"rails" => {"vulnerabilities" => "lots"}}}
         expect { described_class.call(baseline: malformed, current: current) }
           .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /rails/))
       end
 
       it("rejects a ruby section that is not an object instead of crashing or silently ignoring it") do
-        malformed = { "schema_version" => 1, "gems" => {}, "ruby" => ["3.2.0"] }
+        malformed = {"schema_version" => 1, "gems" => {}, "ruby" => ["3.2.0"]}
         expect { described_class.call(baseline: malformed, current: current) }
           .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /ruby/))
       end
 
       it("rejects a non-object vulnerability entry, which advisory_ids would deref as a hash") do
-        malformed = { "schema_version" => 1, "gems" => { "rails" => { "vulnerabilities" => [42] } } }
+        malformed = {"schema_version" => 1, "gems" => {"rails" => {"vulnerabilities" => [42]}}}
         expect { described_class.call(baseline: malformed, current: current) }
           .to(raise_error(StillActive::Diff::UnsupportedSchemaError, /rails/))
       end
@@ -133,13 +133,13 @@ RSpec.describe(StillActive::Diff) do
       it("flags libyear growth on an UNCHANGED pinned version") do
         baseline_v2 = baseline.merge(
           "gems" => baseline["gems"].merge(
-            "stagnant" => { "source_type" => "rubygems", "version_used" => "1.0.0", "libyear" => 0.5 },
-          ),
+            "stagnant" => {"source_type" => "rubygems", "version_used" => "1.0.0", "libyear" => 0.5}
+          )
         )
         current_v2 = current.merge(
           "gems" => current["gems"].merge(
-            "stagnant" => { "source_type" => "rubygems", "version_used" => "1.0.0", "libyear" => 1.2 },
-          ),
+            "stagnant" => {"source_type" => "rubygems", "version_used" => "1.0.0", "libyear" => 1.2}
+          )
         )
         d = described_class.call(baseline: baseline_v2, current: current_v2)
         regs = d.regressions.select { |r| r.gem == "stagnant" && r.kind == :libyear_worsened }
@@ -182,13 +182,13 @@ RSpec.describe(StillActive::Diff) do
       it("flags a crossing of 7.0 even when the absolute drop is <1.0") do
         baseline_v2 = baseline.merge(
           "gems" => baseline["gems"].merge(
-            "edge" => { "source_type" => "rubygems", "version_used" => "1.0.0", "scorecard_score" => 7.2 },
-          ),
+            "edge" => {"source_type" => "rubygems", "version_used" => "1.0.0", "scorecard_score" => 7.2}
+          )
         )
         current_v2 = current.merge(
           "gems" => current["gems"].merge(
-            "edge" => { "source_type" => "rubygems", "version_used" => "1.0.0", "scorecard_score" => 6.5 },
-          ),
+            "edge" => {"source_type" => "rubygems", "version_used" => "1.0.0", "scorecard_score" => 6.5}
+          )
         )
         d = described_class.call(baseline: baseline_v2, current: current_v2)
         regs = d.regressions.select { |r| r.gem == "edge" && r.kind == :scorecard_dropped }
@@ -200,17 +200,17 @@ RSpec.describe(StillActive::Diff) do
       it("flags a bump that introduced new vulns") do
         baseline_v2 = baseline.merge(
           "gems" => baseline["gems"].merge(
-            "rails" => baseline["gems"]["rails"].merge("vulnerability_count" => 0, "vulnerabilities" => []),
-          ),
+            "rails" => baseline["gems"]["rails"].merge("vulnerability_count" => 0, "vulnerabilities" => [])
+          )
         )
         current_v2 = current.merge(
           "gems" => current["gems"].merge(
             "rails" => current["gems"]["rails"].merge(
               "version_used" => "7.1.0",
               "vulnerability_count" => 1,
-              "vulnerabilities" => [{ "id" => "CVE-new-1", "cvss3_score" => 9.0 }],
-            ),
-          ),
+              "vulnerabilities" => [{"id" => "CVE-new-1", "cvss3_score" => 9.0}]
+            )
+          )
         )
         d = described_class.call(baseline: baseline_v2, current: current_v2)
         regs = d.regressions.select { |r| r.gem == "rails" }
@@ -222,17 +222,17 @@ RSpec.describe(StillActive::Diff) do
           "gems" => baseline["gems"].merge(
             "untouched" => baseline["gems"]["untouched"].merge(
               "vulnerability_count" => 0,
-              "vulnerabilities" => [],
-            ),
-          ),
+              "vulnerabilities" => []
+            )
+          )
         )
         current_v2 = current.merge(
           "gems" => current["gems"].merge(
             "untouched" => current["gems"]["untouched"].merge(
               "vulnerability_count" => 1,
-              "vulnerabilities" => [{ "id" => "CVE-new-2", "cvss3_score" => 7.0 }],
-            ),
-          ),
+              "vulnerabilities" => [{"id" => "CVE-new-2", "cvss3_score" => 7.0}]
+            )
+          )
         )
         d = described_class.call(baseline: baseline_v2, current: current_v2)
         regs = d.regressions.select { |r| r.gem == "untouched" && r.kind == :new_vulnerability }
@@ -244,13 +244,13 @@ RSpec.describe(StillActive::Diff) do
       it("flags a version that became yanked since baseline") do
         baseline_v2 = baseline.merge(
           "gems" => baseline["gems"].merge(
-            "yanker" => { "source_type" => "rubygems", "version_used" => "1.0.0", "version_yanked" => false },
-          ),
+            "yanker" => {"source_type" => "rubygems", "version_used" => "1.0.0", "version_yanked" => false}
+          )
         )
         current_v2 = current.merge(
           "gems" => current["gems"].merge(
-            "yanker" => { "source_type" => "rubygems", "version_used" => "1.0.0", "version_yanked" => true },
-          ),
+            "yanker" => {"source_type" => "rubygems", "version_used" => "1.0.0", "version_yanked" => true}
+          )
         )
         d = described_class.call(baseline: baseline_v2, current: current_v2)
         regs = d.regressions.select { |r| r.gem == "yanker" && r.kind == :version_yanked }

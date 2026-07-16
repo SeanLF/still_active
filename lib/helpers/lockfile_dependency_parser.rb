@@ -25,7 +25,7 @@ module StillActive
     # Lockfile source blocks and the source_type each maps to. PLUGIN SOURCE is
     # recognized as a block (so its lines are consumed as inert data, not
     # mis-read as specs) but yields no auditable gems.
-    SOURCE_TYPES = { "GEM" => :rubygems, "GIT" => :git, "PATH" => :path }.freeze
+    SOURCE_TYPES = {"GEM" => :rubygems, "GIT" => :git, "PATH" => :path}.freeze
     PLUGIN_SOURCE = "PLUGIN SOURCE"
 
     # A section header sits at column 0; Bundler emits them in SCREAMING form.
@@ -93,7 +93,7 @@ module StillActive
         end
       end
 
-      { specs: specs, direct: direct, plugin_source?: plugin_source }
+      {specs: specs, direct: direct, plugin_source?: plugin_source}
     end
   end
 end

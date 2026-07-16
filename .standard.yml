@@ -1,0 +1,14 @@
+ruby_version: 3.3
+plugins:
+  - standard-rspec
+# keyword_init: true is intentional (keyword-only Structs); keep it explicit.
+ignore:
+  - 'lib/**/*':
+    - Style/RedundantStructKeywordInit
+  - 'scratch/**/*'
+  - 'docs/**/*'
+  - '.worktrees/**/*'
+  - 'spec/**/*':
+    - RSpec/MultipleExpectations
+    - RSpec/ExampleLength
+    - RSpec/NestedGroups

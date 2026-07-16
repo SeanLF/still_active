@@ -50,7 +50,7 @@ RSpec.describe(StillActive::SemverSatisfaction) do
       "1.0.0-#{"x" * 4000}",
       ">=1.0, <1.5",
       ">= 1.0.0 <2.0.0",
-      "1.2.3 - 2.3.4",
+      "1.2.3 - 2.3.4"
     ]
   end
 
@@ -95,13 +95,13 @@ RSpec.describe(StillActive::SemverSatisfaction) do
           "^#{Faker::App.semantic_version}",
           "~> #{Faker::App.semantic_version}",
           Faker::Lorem.characters(number: rng.rand(0..24)),
-          Faker::Internet.slug,
+          Faker::Internet.slug
         ].sample(random: rng)
         version = [
           Faker::App.semantic_version,
           "#{Faker::App.semantic_version}+#{Faker::Lorem.word}",
           Faker::Lorem.characters(number: rng.rand(0..16)),
-          Faker::Number.number(digits: rng.rand(1..6)).to_s,
+          Faker::Number.number(digits: rng.rand(1..6)).to_s
         ].sample(random: rng)
         ecosystem = [:npm, :cargo].sample(random: rng)
 

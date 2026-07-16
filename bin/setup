@@ -5,6 +5,6 @@ set -vx
 
 bundle install
 
-# Wire git hooks shared via .githooks/. Pre-push runs bin/check (rubocop + rspec)
-# so cross-file lint issues don't escape to CI.
+# Wire git hooks shared via .githooks/. Pre-push runs the default rake task
+# (rspec + standard) so cross-file lint issues don't escape to CI.
 git config core.hooksPath .githooks

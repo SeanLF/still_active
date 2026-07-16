@@ -18,7 +18,7 @@ RSpec.describe(StillActive::Suppressions) do
     end
 
     it("suppresses every signal for a gem-only hash entry") do
-      s = build([{ "gem" => "legacy_gem", "reason" => "vendored" }])
+      s = build([{"gem" => "legacy_gem", "reason" => "vendored"}])
       expect(s.suppressed?(gem: "legacy_gem", signal: :activity)).to(be(true))
     end
 
@@ -30,7 +30,7 @@ RSpec.describe(StillActive::Suppressions) do
 
   describe("signal-scoped entries") do
     it("suppresses only the named signal for the gem") do
-      s = build([{ "gem" => "frozen", "signal" => "activity", "reason" => "intentionally frozen" }])
+      s = build([{"gem" => "frozen", "signal" => "activity", "reason" => "intentionally frozen"}])
       expect(s.suppressed?(gem: "frozen", signal: :activity)).to(be(true))
       expect(s.suppressed?(gem: "frozen", signal: :libyear)).to(be(false))
       expect(s.suppressed?(gem: "frozen", signal: :vulnerability, advisory: "CVE-2024-1")).to(be(false))
@@ -39,100 +39,100 @@ RSpec.describe(StillActive::Suppressions) do
 
   describe("advisory-scoped (vulnerability) entries") do
     it("suppresses the matching advisory only") do
-      s = build([{ "advisory" => "CVE-2024-1234", "gem" => "nokogiri", "reason" => "no fix" }])
+      s = build([{"advisory" => "CVE-2024-1234", "gem" => "nokogiri", "reason" => "no fix"}])
       expect(s.suppressed?(gem: "nokogiri", signal: :vulnerability, advisory: "CVE-2024-1234")).to(be(true))
       expect(s.suppressed?(gem: "nokogiri", signal: :vulnerability, advisory: "CVE-2024-9999")).to(be(false))
     end
 
     it("matches an advisory by alias, not only the primary id") do
-      s = build([{ "advisory" => "CVE-2024-1234", "gem" => "nokogiri" }])
+      s = build([{"advisory" => "CVE-2024-1234", "gem" => "nokogiri"}])
       expect(s.suppressed?(gem: "nokogiri", signal: :vulnerability, advisory: "GHSA-xxxx", aliases: ["CVE-2024-1234"])).to(be(true))
     end
 
     it("does not suppress the activity signal for the same gem") do
-      s = build([{ "advisory" => "CVE-2024-1234", "gem" => "nokogiri" }])
+      s = build([{"advisory" => "CVE-2024-1234", "gem" => "nokogiri"}])
       expect(s.suppressed?(gem: "nokogiri", signal: :activity)).to(be(false))
     end
   end
 
   describe("expiry (lapsed entries re-surface)") do
     it("applies a future-dated entry") do
-      s = build([{ "gem" => "g", "signal" => "activity", "expires" => "2026-09-01" }])
+      s = build([{"gem" => "g", "signal" => "activity", "expires" => "2026-09-01"}])
       expect(s.suppressed?(gem: "g", signal: :activity)).to(be(true))
     end
 
     it("ignores a lapsed entry so the finding re-surfaces") do
-      s = build([{ "gem" => "g", "signal" => "activity", "expires" => "2026-01-01" }])
+      s = build([{"gem" => "g", "signal" => "activity", "expires" => "2026-01-01"}])
       expect(s.suppressed?(gem: "g", signal: :activity)).to(be(false))
     end
 
     it("treats the expiry date itself as still valid (inclusive)") do
-      s = build([{ "gem" => "g", "signal" => "activity", "expires" => "2026-06-12" }])
+      s = build([{"gem" => "g", "signal" => "activity", "expires" => "2026-06-12"}])
       expect(s.suppressed?(gem: "g", signal: :activity)).to(be(true))
     end
   end
 
   describe("validation warnings (invalid entries are skipped, not applied)") do
     it("rejects a vulnerability-signal entry with no advisory id, so new CVEs still surface") do
-      s = build([{ "gem" => "nokogiri", "signal" => "vulnerability" }])
+      s = build([{"gem" => "nokogiri", "signal" => "vulnerability"}])
       expect(s.suppressed?(gem: "nokogiri", signal: :vulnerability, advisory: "CVE-2024-1")).to(be(false))
       expect(s.warnings.join).to(match(/advisory id/i))
     end
 
     it("rejects a signal-scoped entry with no gem") do
-      s = build([{ "signal" => "activity" }])
+      s = build([{"signal" => "activity"}])
       expect(s.warnings.join).to(match(/gem/i))
     end
 
     it("rejects an entry with an unknown signal") do
-      s = build([{ "gem" => "g", "signal" => "nonsense" }])
+      s = build([{"gem" => "g", "signal" => "nonsense"}])
       expect(s.warnings.join).to(match(/signal/i))
     end
 
     it("rejects an entry that is neither a gem, signal, nor advisory") do
-      s = build([{ "reason" => "orphan" }])
+      s = build([{"reason" => "orphan"}])
       expect(s.warnings).not_to(be_empty)
     end
 
     it("does not require a reason (reason is optional)") do
-      s = build([{ "gem" => "g", "signal" => "activity" }])
+      s = build([{"gem" => "g", "signal" => "activity"}])
       expect(s.warnings).to(be_empty)
       expect(s.suppressed?(gem: "g", signal: :activity)).to(be(true))
     end
 
     it("accepts a poison signal suppression for a named gem") do
-      s = build([{ "gem" => "protected_attributes", "signal" => "poison", "reason" => "vendored" }])
+      s = build([{"gem" => "protected_attributes", "signal" => "poison", "reason" => "vendored"}])
       expect(s.warnings).to(be_empty)
       expect(s.suppressed?(gem: "protected_attributes", signal: :poison)).to(be(true))
       expect(s.suppressed?(gem: "other", signal: :poison)).to(be(false))
     end
 
     it("rejects a poison suppression that names no gem (must target a specific gem)") do
-      s = build([{ "signal" => "poison" }])
+      s = build([{"signal" => "poison"}])
       expect(s.warnings.join).to(match(/gem/i))
     end
   end
 
   describe("#stale_gem_warnings (presence-based rot)") do
     it("flags an entry whose gem is absent from the audited dependencies") do
-      s = build([{ "gem" => "typ;o", "signal" => "activity" }])
+      s = build([{"gem" => "typ;o", "signal" => "activity"}])
       warnings = s.stale_gem_warnings(["nokogiri", "rails"])
       expect(warnings.size).to(eq(1))
       expect(warnings.first).to(include("typ;o"))
     end
 
     it("does not flag an entry whose gem is present, even if currently healthy") do
-      s = build([{ "gem" => "rails", "signal" => "activity" }])
+      s = build([{"gem" => "rails", "signal" => "activity"}])
       expect(s.stale_gem_warnings(["rails"])).to(be_empty)
     end
 
     it("does not flag a gem-agnostic advisory entry (no gem to be absent)") do
-      s = build([{ "advisory" => "CVE-2024-1", "reason" => "imported" }])
+      s = build([{"advisory" => "CVE-2024-1", "reason" => "imported"}])
       expect(s.stale_gem_warnings(["rails"])).to(be_empty)
     end
 
     it("does not re-report an already-expired entry (it is inert already)") do
-      s = build([{ "gem" => "ghost", "signal" => "activity", "expires" => "2020-01-01" }])
+      s = build([{"gem" => "ghost", "signal" => "activity", "expires" => "2020-01-01"}])
       expect(s.stale_gem_warnings(["rails"])).to(be_empty)
     end
   end

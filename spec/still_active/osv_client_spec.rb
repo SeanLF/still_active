@@ -9,22 +9,22 @@ RSpec.describe(StillActive::OsvClient) do
     {
       "id" => "GHSA-8gq9-2x98-w8hf",
       "aliases" => ["CVE-2022-1941"],
-      "severity" => [{ "type" => "CVSS_V3", "score" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H" }],
+      "severity" => [{"type" => "CVSS_V3", "score" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"}],
       "affected" => affected || [
         {
-          "package" => { "name" => "protobuf", "ecosystem" => "PyPI" },
+          "package" => {"name" => "protobuf", "ecosystem" => "PyPI"},
           "ranges" => [
-            { "type" => "ECOSYSTEM", "events" => [{ "introduced" => "0" }, { "fixed" => "3.18.3" }] },
-            { "type" => "ECOSYSTEM", "events" => [{ "introduced" => "4.0.0" }, { "fixed" => "4.21.6" }] },
-          ],
-        },
-      ],
-    }.tap { |r| r["database_specific"] = { "severity" => severity } if severity }
+            {"type" => "ECOSYSTEM", "events" => [{"introduced" => "0"}, {"fixed" => "3.18.3"}]},
+            {"type" => "ECOSYSTEM", "events" => [{"introduced" => "4.0.0"}, {"fixed" => "4.21.6"}]}
+          ]
+        }
+      ]
+    }.tap { |r| r["database_specific"] = {"severity" => severity} if severity }
   end
 
   def stub_vuln(id, body:, status: 200)
     stub_request(:get, "https://api.osv.dev/v1/vulns/#{id}")
-      .to_return(status: status, headers: { "Content-Type" => "application/json" }, body: body.is_a?(String) ? body : body.to_json)
+      .to_return(status: status, headers: {"Content-Type" => "application/json"}, body: body.is_a?(String) ? body : body.to_json)
   end
 
   describe(".detail") do
@@ -35,7 +35,7 @@ RSpec.describe(StillActive::OsvClient) do
 
       expect(detail[:severity_label]).to(eq("HIGH"))
       expect(detail[:affected]).to(contain_exactly(
-        { ecosystem: "PyPI", name: "protobuf", fixed: ["3.18.3", "4.21.6"] },
+        {ecosystem: "PyPI", name: "protobuf", fixed: ["3.18.3", "4.21.6"]}
       ))
     end
 
@@ -56,8 +56,8 @@ RSpec.describe(StillActive::OsvClient) do
     it("hands the highest-priority vector to the scorer, preferring v4 (the version deps.dev can't score)") do
       v4_vector = "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"
       record = osv_record.merge("severity" => [
-        { "type" => "CVSS_V3", "score" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H" },
-        { "type" => "CVSS_V4", "score" => v4_vector },
+        {"type" => "CVSS_V3", "score" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"},
+        {"type" => "CVSS_V4", "score" => v4_vector}
       ])
       stub_vuln("GHSA-cvss", body: record)
       # cvss-suite is an optional dependency (CvssHelper.score), so here we assert
@@ -77,14 +77,14 @@ RSpec.describe(StillActive::OsvClient) do
     end
 
     it("labels a CVSS v2-only vector via the entry type (v2 vectors carry no CVSS: prefix)") do
-      stub_vuln("GHSA-v2", body: osv_record.merge("severity" => [{ "type" => "CVSS_V2", "score" => "AV:N/AC:L/Au:N/C:P/I:P/A:P" }]))
+      stub_vuln("GHSA-v2", body: osv_record.merge("severity" => [{"type" => "CVSS_V2", "score" => "AV:N/AC:L/Au:N/C:P/I:P/A:P"}]))
       expect(described_class.detail(advisory_id: "GHSA-v2")[:cvss_version]).to(eq("2.0"))
     end
 
     it("yields no fixed versions for a versions-only advisory (enumerated, no fix boundary)") do
       record = osv_record(affected: [{
-        "package" => { "name" => "protobuf", "ecosystem" => "PyPI" },
-        "versions" => ["4.21.0", "4.21.5"],
+        "package" => {"name" => "protobuf", "ecosystem" => "PyPI"},
+        "versions" => ["4.21.0", "4.21.5"]
       }])
       stub_vuln("GHSA-versonly", body: record)
       expect(described_class.detail(advisory_id: "GHSA-versonly")[:affected].first[:fixed]).to(eq([]))
@@ -101,11 +101,11 @@ RSpec.describe(StillActive::OsvClient) do
       # are all valid JSON that HttpHelper returns intact -- they must degrade, not crash.
       record = osv_record(affected: [
         nil,
-        { "package" => { "name" => "protobuf", "ecosystem" => "PyPI" }, "ranges" => "not-an-array" },
+        {"package" => {"name" => "protobuf", "ecosystem" => "PyPI"}, "ranges" => "not-an-array"},
         {
-          "package" => { "name" => "protobuf", "ecosystem" => "PyPI" },
-          "ranges" => [nil, { "events" => [nil, { "fixed" => "4.21.6" }] }],
-        },
+          "package" => {"name" => "protobuf", "ecosystem" => "PyPI"},
+          "ranges" => [nil, {"events" => [nil, {"fixed" => "4.21.6"}]}]
+        }
       ])
       stub_vuln("GHSA-messy", body: record)
 
@@ -119,7 +119,7 @@ RSpec.describe(StillActive::OsvClient) do
   describe(".enrich") do
     it("attaches the OSV label and the package's fixed versions to each advisory in place") do
       stub_vuln("GHSA-8gq9-2x98-w8hf", body: osv_record)
-      advisories = [{ id: "GHSA-8gq9-2x98-w8hf", source: "deps.dev", cvss3_score: 0 }]
+      advisories = [{id: "GHSA-8gq9-2x98-w8hf", source: "deps.dev", cvss3_score: 0}]
 
       described_class.enrich(advisories, ecosystem: :pypi, name: "protobuf")
 
@@ -128,9 +128,9 @@ RSpec.describe(StillActive::OsvClient) do
 
     it("attaches the scorer's v4 number, giving a CVSS-4-only advisory (deps.dev 0) a real score") do
       v4_vector = "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"
-      record = osv_record.merge("severity" => [{ "type" => "CVSS_V4", "score" => v4_vector }])
+      record = osv_record.merge("severity" => [{"type" => "CVSS_V4", "score" => v4_vector}])
       stub_vuln("GHSA-8gq9-2x98-w8hf", body: record)
-      advisories = [{ id: "GHSA-8gq9-2x98-w8hf", cvss3_score: 0 }] # deps.dev's v4-only sentinel
+      advisories = [{id: "GHSA-8gq9-2x98-w8hf", cvss3_score: 0}] # deps.dev's v4-only sentinel
       # With the optional scorer present, the v4 vector's number fills deps.dev's gap.
       allow(StillActive::CvssHelper).to(receive(:score).with(v4_vector).and_return(9.3))
 
@@ -144,13 +144,13 @@ RSpec.describe(StillActive::OsvClient) do
       # rubygems -> "RubyGems"; only the matching package's fixes are attached.
       record = osv_record(affected: [
         {
-          "package" => { "name" => "rack", "ecosystem" => "RubyGems" },
-          "ranges" => [{ "type" => "ECOSYSTEM", "events" => [{ "introduced" => "0" }, { "fixed" => "2.2.6.1" }] }],
+          "package" => {"name" => "rack", "ecosystem" => "RubyGems"},
+          "ranges" => [{"type" => "ECOSYSTEM", "events" => [{"introduced" => "0"}, {"fixed" => "2.2.6.1"}]}]
         },
-        { "package" => { "name" => "rack", "ecosystem" => "PyPI" }, "ranges" => [] },
+        {"package" => {"name" => "rack", "ecosystem" => "PyPI"}, "ranges" => []}
       ])
       stub_vuln("GHSA-rack", body: record)
-      advisories = [{ id: "GHSA-rack" }]
+      advisories = [{id: "GHSA-rack"}]
 
       described_class.enrich(advisories, ecosystem: :rubygems, name: "rack")
 
@@ -162,17 +162,17 @@ RSpec.describe(StillActive::OsvClient) do
       # Without these, fix-version filtering for those ecosystems falls back to loose
       # name-only matching. Verified casing against live OSV records.
       {
-        maven: "Maven", go: "Go", nuget: "NuGet",
+        maven: "Maven", go: "Go", nuget: "NuGet"
       }.each do |eco, osv_name|
         record = osv_record(affected: [
           {
-            "package" => { "name" => "widget", "ecosystem" => osv_name },
-            "ranges" => [{ "type" => "ECOSYSTEM", "events" => [{ "introduced" => "0" }, { "fixed" => "1.2.3" }] }],
+            "package" => {"name" => "widget", "ecosystem" => osv_name},
+            "ranges" => [{"type" => "ECOSYSTEM", "events" => [{"introduced" => "0"}, {"fixed" => "1.2.3"}]}]
           },
-          { "package" => { "name" => "widget", "ecosystem" => "PyPI" }, "ranges" => [] },
+          {"package" => {"name" => "widget", "ecosystem" => "PyPI"}, "ranges" => []}
         ])
         stub_vuln("GHSA-#{eco}", body: record)
-        advisories = [{ id: "GHSA-#{eco}" }]
+        advisories = [{id: "GHSA-#{eco}"}]
 
         described_class.enrich(advisories, ecosystem: eco, name: "widget")
 
@@ -183,12 +183,12 @@ RSpec.describe(StillActive::OsvClient) do
     it("treats a nil ecosystem as rubygems (the native path carries no ecosystem)") do
       record = osv_record(affected: [
         {
-          "package" => { "name" => "rack", "ecosystem" => "RubyGems" },
-          "ranges" => [{ "type" => "ECOSYSTEM", "events" => [{ "introduced" => "0" }, { "fixed" => "2.2.6.1" }] }],
-        },
+          "package" => {"name" => "rack", "ecosystem" => "RubyGems"},
+          "ranges" => [{"type" => "ECOSYSTEM", "events" => [{"introduced" => "0"}, {"fixed" => "2.2.6.1"}]}]
+        }
       ])
       stub_vuln("GHSA-rack", body: record)
-      advisories = [{ id: "GHSA-rack" }]
+      advisories = [{id: "GHSA-rack"}]
 
       described_class.enrich(advisories, ecosystem: nil, name: "rack")
 
@@ -197,21 +197,21 @@ RSpec.describe(StillActive::OsvClient) do
 
     it("leaves an advisory untouched when OSV has no record for it (best-effort enrichment)") do
       stub_vuln("GHSA-missing", body: {}, status: 404)
-      advisories = [{ id: "GHSA-missing", source: "deps.dev" }]
+      advisories = [{id: "GHSA-missing", source: "deps.dev"}]
 
       described_class.enrich(advisories, ecosystem: :pypi, name: "protobuf")
 
-      expect(advisories.first).to(eq({ id: "GHSA-missing", source: "deps.dev" }))
+      expect(advisories.first).to(eq({id: "GHSA-missing", source: "deps.dev"}))
     end
 
     it("never lets an unexpected error escape enrich (the workflow's rescue would drop the whole gem)") do
       # Defense in depth beyond the shape guards: even a surprise raise must leave the
       # advisory as deps.dev produced it, not vanish a known-vulnerable dependency.
       allow(described_class).to(receive(:detail).and_raise(TypeError, "boom"))
-      advisories = [{ id: "GHSA-x", source: "deps.dev" }]
+      advisories = [{id: "GHSA-x", source: "deps.dev"}]
 
       expect { described_class.enrich(advisories, ecosystem: :pypi, name: "protobuf") }.not_to(raise_error)
-      expect(advisories.first).to(eq({ id: "GHSA-x", source: "deps.dev" }))
+      expect(advisories.first).to(eq({id: "GHSA-x", source: "deps.dev"}))
     end
   end
 end
