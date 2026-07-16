@@ -7,6 +7,6 @@ gemspec
 
 gem "rake", ">= 13.0"
 gem "rspec", ">= 4.0.0.beta1"
-gem "simplecov", "~> 1.0.0.rc5", require: false
+gem "simplecov", "~> 1.0.1", require: false
 gem "vcr"
 gem "webmock"
