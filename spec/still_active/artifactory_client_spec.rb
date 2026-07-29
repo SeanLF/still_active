@@ -508,5 +508,24 @@ RSpec.describe(StillActive::ArtifactoryClient::CompactIndexClient) do
         .not_to(output.to_stderr)
     end
   end
+
+  # Canary. CompactIndexClient#metadata hand-parses the compact-index requirements
+  # instead of using Gem::Resolver::APISet::GemParser, because GemParser mangles a
+  # colon-bearing created_at until the first-colon fix in rubygems 4.0.13. The
+  # rubygems bundled with our supported Rubies predates it (3.3 -> 3.5.x, 3.4 ->
+  # 3.6.x). This flips red the moment a below-4.0.13 rubygems learns the fix (a
+  # backport, or a raised Ruby floor shipping >= 4.0.13): at that point GemParser +
+  # to_h works on our floor and #metadata can be deleted.
+  it "still needs the hand-rolled compact-index metadata parse (canary)" do
+    skip "rubygems #{Gem::VERSION} already has the first-colon fix" if
+      Gem::Version.new(Gem::VERSION) >= Gem::Version.new("4.0.13")
+
+    _version, _platform, _deps, requirements =
+      Gem::Resolver::APISet::GemParser.new.parse("1.0.0 |created_at:2026-01-01T00:00:00Z")
+
+    expect { requirements.to_h }.to(raise_error(ArgumentError),
+      "rubygems #{Gem::VERSION} now parses a colon-bearing created_at cleanly -- replace " \
+      "CompactIndexClient#metadata with GemParser + to_h and delete this canary")
+  end
 end
 # rubocop:enable RSpec/MultipleDescribes
