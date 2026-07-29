@@ -511,20 +511,22 @@ RSpec.describe(StillActive::ArtifactoryClient::CompactIndexClient) do
 
   # Canary. CompactIndexClient#metadata hand-parses the compact-index requirements
   # instead of using Gem::Resolver::APISet::GemParser, because GemParser mangles a
-  # colon-bearing created_at until the first-colon fix in rubygems 4.0.13. The
-  # rubygems bundled with our supported Rubies predates it (3.3 -> 3.5.x, 3.4 ->
-  # 3.6.x). This flips red the moment a below-4.0.13 rubygems learns the fix (a
-  # backport, or a raised Ruby floor shipping >= 4.0.13): at that point GemParser +
-  # to_h works on our floor and #metadata can be deleted.
-  it "still needs the hand-rolled compact-index metadata parse (canary)" do
-    skip "rubygems #{Gem::VERSION} already has the first-colon fix" if
-      Gem::Version.new(Gem::VERSION) >= Gem::Version.new("4.0.13")
+  # colon-bearing created_at (the compact index v2 field) until the first-colon fix
+  # in rubygems 4.0.13. That fix is 4.0-only; the 3.5.x/3.6.x lines our Rubies ship
+  # are dormant (last releases 2024/2025, predating it), so the realistic trigger
+  # for retiring the workaround is raising required_ruby_version to a Ruby bundling
+  # >= 4.0.13, not a backport. So key the canary off the FLOOR Ruby: it fires on
+  # that job whether the fix arrives by backport or by a raised floor, and stays
+  # quiet on the higher matrix jobs (which already have the fix and can't act for
+  # the floor).
+  it "canary: retire the compact-index metadata hand-parse once the floor Ruby ships a fixed rubygems" do
+    gemspec = Gem::Specification.load(File.expand_path("../../still_active.gemspec", __dir__))
+    floor = gemspec.required_ruby_version.requirements.find { |operator, _| operator == ">=" }&.last
+    on_floor_ruby = floor && Gem::Version.new(RUBY_VERSION).segments.first(2) == floor.segments.first(2)
+    skip "only meaningful on the minimum supported Ruby (#{floor})" unless on_floor_ruby
 
-    _version, _platform, _deps, requirements =
-      Gem::Resolver::APISet::GemParser.new.parse("1.0.0 |created_at:2026-01-01T00:00:00Z")
-
-    expect { requirements.to_h }.to(raise_error(ArgumentError),
-      "rubygems #{Gem::VERSION} now parses a colon-bearing created_at cleanly -- replace " \
+    expect(Gem::Version.new(Gem::VERSION)).to(be < Gem::Version.new("4.0.13"),
+      "the floor Ruby #{RUBY_VERSION} now ships rubygems #{Gem::VERSION} (>= 4.0.13) -- replace " \
       "CompactIndexClient#metadata with GemParser + to_h and delete this canary")
   end
 end
