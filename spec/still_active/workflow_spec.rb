@@ -288,6 +288,7 @@ RSpec.describe(StillActive::Workflow) do
     context("when a gem is from Artifactory") do
       let(:source_uri) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/" }
       let(:versions_api_url) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/api/v1/versions/private_gem.json" }
+      let(:info_url) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/info/private_gem" }
       let(:aql_url) { "https://my-org.jfrog.io/artifactory/api/search/aql" }
       let(:artifactory_versions) do
         [
@@ -307,6 +308,28 @@ RSpec.describe(StillActive::Workflow) do
           "source_code_uri" => nil
         }))
         allow(StillActive::DepsDevClient).to(receive(:version_info).and_return(nil))
+        # These cases exercise the versions API and AQL, which are reached only
+        # when the host serves no compact index.
+        stub_request(:get, info_url).to_return(status: 404)
+      end
+
+      # Issue #142: the installed version was reported YANKED because the merged
+      # versions API only knew the rubygems.org placeholder, so the real version
+      # was missing from the list. The compact index knows it.
+      it("does not report a version yanked when only the merged versions API is missing it") do
+        StillActive.config.artifactory_token = "art-test-token"
+        StillActive.config.artifactory_host = "my-org.jfrog.io"
+        stub_request(:get, info_url)
+          .to_return(status: 200, body: "---\n0.0.3 |checksum:40c1\n1.0.0 |checksum:39f6\n")
+        stub_request(:get, versions_api_url).to_return(
+          status: 200,
+          body: [{"number" => "0.0.3", "created_at" => "2017-05-18T17:45:27.846Z"}].to_json,
+          headers: {"Content-Type" => "application/json"}
+        )
+
+        expect(result).to(include(
+          "private_gem" => hash_including(version_yanked: false, latest_version: "1.0.0")
+        ))
       end
 
       it("fetches versions from the Artifactory versions API with Bearer auth") do

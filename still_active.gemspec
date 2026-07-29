@@ -27,6 +27,11 @@ Gem::Specification.new do |spec|
   spec.homepage = "https://github.com/SeanLF/still_active"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3.0"
+  # Gem::Resolver::APISet::GemParser, which parses the RubyGems compact index for
+  # the Artifactory client, first shipped in RubyGems 3.2.3. Ruby 3.3.0 bundles
+  # 3.5.3, so this is documentation of the real dependency rather than a bound
+  # anyone can trip.
+  spec.required_rubygems_version = ">= 3.2.3"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
