@@ -6,6 +6,7 @@ require "json"
 require "uri"
 require_relative "../helpers/http_helper"
 require_relative "compact_index_client"
+require_relative "source_credentials"
 
 module StillActive
   module ArtifactoryClient
@@ -57,14 +58,20 @@ module StillActive
       versions.map { |version| (by_number[version["number"]] || {}).merge(version.compact) }
     end
 
+    # Bundler's own per-host credential (bundle config / BUNDLE_<HOST>) wins, exactly
+    # as `bundle install` would use it. Only when the host has none do we consider
+    # still_active's ambient --artifactory-token, and only for the one host the user
+    # explicitly allowlisted: the token is not host-keyed, so sending it to a
+    # lockfile-derived host would leak it. See SourceCredentials for the host-keyed
+    # store this shares with the generic private-source path.
     def credentials(gem_name:, source_uri:)
-      host = URI(source_uri).host
-      bundler = Bundler.settings[source_uri] || Bundler.settings[host]
+      bundler = Bundler.settings.credentials_for(URI(source_uri))
       return bundler if bundler && !bundler.empty?
 
       global = StillActive.config.artifactory_token
       return unless global
 
+      host = URI(source_uri).host
       configured_host = StillActive.config.artifactory_host
       unless configured_host && host&.casecmp?(configured_host)
         warn_unauthorized_host(gem_name: gem_name, host: host)
@@ -83,15 +90,7 @@ module StillActive
     end
 
     def auth_headers(gem_name:, source_uri:)
-      creds = credentials(gem_name: gem_name, source_uri: source_uri)
-      return {} unless creds
-
-      if creds.include?(":")
-        user, pass = creds.split(":", 2).map { |part| CGI.unescape(part) }
-        {"Authorization" => "Basic #{["#{user}:#{pass}"].pack("m0")}"}
-      else
-        {"Authorization" => "Bearer #{creds}"}
-      end
+      SourceCredentials.auth_header(credentials(gem_name: gem_name, source_uri: source_uri))
     end
 
     # Artifactory's Rubygems-compatible API

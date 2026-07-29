@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require_relative "artifactory_client"
+require_relative "compact_index_client"
+require_relative "source_credentials"
 require_relative "ceiling_reconciler"
 require_relative "deps_dev_client"
 require_relative "osv_client"
@@ -394,8 +396,7 @@ module StillActive
       elsif ArtifactoryClient.artifactory_uri?(source_uri)
         ArtifactoryClient.versions(gem_name: gem_name, source_uri: source_uri)
       elsif unqueryable_private_source?(source_uri)
-        warn_unqueryable_private_source(gem_name: gem_name, source_uri: source_uri)
-        []
+        private_source_versions(gem_name: gem_name, source_uri: source_uri)
       else
         Gems.versions(gem_name)
       end
@@ -435,6 +436,27 @@ module StillActive
       host != "rubygems.org" && !host.end_with?(".rubygems.org")
     rescue URI::InvalidURIError
       false
+    end
+
+    # Any Bundler-compatible private host (Contribsys, Gemstash, Gemfury, a private
+    # mirror) serves the RubyGems compact index, since that is how `bundle install`
+    # resolves from it. So try that agnostic rail before declaring the source
+    # unqueryable: it covers the whole class with no per-host client, and falls
+    # through to the same warning when a host does not serve it. Auth is Bundler's
+    # own host-keyed credential only; still_active's ambient --artifactory-token is
+    # never sent to a lockfile-derived host this way (that stays ArtifactoryClient's,
+    # behind its host allowlist). The repo-signal path is untouched, so #43 still
+    # blocks a public name-collision's repo data from standing in for the private gem.
+    def private_source_versions(gem_name:, source_uri:)
+      versions = CompactIndexClient.versions(
+        gem_name: gem_name,
+        source_uri: source_uri,
+        headers: SourceCredentials.headers_for(source_uri)
+      )
+      return versions unless versions.empty?
+
+      warn_unqueryable_private_source(gem_name: gem_name, source_uri: source_uri)
+      []
     end
 
     def warn_unqueryable_private_source(gem_name:, source_uri:)
