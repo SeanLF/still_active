@@ -29,6 +29,8 @@ module StillActive
     # multi-GB body and OOM the process. 16 MiB leaves generous headroom for a
     # gem with thousands of versions while bounding worst-case memory.
     MAX_BODY_BYTES = 16 * 1024 * 1024
+    JSON_PARSER = ->(body) { JSON.parse(body) }
+    IDENTITY = ->(body) { body }
 
     extend self
 
@@ -38,6 +40,16 @@ module StillActive
       uri.query = URI.encode_www_form(params) unless params.empty?
 
       request_json(uri, headers) { |target| Net::HTTP::Get.new(target) }
+    end
+
+    # As get_json, but for endpoints that answer in plain text (the RubyGems
+    # compact index). Shares the redirect, auth-scoping and body-cap handling;
+    # only the parse step differs.
+    def get_text(base_uri, path, headers: {})
+      uri = base_uri.dup
+      uri.path = path
+
+      request_json(uri, headers, parse: IDENTITY) { |target| Net::HTTP::Get.new(target) }
     end
 
     def post_json(base_uri, path, body:, headers: {})
@@ -61,10 +73,10 @@ module StillActive
     end
 
     # Runs the request, following up to MAX_REDIRECTS trusted-host redirects,
-    # and returns the parsed JSON (or nil). The block is yielded each URI and
-    # returns the request object, so GET and POST share the redirect/auth/cap
-    # logic.
-    def request_json(uri, headers)
+    # and returns the parsed body (or nil), where `parse` decides JSON vs text.
+    # The block is yielded each URI and returns the request object, so GET and
+    # POST share the redirect/auth/cap logic.
+    def request_json(uri, headers, parse: JSON_PARSER)
       MAX_REDIRECTS.times do
         http = Net::HTTP.new(uri.host, uri.port)
         http.use_ssl = true
@@ -74,7 +86,7 @@ module StillActive
         request = yield(uri)
         headers.each { |key, value| request[key] = value }
 
-        outcome, payload = perform(http, request, uri)
+        outcome, payload = perform(http, request, uri, parse)
         case outcome
         when :done
           return payload
@@ -124,11 +136,11 @@ module StillActive
     # cap rather than buffered whole. Returns one of:
     #   [:redirect, response]  a 3xx, for the caller to follow
     #   [:stop, nil]           non-success (warns unless 404), or body over cap
-    #   [:done, parsed]        a 2xx with parsed JSON
+    #   [:done, parsed]        a 2xx with the parsed body (JSON or text)
     # Redirect and non-success bodies are never read: returning from the block
     # unwinds through Net::HTTP, which closes the connection without draining
     # the body, so a huge error/redirect body can't OOM us either.
-    def perform(http, request, uri)
+    def perform(http, request, uri, parse)
       http.request(request) do |response|
         return [:redirect, response] if response.is_a?(Net::HTTPRedirection)
 
@@ -140,7 +152,7 @@ module StillActive
         body = read_capped_body(response, uri)
         return [:stop, nil] if body.nil?
 
-        return [:done, JSON.parse(body)]
+        return [:done, parse.call(body)]
       end
     end
 

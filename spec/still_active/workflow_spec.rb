@@ -288,6 +288,7 @@ RSpec.describe(StillActive::Workflow) do
     context("when a gem is from Artifactory") do
       let(:source_uri) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/" }
       let(:versions_api_url) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/api/v1/versions/private_gem.json" }
+      let(:info_url) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/info/private_gem" }
       let(:aql_url) { "https://my-org.jfrog.io/artifactory/api/search/aql" }
       let(:artifactory_versions) do
         [
@@ -307,6 +308,39 @@ RSpec.describe(StillActive::Workflow) do
           "source_code_uri" => nil
         }))
         allow(StillActive::DepsDevClient).to(receive(:version_info).and_return(nil))
+        # These cases exercise the versions API and AQL, which are reached only
+        # when the host serves no compact index.
+        stub_request(:get, info_url).to_return(status: 404)
+      end
+
+      # Issue #142: the installed version was reported YANKED because the merged
+      # versions API only knew the rubygems.org placeholder, so the real version
+      # was missing from the list. The compact index knows it.
+      it("does not report a version yanked when only the merged versions API is missing it") do
+        StillActive.config.artifactory_token = "art-test-token"
+        StillActive.config.artifactory_host = "my-org.jfrog.io"
+        stub_request(:get, info_url)
+          .to_return(status: 200, body: "---\n0.0.3 |checksum:40c1\n1.0.0 |checksum:39f6\n")
+        stub_request(:get, versions_api_url).to_return(
+          status: 200,
+          body: [{"number" => "0.0.3", "created_at" => "2017-05-18T17:45:27.846Z"}].to_json,
+          headers: {"Content-Type" => "application/json"}
+        )
+
+        expect(result).to(include(
+          "private_gem" => hash_including(version_yanked: false, latest_version: "1.0.0")
+        ))
+      end
+
+      it("does not link a private-source gem to the public rubygems.org page (#43 family)") do
+        # rubygems.org/gems/<name> for a private gem is a public name collision (for
+        # sidekiq-pro, the 0.0.3 squat-warning decoy), not the gem the user resolves.
+        # created_at inline so the compact index self-dates (no versions-API call).
+        stub_request(:get, info_url)
+          .to_return(status: 200, body: "---\n1.0.0 |checksum:aa,created_at:2025-06-01T00:00:00Z\n")
+
+        expect(result["private_gem"]).to(include(latest_version: "1.0.0"))
+        expect(result["private_gem"]).not_to(include(:ruby_gems_url))
       end
 
       it("fetches versions from the Artifactory versions API with Bearer auth") do
@@ -758,7 +792,22 @@ RSpec.describe(StillActive::Workflow) do
       expect(Gems).to(have_received(:versions).with("rake"))
     end
 
-    it("does not query public rubygems for a gem from an unqueryable private source") do
+    it("audits a direct private source that speaks the compact index, instead of giving up") do
+      # Contribsys/Gemstash/Gemfury all serve the RubyGems compact index (it is how
+      # `bundle install` resolves from them), so the agnostic rail covers them with no
+      # per-host client. Previously these returned nothing.
+      stub_request(:get, "https://gems.contribsys.com/info/sidekiq-pro")
+        .to_return(status: 200, body: "---\n8.1.4 |checksum:aa\n8.1.5 |checksum:bb\n")
+
+      result = described_class.send(:versions, gem_name: "sidekiq-pro", source_uri: "https://gems.contribsys.com/")
+
+      expect(result.map { |h| h["number"] }).to(eq(["8.1.5", "8.1.4"]))
+      expect(Gems).not_to(have_received(:versions))
+    end
+
+    it("falls through to the unqueryable warning when a private source serves no compact index") do
+      stub_request(:get, "https://gems.internal.example.com/info/internalgem").to_return(status: 404)
+
       result = nil
       expect do
         result = described_class.send(:versions, gem_name: "internalgem", source_uri: "https://gems.internal.example.com/")
@@ -766,6 +815,31 @@ RSpec.describe(StillActive::Workflow) do
 
       expect(result).to(eq([]))
       expect(Gems).not_to(have_received(:versions))
+    end
+
+    it("never sends still_active's ambient Artifactory token to a lockfile-named private host") do
+      # The ambient --artifactory-token is not host-keyed, so it must never ride the
+      # generic private-source path to a host derived from the lockfile. Only Bundler's
+      # own host-keyed credential may, and there is none here.
+      StillActive.config.artifactory_token = "ambient-secret"
+      allow(Bundler.settings).to(receive(:credentials_for).and_return(nil))
+      stub_request(:get, "https://gems.contribsys.com/info/sidekiq-pro").to_return(status: 404)
+
+      described_class.send(:versions, gem_name: "sidekiq-pro", source_uri: "https://gems.contribsys.com/")
+
+      expect(WebMock).to(have_requested(:get, "https://gems.contribsys.com/info/sidekiq-pro")
+        .with { |req| !req.headers.key?("Authorization") })
+    end
+
+    it("sends the source host's Bundler credential on the compact-index request") do
+      allow(Bundler.settings).to(receive(:credentials_for)) { |uri| (uri.host == "gems.contribsys.com") ? "sub:key" : nil }
+      stub_request(:get, "https://gems.contribsys.com/info/sidekiq-pro")
+        .to_return(status: 200, body: "---\n8.1.5 |checksum:bb\n")
+
+      described_class.send(:versions, gem_name: "sidekiq-pro", source_uri: "https://gems.contribsys.com/")
+
+      expect(WebMock).to(have_requested(:get, "https://gems.contribsys.com/info/sidekiq-pro")
+        .with(headers: {"Authorization" => "Basic #{["sub:key"].pack("m0")}"}))
     end
 
     it("treats rubygems.org subdomains as public") do
@@ -821,6 +895,17 @@ RSpec.describe(StillActive::Workflow) do
 
     it("does not consult public rubygems.org metadata for an unqueryable private source") do
       described_class.send(:repository_info, gem_name: "internalgem_xyz", versions: [], source_uri: "https://gems.internal.example.com/")
+
+      expect(Gems).not_to(have_received(:info))
+    end
+
+    it("keeps the #43 repo-URL guard even when the private source now yields versions") do
+      # Auditing a private source's versions via the compact-index rail must not
+      # unblock the public repo-URL substitution: the two guards are separate, both
+      # keyed on unqueryable_private_source?, and a name collision's repo/archived
+      # data must still never stand in for the private gem.
+      versions = [{"number" => "8.1.5", "prerelease" => false}]
+      described_class.send(:repository_info, gem_name: "sidekiq-pro", versions: versions, source_uri: "https://gems.contribsys.com/")
 
       expect(Gems).not_to(have_received(:info))
     end

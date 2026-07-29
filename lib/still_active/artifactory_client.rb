@@ -5,6 +5,8 @@ require "cgi"
 require "json"
 require "uri"
 require_relative "../helpers/http_helper"
+require_relative "compact_index_client"
+require_relative "source_credentials"
 
 module StillActive
   module ArtifactoryClient
@@ -18,8 +20,18 @@ module StillActive
       false
     end
 
+    # Version sources in precedence order:
+    #   1. the compact index, the only endpoint that lists what the repo can
+    #      actually resolve (#142)
+    #   2. the versions API, for hosts that serve no compact index
+    #   3. AQL, a cache inventory, when neither answers
+    # The compact index carries no timestamps, so a compact-index list is dated
+    # from the versions API.
     def versions(gem_name:, source_uri:)
       headers = auth_headers(gem_name: gem_name, source_uri: source_uri)
+      compact = CompactIndexClient.versions(gem_name: gem_name, source_uri: source_uri, headers: headers)
+      return dated(compact, gem_name: gem_name, source_uri: source_uri, headers: headers) unless compact.empty?
+
       vs = RubygemsClient.versions(gem_name: gem_name, source_uri: source_uri, headers: headers)
       return vs unless vs.empty?
 
@@ -30,14 +42,36 @@ module StillActive
 
     private
 
+    # Matched on the exact version number, so the versions API can only annotate a
+    # version the compact index already listed. That keeps a name collision from
+    # contributing anything: the placeholder gem's versions simply don't match, and
+    # the real ones stay undated rather than borrowing a stranger's release date.
+    def dated(versions, gem_name:, source_uri:, headers:)
+      return versions if versions.all? { |version| version["created_at"] }
+
+      published = RubygemsClient.versions(gem_name: gem_name, source_uri: source_uri, headers: headers)
+      return versions unless published.is_a?(Array)
+
+      by_number = published.grep(Hash).to_h { |version| [version["number"], version] }
+      # compact first: an absent compact-index field must not blank out the value
+      # the versions API supplied for the same version.
+      versions.map { |version| (by_number[version["number"]] || {}).merge(version.compact) }
+    end
+
+    # Bundler's own per-host credential (bundle config / BUNDLE_<HOST>) wins, exactly
+    # as `bundle install` would use it. Only when the host has none do we consider
+    # still_active's ambient --artifactory-token, and only for the one host the user
+    # explicitly allowlisted: the token is not host-keyed, so sending it to a
+    # lockfile-derived host would leak it. See SourceCredentials for the host-keyed
+    # store this shares with the generic private-source path.
     def credentials(gem_name:, source_uri:)
-      host = URI(source_uri).host
-      bundler = Bundler.settings[source_uri] || Bundler.settings[host]
+      bundler = Bundler.settings.credentials_for(URI(source_uri))
       return bundler if bundler && !bundler.empty?
 
       global = StillActive.config.artifactory_token
       return unless global
 
+      host = URI(source_uri).host
       configured_host = StillActive.config.artifactory_host
       unless configured_host && host&.casecmp?(configured_host)
         warn_unauthorized_host(gem_name: gem_name, host: host)
@@ -56,15 +90,7 @@ module StillActive
     end
 
     def auth_headers(gem_name:, source_uri:)
-      creds = credentials(gem_name: gem_name, source_uri: source_uri)
-      return {} unless creds
-
-      if creds.include?(":")
-        user, pass = creds.split(":", 2).map { |part| CGI.unescape(part) }
-        {"Authorization" => "Basic #{["#{user}:#{pass}"].pack("m0")}"}
-      else
-        {"Authorization" => "Bearer #{creds}"}
-      end
+      SourceCredentials.auth_header(credentials(gem_name: gem_name, source_uri: source_uri))
     end
 
     # Artifactory's Rubygems-compatible API
@@ -128,9 +154,12 @@ module StillActive
             version = extract_version(item["name"], gem_name)
             next if version.nil?
 
+            # No "created_at": the AQL `created` field is when this Artifactory
+            # cached the artifact, not when the version was published. The two
+            # agree to within a day for a gem someone pulled promptly and diverge
+            # by years for one pulled late, so it cannot back a staleness signal.
             {
               "number" => version,
-              "created_at" => item["created"],
               "prerelease" => Gem::Version.new(version).prerelease?
             }
           end
