@@ -173,10 +173,10 @@ module StillActive
       end
 
       def version_hash(line)
-        number, platform, _deps, requirements = gem_parser.parse(line)
+        number, platform = gem_parser.parse(line)
         return if number.nil? || !Gem::Version.correct?(number)
 
-        reqs = requirements.to_h
+        meta = metadata(line)
         {
           "number" => number,
           "platform" => platform,
@@ -184,20 +184,32 @@ module StillActive
           # Omitted entirely when a version declares no Ruby requirement, where
           # the versions API sends ">= 0". Both mean unconstrained, and the
           # ceiling check reads a missing requirement as "no ceiling".
-          "ruby_version" => requirement(reqs, "ruby"),
-          "checksum" => requirement(reqs, "checksum"),
+          "ruby_version" => meta["ruby"],
+          "checksum" => meta["checksum"],
           # rubygems.org emits this; Artifactory's generated index does not, which
           # is why a compact-index list still gets dated from the versions API.
-          "created_at" => requirement(reqs, "created_at")
+          "created_at" => meta["created_at"]
         }
       end
 
-      def requirement(reqs, key)
-        reqs[key]&.join(", ")
+      # The requirements section (everything after "|") is comma-separated
+      # `key:value` pairs, with `&` joining multiple constraints on one key. We
+      # parse it directly rather than through GemParser: GemParser's colon split
+      # changed across RubyGems versions and shreds an ISO-8601 `created_at`, whose
+      # value contains colons. Splitting on the FIRST colon keeps the timestamp
+      # whole on every version.
+      def metadata(line)
+        _deps, requirements = line.split("|", 2)
+        return {} unless requirements
+
+        requirements.split(",").each_with_object({}) do |pair, meta|
+          key, value = pair.split(":", 2)
+          meta[key] = value.split("&").join(", ") if value
+        end
       end
 
-      # Ships with RubyGems (since 3.2.3) and is what Bundler's compact index
-      # client uses, so the format is parsed by its owner rather than by us.
+      # Used only for the leading `version[-platform]` token, which is a stable
+      # split across RubyGems versions. Ships with RubyGems since 3.2.3.
       def gem_parser
         @gem_parser ||= Gem::Resolver::APISet::GemParser.new
       end
