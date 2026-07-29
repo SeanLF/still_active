@@ -332,6 +332,17 @@ RSpec.describe(StillActive::Workflow) do
         ))
       end
 
+      it("does not link a private-source gem to the public rubygems.org page (#43 family)") do
+        # rubygems.org/gems/<name> for a private gem is a public name collision (for
+        # sidekiq-pro, the 0.0.3 squat-warning decoy), not the gem the user resolves.
+        # created_at inline so the compact index self-dates (no versions-API call).
+        stub_request(:get, info_url)
+          .to_return(status: 200, body: "---\n1.0.0 |checksum:aa,created_at:2025-06-01T00:00:00Z\n")
+
+        expect(result["private_gem"]).to(include(latest_version: "1.0.0"))
+        expect(result["private_gem"]).not_to(include(:ruby_gems_url))
+      end
+
       it("fetches versions from the Artifactory versions API with Bearer auth") do
         StillActive.config.artifactory_token = "art-test-token"
         StillActive.config.artifactory_host = "my-org.jfrog.io"

@@ -177,7 +177,11 @@ module StillActive
         **deps_dev
       })
 
-      unless vs.empty?
+      # Only a gem that actually lives on public rubygems.org gets a rubygems.org
+      # page link. For a private source, rubygems.org/gems/<name> is a public
+      # name collision (for sidekiq-pro, the 0.0.3 squat-warning decoy), not the
+      # gem the user resolves -- the same #43 substitution the repo-URL guard blocks.
+      unless vs.empty? || unqueryable_private_source?(source_uri)
         result_object[gem_name][:ruby_gems_url] = "https://rubygems.org/gems/#{gem_name}"
       end
 
