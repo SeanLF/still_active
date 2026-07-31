@@ -384,8 +384,9 @@ module StillActive
       vulnerabilities = VulnerabilityHelper.merge_advisories(deps_dev: deps_dev_vulns, ruby_advisory_db: radb_vulns)
       # Enrich with OSV: a real GHSA severity label (deps.dev can't score a CVSS-4-only
       # advisory) and the fixed-version ranges the "capped below the fix" signal needs.
-      # Native path is rubygems.
-      OsvClient.enrich(vulnerabilities, ecosystem: :rubygems, name: gem_name)
+      # Native path is rubygems. The version also lets OSV confirm a deps.dev-only
+      # advisory applies to it; a ruby-advisory-db verdict is never overruled.
+      vulnerabilities = OsvClient.enrich(vulnerabilities, ecosystem: :rubygems, name: gem_name, version: version)
       {
         scorecard_score: scorecard&.dig(:score),
         scorecard_maintained: scorecard&.dig(:maintained),

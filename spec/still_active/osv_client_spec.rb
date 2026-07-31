@@ -35,7 +35,7 @@ RSpec.describe(StillActive::OsvClient) do
 
       expect(detail[:severity_label]).to(eq("HIGH"))
       expect(detail[:affected]).to(contain_exactly(
-        {ecosystem: "PyPI", name: "protobuf", fixed: ["3.18.3", "4.21.6"]}
+        {ecosystem: "PyPI", name: "protobuf", fixed: ["3.18.3", "4.21.6"], versioned: true}
       ))
     end
 
@@ -212,6 +212,238 @@ RSpec.describe(StillActive::OsvClient) do
 
       expect { described_class.enrich(advisories, ecosystem: :pypi, name: "protobuf") }.not_to(raise_error)
       expect(advisories.first).to(eq({id: "GHSA-x", source: "deps.dev"}))
+    end
+  end
+
+  # deps.dev mirrors OSV/GHSA advisory data with an ingestion lag, so an advisory
+  # AMENDED after publication (a CVE fixed on the current line, then backported, then
+  # amended to carry the branch ranges) keeps being served in its pre-amendment form,
+  # flagging versions the amendment has since marked patched. Receipt (2026-07-31):
+  # GHSA-mh99-v99m-4gvg was published 07-24 as introduced 0 / fixed 5.0.8, amended
+  # 07-31 to add the 1.1.17/2.1.3/3.0.3 branches, and deps.dev still answered from the
+  # old record hours later. OSV's /v1/query reflects the amendment immediately, so it
+  # settles the disagreement against deps.dev's own upstream.
+  describe(".enrich version confirmation") do
+    def brace_record(id)
+      {
+        "id" => id,
+        "affected" => [
+          {"package" => {"name" => "brace-expansion", "ecosystem" => "npm"},
+           "ranges" => [{"type" => "SEMVER", "events" => [{"introduced" => "0"}, {"fixed" => "1.1.17"}]}]},
+          {"package" => {"name" => "brace-expansion", "ecosystem" => "npm"},
+           "ranges" => [{"type" => "SEMVER", "events" => [{"introduced" => "4.0.0"}, {"fixed" => "5.0.8"}]}]}
+        ]
+      }
+    end
+
+    def stub_query(name:, ecosystem:, version:, body:, status: 200)
+      stub_request(:post, "https://api.osv.dev/v1/query")
+        .with(body: {version: version, package: {name: name, ecosystem: ecosystem}}.to_json)
+        .to_return(status: status, headers: {"Content-Type" => "application/json"}, body: body.is_a?(String) ? body : body.to_json)
+    end
+
+    it("drops a deps.dev advisory OSV's own version matching says does not apply") do
+      stub_vuln("GHSA-mh99-v99m-4gvg", body: brace_record("GHSA-mh99-v99m-4gvg"))
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "1.1.18", body: {})
+      advisories = [{id: "GHSA-mh99-v99m-4gvg", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "1.1.18")
+
+      expect(kept).to(be_empty)
+    end
+
+    it("keeps the advisory for a version OSV does list as affected") do
+      stub_vuln("GHSA-mh99-v99m-4gvg", body: brace_record("GHSA-mh99-v99m-4gvg"))
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "4.0.1",
+        body: {vulns: [{"id" => "GHSA-mh99-v99m-4gvg"}]})
+      advisories = [{id: "GHSA-mh99-v99m-4gvg", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "4.0.1")
+
+      expect(kept.map { _1[:id] }).to(eq(["GHSA-mh99-v99m-4gvg"]))
+    end
+
+    it("matches the query result on aliases, so a CVE-keyed advisory is not dropped as absent") do
+      stub_vuln("CVE-2026-14257", body: brace_record("CVE-2026-14257"))
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "4.0.1",
+        body: {vulns: [{"id" => "GHSA-mh99-v99m-4gvg", "aliases" => ["CVE-2026-14257"]}]})
+      advisories = [{id: "CVE-2026-14257", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "4.0.1")
+
+      expect(kept.map { _1[:id] }).to(eq(["CVE-2026-14257"]))
+    end
+
+    it("keeps the advisory when the query request fails (a transport error is not an all-clear)") do
+      stub_vuln("GHSA-mh99-v99m-4gvg", body: brace_record("GHSA-mh99-v99m-4gvg"))
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "1.1.18", body: {}, status: 500)
+      advisories = [{id: "GHSA-mh99-v99m-4gvg", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "1.1.18")
+
+      expect(kept.map { _1[:id] }).to(eq(["GHSA-mh99-v99m-4gvg"]))
+    end
+
+    it("keeps the advisory when OSV has no record for it (nothing to check the query against)") do
+      stub_vuln("GHSA-unknown", body: {}, status: 404)
+      advisories = [{id: "GHSA-unknown", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "1.1.18")
+
+      expect(kept.map { _1[:id] }).to(eq(["GHSA-unknown"]))
+    end
+
+    it("keeps the advisory when its record does not name the package under our name (spelling mismatch)") do
+      # An empty query result only means "not affected" if OSV knows the package by the
+      # name we asked with. Registry name normalization differs by ecosystem (PyPI folds
+      # case and -/_/.), so when the record names the package differently the empty
+      # result is more likely a missed lookup than an all-clear. Fail closed.
+      stub_vuln("GHSA-norm", body: {
+        "id" => "GHSA-norm",
+        "affected" => [{"package" => {"name" => "zope.interface", "ecosystem" => "PyPI"}, "ranges" => []}]
+      })
+      advisories = [{id: "GHSA-norm", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :pypi, name: "zope-interface", version: "5.0.0")
+
+      expect(kept.map { _1[:id] }).to(eq(["GHSA-norm"]))
+    end
+
+    it("never drops a ruby-advisory-db advisory: radb matches versions itself and is the Ruby authority") do
+      stub_vuln("GHSA-radb", body: {
+        "id" => "GHSA-radb",
+        "affected" => [{"package" => {"name" => "rack", "ecosystem" => "RubyGems"},
+                        "ranges" => [{"type" => "ECOSYSTEM", "events" => [{"introduced" => "0"}, {"fixed" => "2.2.6.1"}]}]}]
+      })
+      stub_query(name: "rack", ecosystem: "RubyGems", version: "2.2.6.4", body: {})
+      advisories = [{id: "GHSA-radb", source: "ruby-advisory-db"}, {id: "GHSA-merged", source: "merged"}]
+      stub_vuln("GHSA-merged", body: {
+        "id" => "GHSA-merged",
+        "affected" => [{"package" => {"name" => "rack", "ecosystem" => "RubyGems"}, "ranges" => []}]
+      })
+
+      kept = described_class.enrich(advisories, ecosystem: :rubygems, name: "rack", version: "2.2.6.4")
+
+      expect(kept.map { _1[:id] }).to(eq(["GHSA-radb", "GHSA-merged"]))
+    end
+
+    # OSV's genuine all-clear is a bare `{}`, so no 200 body carries a marker that
+    # distinguishes "nothing affects this version" from "this answer is unreadable".
+    # Read loosely, every one of these would fabricate an all-clear and drop a real
+    # advisory; each must be treated as "we don't know" instead.
+    {
+      "a truncated page carrying only a next_page_token" => {"next_page_token" => "abc"},
+      "a paginated page (the rest of the answer is on page 2)" => {"vulns" => [{"id" => "GHSA-other"}], "next_page_token" => "abc"},
+      "an error envelope served with a 200" => {"code" => 3, "message" => "internal error"},
+      "a vulns value that isn't an array" => {"vulns" => "GHSA-mh99-v99m-4gvg"},
+      "a vulns object keyed by id" => {"vulns" => {"GHSA-mh99-v99m-4gvg" => {}}},
+      "vulns as bare id strings" => {"vulns" => ["GHSA-mh99-v99m-4gvg"]},
+      "vulns entries carrying no id" => {"vulns" => [{"summary" => "something affects you"}]},
+      "vulns entries that are null" => {"vulns" => [nil, nil]},
+      # The dangerous asymmetry: one readable entry beside an unreadable one. Skipping
+      # the bad entry would shorten the list, and a short list reads exactly like OSV
+      # never listing this advisory, so the unparseable one would be dropped.
+      "a mix of readable and unreadable vulns entries" => {"vulns" => [{"id" => "GHSA-other"}, "GHSA-mh99-v99m-4gvg"]}
+    }.each do |shape, body|
+      it("keeps the advisory when the query answers with #{shape}") do
+        stub_vuln("GHSA-mh99-v99m-4gvg", body: brace_record("GHSA-mh99-v99m-4gvg"))
+        stub_query(name: "brace-expansion", ecosystem: "npm", version: "1.1.18", body: body)
+        advisories = [{id: "GHSA-mh99-v99m-4gvg", source: "deps.dev"}]
+
+        kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "1.1.18")
+
+        expect(kept.map { _1[:id] }).to(eq(["GHSA-mh99-v99m-4gvg"]))
+      end
+    end
+
+    it("treats an empty vulns list as the answer it is, the same as a bare {}") do
+      stub_vuln("GHSA-mh99-v99m-4gvg", body: brace_record("GHSA-mh99-v99m-4gvg"))
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "1.1.18", body: {vulns: []})
+      advisories = [{id: "GHSA-mh99-v99m-4gvg", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "1.1.18")
+
+      expect(kept).to(be_empty)
+    end
+
+    it("confirms against a record that enumerates versions instead of declaring ranges") do
+      # The other route to version data: an explicit `versions` list, which /v1/query
+      # matches as readily as a range. Without it this drop path has no coverage.
+      stub_vuln("GHSA-enum", body: {
+        "id" => "GHSA-enum",
+        "affected" => [{"package" => {"name" => "brace-expansion", "ecosystem" => "npm"}, "versions" => ["1.1.16"]}]
+      })
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "1.1.18", body: {})
+      advisories = [{id: "GHSA-enum", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "1.1.18")
+
+      expect(kept).to(be_empty)
+    end
+
+    it("keeps the advisory when OSV's record holds no version data for the package (silence is not contradiction)") do
+      # An affected entry with no ranges and no version list, or only a GIT range, means
+      # OSV has no version opinion at all -- /v1/query can never return that record for
+      # ANY version. Treating its empty answer as contradiction would drop the advisory
+      # permanently, for every user, while deps.dev still asserts the version is affected.
+      stub_vuln("GHSA-nover", body: {
+        "id" => "GHSA-nover",
+        "affected" => [{
+          "package" => {"name" => "brace-expansion", "ecosystem" => "npm"},
+          "ranges" => [{"type" => "GIT", "repo" => "https://github.com/x/y", "events" => [{"introduced" => "0"}]}]
+        }]
+      })
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "1.1.18", body: {})
+      advisories = [{id: "GHSA-nover", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "1.1.18")
+
+      expect(kept.map { _1[:id] }).to(eq(["GHSA-nover"]))
+    end
+
+    it("matches on OSV's own id for the record, not just the id deps.dev keyed it by") do
+      # Asking OSV for a CVE returns the GHSA record (it resolves aliases), so the query
+      # answers with an id the deps.dev advisory never carried. Matching on deps.dev's id
+      # alone would read a listed advisory as absent and drop a real finding.
+      stub_vuln("CVE-2026-14257", body: brace_record("GHSA-mh99-v99m-4gvg").merge("aliases" => ["CVE-2026-14257"]))
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "4.0.1",
+        body: {vulns: [{"id" => "GHSA-mh99-v99m-4gvg"}]})
+      advisories = [{id: "CVE-2026-14257", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "4.0.1")
+
+      expect(kept.map { _1[:id] }).to(eq(["CVE-2026-14257"]))
+    end
+
+    it("keeps every advisory when the confirmation pass itself raises (the workflow rescue would strip the gem)") do
+      stub_vuln("GHSA-mh99-v99m-4gvg", body: brace_record("GHSA-mh99-v99m-4gvg"))
+      allow(StillActive::HttpHelper).to(receive(:post_json).and_raise(NoMethodError, "boom"))
+      advisories = [{id: "GHSA-mh99-v99m-4gvg", source: "deps.dev"}]
+
+      kept = nil
+      expect { kept = described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "1.1.18") }
+        .not_to(raise_error)
+      expect(kept.map { _1[:id] }).to(eq(["GHSA-mh99-v99m-4gvg"]))
+    end
+
+    it("issues no query when no version is supplied (callers that only want enrichment)") do
+      stub_vuln("GHSA-8gq9-2x98-w8hf", body: osv_record)
+      advisories = [{id: "GHSA-8gq9-2x98-w8hf", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :pypi, name: "protobuf")
+
+      expect(kept.map { _1[:id] }).to(eq(["GHSA-8gq9-2x98-w8hf"]))
+      expect(a_request(:post, "https://api.osv.dev/v1/query")).not_to(have_been_made)
+    end
+
+    it("issues no query for an ecosystem OSV has no name for (cannot ask the question)") do
+      stub_vuln("GHSA-x", body: {"id" => "GHSA-x", "affected" => [{"package" => {"name" => "widget", "ecosystem" => "npm"}, "ranges" => []}]})
+      advisories = [{id: "GHSA-x", source: "deps.dev"}]
+
+      kept = described_class.enrich(advisories, ecosystem: :conda, name: "widget", version: "1.0.0")
+
+      expect(kept.map { _1[:id] }).to(eq(["GHSA-x"]))
+      expect(a_request(:post, "https://api.osv.dev/v1/query")).not_to(have_been_made)
     end
   end
 end

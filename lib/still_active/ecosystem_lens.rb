@@ -76,7 +76,9 @@ module StillActive
       vulnerabilities = vulnerabilities_for(info)
       # Enrich with OSV: a real GHSA severity label (deps.dev can't score a CVSS-4-only
       # advisory) and the fixed-version ranges the "capped below the fix" signal needs.
-      OsvClient.enrich(vulnerabilities, ecosystem: ecosystem, name: name)
+      # Passing the version also lets OSV confirm the advisory actually applies to it,
+      # correcting deps.dev's lag on an advisory amended with backport fixes.
+      vulnerabilities = OsvClient.enrich(vulnerabilities, ecosystem: ecosystem, name: name, version: version)
       scorecard = DepsDevClient.project_scorecard(project_id: project_id)
       repo = repo_signals(project_id)
 
