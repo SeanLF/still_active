@@ -102,6 +102,34 @@ RSpec.describe(StillActive::Workflow) do
         expect(data[:vulnerabilities].first).to(include(source: "merged", title: "from deps.dev", cvss3_score: 7.5))
       end
 
+      it("drops a deps.dev-only advisory OSV says does not affect the locked version, but never the ruby-advisory-db one") do
+        # deps.dev lags an advisory amended with backport fixes, so it over-reports on
+        # versions the amendment marked patched; OSV's own /v1/query confirms the
+        # version before the finding stands. radb
+        # matches versions itself and is the Ruby authority, so its verdict survives
+        # the same empty query result.
+        allow(StillActive::RubyAdvisoryDb).to(receive(:advisories_for).and_return(
+          [{id: "GHSA-radb", aliases: [], cvss3_score: 5.0, source: "ruby-advisory-db"}]
+        ))
+        osv_record = {
+          "affected" => [{
+            "package" => {"name" => "rack", "ecosystem" => "RubyGems"},
+            "ranges" => [{"type" => "ECOSYSTEM", "events" => [{"introduced" => "0"}, {"fixed" => "1.9.0"}]}]
+          }]
+        }
+        ["GHSA-deps", "GHSA-radb"].each do |id|
+          stub_request(:get, "https://api.osv.dev/v1/vulns/#{id}")
+            .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: osv_record.to_json)
+        end
+        stub_request(:post, "https://api.osv.dev/v1/query")
+          .with(body: {version: "2.0.0", package: {name: "rack", ecosystem: "RubyGems"}}.to_json)
+          .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: "{}")
+
+        data = result["rack"]
+        expect(data[:vulnerability_count]).to(eq(1))
+        expect(data[:vulnerabilities].map { _1[:source] }).to(eq(["ruby-advisory-db"]))
+      end
+
       it("keeps a confirmed advisory as a minimal entry when its deps.dev detail fetch fails, rather than dropping it and reading the gem as clean") do
         # A 429/timeout on the per-advisory detail call returns nil; the key is
         # still evidence the version is vulnerable, so it must survive.

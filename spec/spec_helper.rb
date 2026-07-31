@@ -56,5 +56,10 @@ RSpec.configure do |config|
     # stubbing it; specs that exercise enrichment register a more specific stub_request
     # (or explicit response), which WebMock matches ahead of this catch-all.
     stub_request(:get, %r{api\.osv\.dev/v1/vulns/}).to_return(status: 404)
+    # Same for the version-confirmation query (OsvClient.enrich), which fires whenever
+    # an advisory's OSV record names the audited package. 404 is the "can't answer"
+    # default, so advisories are kept and specs that aren't about confirmation see the
+    # unfiltered list; the ones that are register their own stub_request.
+    stub_request(:post, "https://api.osv.dev/v1/query").to_return(status: 404)
   end
 end

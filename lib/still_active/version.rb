@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 module StillActive
-  VERSION = "3.0.0.rc5"
+  VERSION = "3.0.0.rc6"
 end

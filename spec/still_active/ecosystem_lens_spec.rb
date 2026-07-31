@@ -192,6 +192,38 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::VulnerabilityHelper.unknown_severity?(vuln)).to(be(false))
     end
 
+    it("drops a deps.dev advisory that OSV says does not affect the locked version") do
+      # deps.dev lags an advisory amended with backport fixes, so a version patched on
+      # an older line still carries the key (live: npm brace-expansion 1.1.18, patched
+      # by the 1.1.17 branch the amendment added). OSV's /v1/query reflects the
+      # amendment, and the package must come back clean rather than :vulnerable.
+      stub_version(advisory_keys: ["GHSA-mh99-v99m-4gvg"], source_repo: "https://github.com/juliangruber/brace-expansion")
+      stub_package(default_published_at: "2026-07-30T10:00:32Z")
+      stub_project_scorecard
+      stub_advisory(id: "GHSA-mh99-v99m-4gvg")
+      stub_ecosystems_repo(archived: false)
+      stub_request(:get, "https://api.osv.dev/v1/vulns/GHSA-mh99-v99m-4gvg").to_return(
+        status: 200,
+        headers: {"Content-Type" => "application/json"},
+        body: {
+          "database_specific" => {"severity" => "HIGH"},
+          "affected" => [{
+            "package" => {"name" => "brace-expansion", "ecosystem" => "npm"},
+            "ranges" => [{"type" => "SEMVER", "events" => [{"introduced" => "0"}, {"fixed" => "1.1.17"}]}]
+          }]
+        }.to_json
+      )
+      stub_request(:post, "https://api.osv.dev/v1/query")
+        .with(body: {version: "1.1.18", package: {name: "brace-expansion", ecosystem: "npm"}}.to_json)
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: "{}")
+
+      result = described_class.assess(ecosystem: :npm, name: "brace-expansion", version: "1.1.18")
+
+      expect(result[:vulnerability_count]).to(eq(0))
+      expect(result[:vulnerabilities]).to(be_empty)
+      expect(StillActive::StatusHelper.gem_status(result)).not_to(eq(:vulnerable))
+    end
+
     it("reads an archived repo that still publishes recent releases as :stale, not dead") do
       stub_version(source_repo: "https://github.com/owner/moved")
       stub_package(default_published_at: "2026-06-01T00:00:00Z")
