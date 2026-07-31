@@ -356,6 +356,25 @@ RSpec.describe(StillActive::OsvClient) do
       end
     end
 
+    it("names the dropped advisory on stderr, so the one path that can green a red run leaves a trace") do
+      stub_vuln("GHSA-mh99-v99m-4gvg", body: brace_record("GHSA-mh99-v99m-4gvg"))
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "1.1.18", body: {})
+      advisories = [{id: "GHSA-mh99-v99m-4gvg", source: "deps.dev"}]
+
+      expect { described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "1.1.18") }
+        .to(output(/brace-expansion@1\.1\.18 is not affected by GHSA-mh99-v99m-4gvg per OSV/).to_stderr)
+    end
+
+    it("stays silent when nothing is dropped") do
+      stub_vuln("GHSA-mh99-v99m-4gvg", body: brace_record("GHSA-mh99-v99m-4gvg"))
+      stub_query(name: "brace-expansion", ecosystem: "npm", version: "4.0.1",
+        body: {vulns: [{"id" => "GHSA-mh99-v99m-4gvg"}]})
+      advisories = [{id: "GHSA-mh99-v99m-4gvg", source: "deps.dev"}]
+
+      expect { described_class.enrich(advisories, ecosystem: :npm, name: "brace-expansion", version: "4.0.1") }
+        .not_to(output.to_stderr)
+    end
+
     it("treats an empty vulns list as the answer it is, the same as a bare {}") do
       stub_vuln("GHSA-mh99-v99m-4gvg", body: brace_record("GHSA-mh99-v99m-4gvg"))
       stub_query(name: "brace-expansion", ecosystem: "npm", version: "1.1.18", body: {vulns: []})

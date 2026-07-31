@@ -136,9 +136,10 @@ module StillActive
     # branches. Hours later deps.dev still answered from the 07-24 record, reporting
     # the patched 1.1.17/1.1.18/2.1.3/2.1.4/3.0.3 as vulnerable.
     #
-    # This is lag, NOT a parsing defect: 391 advisories across rubygems/pypi/cargo and
-    # 29 multi-branch npm SEMVER advisories were checked against OSV and every one
-    # agreed. So the correction has to be a live re-check, not a local range fix. We
+    # This is lag, NOT a parsing defect: 341 multi-branch advisories across
+    # npm/rubygems/pypi/cargo were compared against OSV over 589 version checks, and
+    # every one agreed. So the correction has to be a live re-check, not a local range
+    # fix. We
     # ask OSV's /v1/query, deps.dev's own upstream, which applies the declared ranges
     # under each ecosystem's semantics and reflects an amendment immediately. It also
     # saves reimplementing cross-ecosystem version ordering.
@@ -163,6 +164,10 @@ module StillActive
       unaffected = candidates
         .reject { |advisory, osv_ids| (identifiers(advisory) | osv_ids).intersect?(affected) }
         .map(&:first)
+      # Say so when a finding is removed. This is the only path that can turn a red run
+      # green, and a silent drop leaves no way to tell "OSV cleared it" from "the audit
+      # missed it". Matches the per-gem stderr notes the severity gates already emit.
+      unaffected.each { |advisory| warn("still_active: #{name}@#{version} is not affected by #{advisory[:id]} per OSV; deps.dev listed it, dropping") }
       advisories - unaffected
     end
 
