@@ -544,6 +544,23 @@ RSpec.describe(StillActive::SarifHelper) do
       results = render(result: {}, ruby_info: nil).dig("runs", 0, "results")
       expect(results.any? { |r| r["ruleId"] == "SA006" }).to(be(false))
     end
+
+    # endoflife.date publishes a bare calendar date, which Time.parse reads as
+    # local midnight. Rendering it in UTC rewound it a day east of UTC, so the
+    # date has to survive the round trip in every zone, not just the CI box's.
+    ["Pacific/Kiritimati", "Europe/Paris", "UTC", "America/Toronto"].each do |zone|
+      it("renders the endoflife.date EOL date unshifted in #{zone}") do
+        original = ENV["TZ"]
+        ENV["TZ"] = zone
+        begin
+          ruby_info = {version: "3.1.0", eol: true, eol_date: StillActive::EndoflifeHelper.parse_eol("2025-03-31")}
+          sa006 = render(result: {}, ruby_info: ruby_info).dig("runs", 0, "results").find { |r| r["ruleId"] == "SA006" }
+          expect(sa006.dig("message", "text")).to(include("EOL 2025-03-31"))
+        ensure
+          ENV["TZ"] = original
+        end
+      end
+    end
   end
 
   describe("SA007 YankedVersion") do
