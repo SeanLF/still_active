@@ -397,9 +397,13 @@ module StillActive
       Digest::SHA256.hexdigest(["v1", rule_id, gem_name, advisory_id].compact.join("|"))[0, 16]
     end
 
+    # EOL dates are calendar dates, not instants: endoflife.date publishes
+    # "2025-03-31" and Time.parse reads it as local midnight. Shifting that to UTC
+    # rewinds it a day for every user east of UTC, so render the date as parsed,
+    # matching the markdown and terminal output.
     def format_date(value)
       t = ActivityHelper.parse_time(value)
-      t ? t.utc.strftime("%Y-%m-%d") : value.to_s
+      t ? t.strftime("%Y-%m-%d") : value.to_s
     end
 
     def repo_suffix(data)
