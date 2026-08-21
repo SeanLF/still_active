@@ -91,7 +91,6 @@ module StillActive
       component
     end
 
-
     def build_components(result, ruby_info)
       components = result.sort_by { |name, _| name.to_s }.map { |name, data| gem_component(name.to_s, data) }
       components << ruby_component(ruby_info) if ruby_info && ruby_info[:version]
