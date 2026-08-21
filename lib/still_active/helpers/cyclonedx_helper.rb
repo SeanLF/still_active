@@ -3,6 +3,7 @@
 require "json"
 require "digest"
 require "time"
+require_relative "activity_helper"
 require_relative "status_helper"
 require_relative "vulnerability_helper"
 
@@ -142,6 +143,12 @@ module StillActive
     def shared_properties(data)
       {
         "still_active:status" => StatusHelper.gem_status(data).to_s,
+        # The raw activity level alongside the folded verdict. `status` answers
+        # "what should I do about this"; activity_level answers "how dormant is
+        # it", and they deliberately disagree: a deprecated package that still
+        # ships releases is status deprecated but activity ok. A consumer
+        # thresholding on recency wants the second, not the first.
+        "still_active:activity_level" => ActivityHelper.activity_level(data).to_s,
         "still_active:archived" => boolean_property(data[:archived]),
         "still_active:deprecated" => boolean_property(data[:deprecated]),
         "still_active:deprecation_reason" => data[:deprecation_reason],
