@@ -177,4 +177,76 @@ RSpec.describe(StillActive::SbomGraph) do
       }.not_to(raise_error)
     end
   end
+
+  # The scanned project appears in a Syft SBOM as an ordinary library component
+  # with a purl, so still_active audited it as one of its own dependencies and
+  # reported the user's own code as critically stale. Structurally it is a graph
+  # entry point, which is what tells it apart from a real dependency.
+  describe(".project_refs") do
+    it("identifies the scanned project, which nothing depends on and which depends on others") do
+      refs = described_class.project_refs(
+        dependencies: [
+          {"ref" => "probe", "dependsOn" => ["express"]},
+          {"ref" => "express", "dependsOn" => []}
+        ],
+        library_refs: ["probe", "express"].to_set
+      )
+
+      expect(refs).to(contain_exactly("probe"))
+    end
+
+    it("identifies every project in a merged multi-project SBOM") do
+      refs = described_class.project_refs(
+        dependencies: [
+          {"ref" => "app-a", "dependsOn" => ["shared"]},
+          {"ref" => "app-b", "dependsOn" => ["shared"]},
+          {"ref" => "shared", "dependsOn" => []}
+        ],
+        library_refs: ["app-a", "app-b", "shared"].to_set
+      )
+
+      expect(refs).to(contain_exactly("app-a", "app-b"))
+    end
+
+    it("leaves a parentless LEAF alone, because that is a dependency the graph merely failed to link") do
+      # The conservative half of the rule. A real dependency with a missing parent
+      # edge has no children either; only something that pulls others in is a root.
+      refs = described_class.project_refs(
+        dependencies: [
+          {"ref" => "orphan", "dependsOn" => []},
+          {"ref" => "root", "dependsOn" => ["a"]},
+          {"ref" => "a", "dependsOn" => []}
+        ],
+        library_refs: ["orphan", "root", "a"].to_set
+      )
+
+      expect(refs).not_to(include("orphan"))
+    end
+
+    it("never treats a non-library entry point as a project component") do
+      # Trivy's root and per-manifest nodes are applications, so they were never
+      # dependencies in the first place and must not be reported here.
+      refs = described_class.project_refs(
+        dependencies: [
+          {"ref" => "trivy-root", "dependsOn" => ["manifest"]},
+          {"ref" => "manifest", "dependsOn" => ["rails"]},
+          {"ref" => "rails", "dependsOn" => []}
+        ],
+        library_refs: ["rails"].to_set
+      )
+
+      expect(refs).to(be_empty)
+    end
+
+    it("reports nothing when the document carries no dependency graph") do
+      expect(described_class.project_refs(dependencies: nil, library_refs: Set["a"])).to(be_empty)
+      expect(described_class.project_refs(dependencies: [], library_refs: Set["a"])).to(be_empty)
+    end
+
+    it("survives a malformed graph") do
+      expect {
+        described_class.project_refs(dependencies: ["junk", {"ref" => nil}], library_refs: Set["a"])
+      }.not_to(raise_error)
+    end
+  end
 end

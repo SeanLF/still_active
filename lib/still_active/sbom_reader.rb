@@ -76,6 +76,7 @@ module StillActive
         end
         unassessable << entry if kind == :unassessable
       end
+      drop_project_components(doc, deps, entries_by_ref)
       attach_dependency_graph(doc, deps, entries_by_ref)
       # uniq collapses a package that a generator lists more than once (e.g. Syft's
       # per-location entries); `production` is derived from each component's own
@@ -87,6 +88,30 @@ module StillActive
     end
 
     private
+
+    # A Syft SBOM lists the scanned project as an ordinary library component with a
+    # purl, so it was classified as one of its own dependencies and assessed: no
+    # registry entry, therefore no releases, therefore reported as critically stale.
+    # That is a confident false verdict about the user's own code, on the workflow
+    # the README recommends, and it trips --fail-if-critical.
+    #
+    # The project is dropped rather than surfaced as unassessable: it is not a
+    # dependency we failed to assess, it is not a dependency, which is the same
+    # treatment CI actions and opaque binaries already get. Nothing changes for an
+    # SBOM with no dependency graph, and the rule needs the project to actually
+    # depend on something, so a dependency with a missing parent edge is never
+    # dropped for looking parentless.
+    def drop_project_components(doc, deps, entries_by_ref)
+      return if entries_by_ref.empty?
+
+      roots = SbomGraph.project_refs(dependencies: doc["dependencies"], library_refs: entries_by_ref.keys.to_set)
+      return if roots.empty?
+
+      # Compared by identity, not value: two components can classify to equal
+      # hashes, and only the one the graph named as a root should be dropped.
+      dropped = roots.filter_map { |ref| entries_by_ref.delete(ref)&.object_id }.to_set
+      deps.reject! { |entry| dropped.include?(entry.object_id) }
+    end
 
     # Place each package in the CycloneDX dependency graph, so a cross-ecosystem
     # audit can say which packages you actually declared and, for the rest, the
