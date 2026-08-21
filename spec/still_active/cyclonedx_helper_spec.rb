@@ -246,6 +246,7 @@ RSpec.describe(StillActive::CyclonedxHelper) do
 
       expect(props).to(include(
         "still_active:status" => "dead",
+        "still_active:activity_level" => "archived",
         "still_active:archived" => "true",
         "still_active:deprecated" => "true",
         "still_active:ecosystem" => "npm",
