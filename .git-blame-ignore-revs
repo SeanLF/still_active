@@ -4,3 +4,6 @@
 
 # chore(lint): adopt Standard Ruby, replacing rubocop-shopify (#152)
 1c5edbebdf12631a259b4e2b5f5935836d959d37
+
+# refactor: move lib/helpers under lib/still_active to mirror the namespace
+21983168623fd2fe5d450941ed2bd717cd54a7d2
