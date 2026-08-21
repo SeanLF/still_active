@@ -1,0 +1,124 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "serialNumber": "urn:uuid:953cdfd0-1b93-48ed-82b4-5d7b37600a68",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-21T15:09:07+00:00",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "manufacturer": {
+            "name": "Aqua Security Software Ltd."
+          },
+          "group": "aquasecurity",
+          "name": "trivy",
+          "version": "0.74.0"
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "e1f729e7-4dd7-4600-aed1-9155458f1756",
+      "type": "application",
+      "name": ".",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:SchemaVersion",
+          "value": "2"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "eb770b71-44e0-4a52-9b86-5b09a60b01f3",
+      "type": "application",
+      "name": "package-lock.json",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:Class",
+          "value": "lang-pkgs"
+        },
+        {
+          "name": "aquasecurity:trivy:Type",
+          "value": "npm"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:npm/is-number@6.0.0",
+      "type": "library",
+      "name": "is-number",
+      "version": "6.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:npm/is-number@6.0.0",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "is-number@6.0.0"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "npm"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:npm/is-odd@3.0.1",
+      "type": "library",
+      "name": "is-odd",
+      "version": "3.0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:npm/is-odd@3.0.1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "is-odd@3.0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "npm"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "e1f729e7-4dd7-4600-aed1-9155458f1756",
+      "dependsOn": [
+        "eb770b71-44e0-4a52-9b86-5b09a60b01f3"
+      ]
+    },
+    {
+      "ref": "eb770b71-44e0-4a52-9b86-5b09a60b01f3",
+      "dependsOn": [
+        "pkg:npm/is-odd@3.0.1"
+      ]
+    },
+    {
+      "ref": "pkg:npm/is-number@6.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:npm/is-odd@3.0.1",
+      "dependsOn": [
+        "pkg:npm/is-number@6.0.0"
+      ]
+    }
+  ],
+  "vulnerabilities": []
+}
