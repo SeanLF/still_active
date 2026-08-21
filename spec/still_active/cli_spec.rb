@@ -1412,6 +1412,29 @@ RSpec.describe(StillActive::CLI) do
           .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
       end
 
+      it("prefers sarif over cyclonedx in sbom mode, the same order the native path uses") do
+        # The two flags must not mean different things depending on whether the
+        # input was a Gemfile or an SBOM.
+        allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
+          outcome({"npm/left-pad@1.0.0" => npm_flagged.merge(purl: "pkg:npm/left-pad@1.0.0", name: "left-pad", ecosystem: :npm)})
+        ))
+        allow($stderr).to(receive(:puts))
+        cli.run(["--sbom=sbom.json", "--sarif=out.sarif.json", "--cyclonedx=out.cdx.json"])
+
+        expect(File.exist?("out.sarif.json")).to(be(true))
+        expect(File.exist?("out.cdx.json")).to(be(false))
+      end
+
+      it("warns that it dropped an output mode, rather than silently emitting one of two") do
+        # Before --sbom --cyclonedx was supported this pair exited 2, so it was at
+        # least loud. Supporting it must not turn a loud refusal into a silent drop.
+        allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
+          outcome({"npm/left-pad@1.0.0" => npm_flagged.merge(purl: "pkg:npm/left-pad@1.0.0", name: "left-pad", ecosystem: :npm)})
+        ))
+        expect { cli.run(["--sbom=sbom.json", "--sarif=out.sarif.json", "--cyclonedx=out.cdx.json"]) }
+          .to(output(/multiple output modes set.*using --sarif.*ignoring --cyclonedx/m).to_stderr)
+      end
+
       # This used to error, on the grounds that SBOM-in/SBOM-out needed
       # per-ecosystem PURL reconstruction. It does not: the input carries the
       # authoritative PURL, so the enriched output re-emits it and a consumer
