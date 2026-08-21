@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/markdown_escape"
+require_relative "../../lib/still_active/helpers/markdown_escape"
 
 RSpec.describe(StillActive::MarkdownEscape) do
   describe(".cell") do

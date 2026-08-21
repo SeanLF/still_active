@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/terminal_helper"
+require_relative "../../lib/still_active/helpers/terminal_helper"
 
 RSpec.describe(StillActive::TerminalHelper) do
   before { StillActive.reset }

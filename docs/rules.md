@@ -152,4 +152,4 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 - Rule IDs are stable. New rules (SA010+) are additive. Existing rule renames/removals would be breaking changes.
 - `partialFingerprints` hash `(rule_id, gem_name, advisory_id?)` — version is **not** included, so a `bundle update` that doesn't change which gems are flagged keeps the same alert IDs (no churn in the GitHub Security UI).
-- Rule thresholds: libyear > 1.0 and scorecard < 4.0 live in `lib/helpers/sarif_helper.rb`; the abandonment cutoff (release older than 3 years) lives in `lib/still_active/config.rb` (`warning_range_end`).
+- Rule thresholds: libyear > 1.0 and scorecard < 4.0 live in `lib/still_active/helpers/sarif_helper.rb`; the abandonment cutoff (release older than 3 years) lives in `lib/still_active/config.rb` (`warning_range_end`).

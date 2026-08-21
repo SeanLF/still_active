@@ -3,7 +3,7 @@
 require "json"
 require "digest"
 require "time"
-require_relative "../still_active/sarif/rules"
+require_relative "../sarif/rules"
 require_relative "lockfile_indexer"
 require_relative "activity_helper"
 require_relative "dependency_helper"

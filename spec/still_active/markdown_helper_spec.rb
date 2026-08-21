@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/markdown_helper"
+require_relative "../../lib/still_active/helpers/markdown_helper"
 
 RSpec.describe(StillActive::MarkdownHelper) do
   before { StillActive.reset }

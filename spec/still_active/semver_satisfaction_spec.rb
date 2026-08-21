@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/semver_satisfaction"
+require_relative "../../lib/still_active/helpers/semver_satisfaction"
 
 RSpec.describe(StillActive::SemverSatisfaction) do
   # Vectors are transcribed from the ecosystems' own suites: node-semver's

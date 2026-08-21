@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "../helpers/http_helper"
-require_relative "../helpers/cvss_helper"
+require_relative "helpers/http_helper"
+require_relative "helpers/cvss_helper"
 
 module StillActive
   # OSV (api.osv.dev) enrichment for advisories deps.dev has already discovered.

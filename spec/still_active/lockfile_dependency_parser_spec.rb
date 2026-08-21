@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/lockfile_dependency_parser"
+require_relative "../../lib/still_active/helpers/lockfile_dependency_parser"
 
 RSpec.describe(StillActive::LockfileDependencyParser) do
   describe(".parse") do

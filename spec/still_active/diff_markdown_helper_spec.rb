@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/diff_markdown_helper"
+require_relative "../../lib/still_active/helpers/diff_markdown_helper"
 require_relative "../../lib/still_active/diff"
 
 RSpec.describe(StillActive::DiffMarkdownHelper) do

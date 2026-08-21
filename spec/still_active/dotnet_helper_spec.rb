@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/dotnet_helper"
+require_relative "../../lib/still_active/helpers/dotnet_helper"
 
 RSpec.describe(StillActive::DotnetHelper) do
   describe(".classify") do

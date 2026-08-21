@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/summary_helper"
+require_relative "../../lib/still_active/helpers/summary_helper"
 
 RSpec.describe(StillActive::SummaryHelper) do
   let(:recent) { Time.now }

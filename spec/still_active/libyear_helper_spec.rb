@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/libyear_helper"
+require_relative "../../lib/still_active/helpers/libyear_helper"
 
 RSpec.describe(StillActive::LibyearHelper) do
   describe(".gem_libyear") do

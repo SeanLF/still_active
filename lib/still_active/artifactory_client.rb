@@ -4,7 +4,7 @@ require "bundler"
 require "cgi"
 require "json"
 require "uri"
-require_relative "../helpers/http_helper"
+require_relative "helpers/http_helper"
 require_relative "compact_index_client"
 require_relative "source_credentials"
 

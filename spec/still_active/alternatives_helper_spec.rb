@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/alternatives_helper"
+require_relative "../../lib/still_active/helpers/alternatives_helper"
 
 RSpec.describe(StillActive::AlternativesHelper) do
   describe(".leads_for") do

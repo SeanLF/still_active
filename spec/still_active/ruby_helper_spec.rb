@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/ruby_helper"
+require_relative "../../lib/still_active/helpers/ruby_helper"
 
 RSpec.describe(StillActive::RubyHelper) do
   let(:cycles) do

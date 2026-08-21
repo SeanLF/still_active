@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "optparse"
-require_relative "../helpers/constraint_helper"
-require_relative "../helpers/cyclonedx_helper"
-require_relative "../helpers/vulnerability_helper"
+require_relative "helpers/constraint_helper"
+require_relative "helpers/cyclonedx_helper"
+require_relative "helpers/vulnerability_helper"
 
 module StillActive
   class Options

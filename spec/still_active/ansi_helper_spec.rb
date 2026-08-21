@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/ansi_helper"
+require_relative "../../lib/still_active/helpers/ansi_helper"
 
 RSpec.describe(StillActive::AnsiHelper) do
   describe("colour methods") do
