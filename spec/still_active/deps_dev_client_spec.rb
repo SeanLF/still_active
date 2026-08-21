@@ -49,6 +49,34 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(result[:published_at]).to(eq("2025-09-22T04:04:12Z"))
     end
 
+    it("returns the maintainer's deprecation declaration and its message") do
+      # npm deprecation is per version and rides in the same response as the
+      # advisories and the release date, so this costs no extra request.
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/request/versions/2\.88\.2})
+        .to_return(
+          status: 200,
+          headers: {"Content-Type" => "application/json"},
+          body: {"advisoryKeys" => [], "isDeprecated" => true, "deprecatedReason" => "use fetch instead"}.to_json
+        )
+      result = described_class.version_info(gem_name: "request", version: "2.88.2", system: :npm)
+
+      expect(result[:deprecated]).to(be(true))
+      expect(result[:deprecation_reason]).to(eq("use fetch instead"))
+    end
+
+    it("reports a healthy package as not deprecated, with no message") do
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/express/versions/5\.2\.1})
+        .to_return(
+          status: 200,
+          headers: {"Content-Type" => "application/json"},
+          body: {"advisoryKeys" => [], "isDeprecated" => false, "deprecatedReason" => ""}.to_json
+        )
+      result = described_class.version_info(gem_name: "express", version: "5.2.1", system: :npm)
+
+      expect(result[:deprecated]).to(be(false))
+      expect(result[:deprecation_reason]).to(be_nil)
+    end
+
     it("returns the licences the version endpoint already serves") do
       # The licence rides along in the response we already fetch for advisories and
       # the release date, so surfacing it costs no extra request.

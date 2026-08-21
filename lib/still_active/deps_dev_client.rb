@@ -48,7 +48,16 @@ module StillActive
         # response, so licence parity with the native path costs no extra request.
         # Always an array, so a caller can't mistake "no licence declared" for a
         # failed lookup.
-        licenses: body["licenses"] || []
+        licenses: body["licenses"] || [],
+        # The maintainer's own deprecation declaration, and the message they left
+        # with it (often naming the replacement: left-pad's reads "use
+        # String.prototype.padStart()"). This is a declared fact from the registry,
+        # not a heuristic inferred from dates, and it rides in the same response as
+        # the advisories and the release date, so it costs no extra request.
+        # Populated for npm today; other ecosystems mostly lack a deprecation
+        # mechanism, and any deps.dev later fills in lights up with no code change.
+        deprecated: body["isDeprecated"] == true,
+        deprecation_reason: presence(body["deprecatedReason"])
       }
     end
 
@@ -164,6 +173,12 @@ module StillActive
     end
 
     private
+
+    # "" is how deps.dev renders "no deprecation message"; nil keeps an absent
+    # reason from rendering as a present blank.
+    def presence(value)
+      value unless value.nil? || value.to_s.empty?
+    end
 
     # Coerce an advisory alias to a string id. A BARE non-string alias is deps.dev
     # ALPHA-API schema drift: coerce it (a non-string alias makes the advisory-merge

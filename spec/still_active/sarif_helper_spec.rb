@@ -44,9 +44,9 @@ RSpec.describe(StillActive::SarifHelper) do
       expect(driver["semanticVersion"]).to(eq("3.0.0-rc4")) # SemVer 2.0.0
     end
 
-    it("emits all 9 rules in tool.driver.rules with required fields") do
+    it("emits all 10 rules in tool.driver.rules with required fields") do
       rules = doc.dig("runs", 0, "tool", "driver", "rules")
-      expect(rules.size).to(eq(9))
+      expect(rules.size).to(eq(10))
       rules.each do |r|
         expect(r).to(include("id", "name", "shortDescription", "fullDescription", "help", "helpUri", "defaultConfiguration", "properties"))
         expect(r["help"]).to(include("text", "markdown"))
@@ -58,7 +58,7 @@ RSpec.describe(StillActive::SarifHelper) do
     it("includes security-severity on security rules only") do
       rules = doc.dig("runs", 0, "tool", "driver", "rules")
       by_id = rules.to_h { |r| [r["id"], r] }
-      ["SA001", "SA003", "SA006", "SA007"].each do |id|
+      ["SA001", "SA003", "SA006", "SA007", "SA010"].each do |id|
         expect(by_id[id]["properties"]["security-severity"]).to(match(/\A\d+\.\d+\z/))
       end
       ["SA002", "SA004", "SA005", "SA008", "SA009"].each do |id|

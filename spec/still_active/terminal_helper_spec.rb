@@ -481,4 +481,26 @@ RSpec.describe(StillActive::TerminalHelper) do
       end
     end
   end
+
+  describe("a deprecated package") do
+    it("names the maintainer's message, which usually points at the successor") do
+      result = {"left-pad" => {deprecated: true, deprecation_reason: "use String.prototype.padStart()", vulnerability_count: 0}}
+
+      output = described_class.render(result)
+
+      expect(output).to(include("deprecated by maintainer: use String.prototype.padStart()"))
+    end
+
+    it("still says so when the maintainer left no message") do
+      result = {"x" => {deprecated: true, vulnerability_count: 0}}
+
+      expect(described_class.render(result)).to(include("deprecated by maintainer"))
+    end
+
+    it("says nothing for a package that is not deprecated") do
+      result = {"x" => {deprecated: false, vulnerability_count: 0}}
+
+      expect(described_class.render(result)).not_to(include("deprecated by maintainer"))
+    end
+  end
 end

@@ -567,4 +567,28 @@ RSpec.describe(StillActive::MarkdownHelper) do
       expect(described_class.ruby_line(info)).to(include("EOL,"))
     end
   end
+
+  describe(".deprecated_section") do
+    it("lists deprecated packages with the maintainer's message") do
+      result = {"left-pad" => {deprecated: true, deprecation_reason: "use String.prototype.padStart()"}}
+
+      section = described_class.deprecated_section(result)
+
+      expect(section).to(include("Deprecated by their maintainers"))
+      expect(section).to(include("use String.prototype.padStart()"))
+    end
+
+    it("escapes a registry-supplied message rather than letting it forge markdown") do
+      result = {"x" => {deprecated: true, deprecation_reason: "see [here](http://evil)\nand this"}}
+
+      section = described_class.deprecated_section(result)
+
+      expect(section).to(include("\\[here\\]"))
+      expect(section.lines.length).to(eq(3)) # blank, heading, one bullet: the newline did not add a row
+    end
+
+    it("is empty when nothing is deprecated") do
+      expect(described_class.deprecated_section({"x" => {deprecated: false}})).to(eq(""))
+    end
+  end
 end

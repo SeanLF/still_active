@@ -332,6 +332,12 @@ RSpec.describe(StillActive::CLI) do
             # absent from the pre-#128 fixture, so the schema's own field went
             # unvalidated by real output.
             scorecard_maintained: 7.0,
+            # The maintainer's deprecation declaration. Exercised here with a
+            # message so the reason field is guarded too; the deprecated:true case
+            # lives in status_helper_spec, since this fixture also asserts a
+            # healthy :ok verdict.
+            deprecated: false,
+            deprecation_reason: nil,
             vulnerability_count: 0,
             vulnerabilities: [],
             ruby_gems_url: "https://rubygems.org/gems/rails",

@@ -42,6 +42,8 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
       activity_level
       archived
       constraints
+      deprecated
+      deprecation_reason
       dependency_path
       direct
       language_ceiling

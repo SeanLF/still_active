@@ -439,6 +439,8 @@ module StillActive
 
         puts MarkdownHelper.markdown_table_body_line(gem_name: name, data: gem_data)
       end
+      deprecated = MarkdownHelper.deprecated_section(result)
+      puts deprecated unless deprecated.empty?
       poison = MarkdownHelper.poison_section(result)
       puts poison unless poison.empty?
       language_ceiling = MarkdownHelper.language_ceiling_section(result)

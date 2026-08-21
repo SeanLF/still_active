@@ -112,4 +112,35 @@ RSpec.describe(StillActive::StatusHelper) do
       expect(described_class.project_status(result)).to(eq(:ok))
     end
   end
+
+  describe("a maintainer-declared deprecation") do
+    # The signal that resolves the ladder's hardest distinction. A deprecated
+    # package is dormant AND the maintainer has said to stop using it, which is
+    # exactly what :legacy ("done, low risk") must not swallow.
+    it("is not :legacy, even when the package is long-dormant and clean") do
+      dormant = {last_commit_date: Time.now - (7 * 365 * 24 * 60 * 60), latest_version_release_date: Time.now - (7 * 365 * 24 * 60 * 60), vulnerability_count: 0}
+
+      expect(described_class.gem_status(dormant)).to(eq(:legacy))
+      expect(described_class.gem_status(dormant.merge(deprecated: true))).to(eq(:deprecated))
+    end
+
+    it("outranks an actively-released package's :ok") do
+      active = {last_commit_date: Time.now, latest_version_release_date: Time.now, vulnerability_count: 0, deprecated: true}
+
+      expect(described_class.gem_status(active)).to(eq(:deprecated))
+    end
+
+    it("makes a vulnerable deprecated package :dead, because the fix is not coming") do
+      # Even on a package still publishing releases: the maintainer has said stop
+      # using it, so waiting for the patch is not a plan.
+      data = {last_commit_date: Time.now, latest_version_release_date: Time.now, vulnerability_count: 1, deprecated: true}
+
+      expect(described_class.gem_status(data)).to(eq(:dead))
+    end
+
+    it("ranks :deprecated above :archived and below :vulnerable in the rollup") do
+      expect(described_class::SEVERITY.index(:deprecated)).to(be > described_class::SEVERITY.index(:archived))
+      expect(described_class::SEVERITY.index(:deprecated)).to(be < described_class::SEVERITY.index(:vulnerable))
+    end
+  end
 end

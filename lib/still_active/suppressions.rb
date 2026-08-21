@@ -16,7 +16,7 @@ module StillActive
   # name an explicit advisory id, so a newly disclosed CVE on the same gem is
   # never pre-silenced.
   class Suppressions
-    GATEABLE_SIGNALS = [:activity, :vulnerability, :libyear, :poison, :language_ceiling].freeze
+    GATEABLE_SIGNALS = [:activity, :vulnerability, :libyear, :poison, :language_ceiling, :deprecated].freeze
 
     Entry = Struct.new(:gem, :advisory, :signal, :reason, :expires, keyword_init: true) do
       def whole_gem?
@@ -76,14 +76,16 @@ module StillActive
           return false
         end
         if signal && !GATEABLE_SIGNALS.include?(signal)
-          warnings << "ignoring suppression for #{label}: unknown signal #{signal.inspect} (expected activity, vulnerability, libyear, or poison)"
+          # Listed from the constant rather than spelled out: the hand-written
+          # version had already drifted (it never mentioned language_ceiling).
+          warnings << "ignoring suppression for #{label}: unknown signal #{signal.inspect} (expected #{GATEABLE_SIGNALS.join(", ")})"
           return false
         end
         if signal == :vulnerability && advisory.nil?
           warnings << "ignoring vulnerability suppression for #{label}: must name an advisory id so newly disclosed advisories still surface"
           return false
         end
-        if [:activity, :libyear, :poison].include?(signal) && gem.nil?
+        if [:activity, :libyear, :poison, :deprecated].include?(signal) && gem.nil?
           warnings << "ignoring #{signal} suppression: must name a gem"
           return false
         end
