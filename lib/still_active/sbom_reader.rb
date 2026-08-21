@@ -4,6 +4,8 @@ require "json"
 require "uri"
 require "package_url"
 
+require_relative "helpers/sbom_graph"
+
 module StillActive
   # Reads a CycloneDX SBOM (e.g. produced by Syft) into a clean, normalized
   # dependency set -- the breadth input for non-Ruby ecosystems, where the
@@ -63,12 +65,18 @@ module StillActive
 
       deps = []
       unassessable = []
+      entries_by_ref = {}
       components.each do |component|
         kind, entry = classify(component)
         entry[:production] = !dev_signal?(component) if kind == :dependency && marks_dev
-        deps << entry if kind == :dependency
+        if kind == :dependency
+          ref = component["bom-ref"]
+          entries_by_ref[ref] = entry if ref.is_a?(String)
+          deps << entry
+        end
         unassessable << entry if kind == :unassessable
       end
+      attach_dependency_graph(doc, deps, entries_by_ref)
       # uniq collapses a package that a generator lists more than once (e.g. Syft's
       # per-location entries); `production` is derived from each component's own
       # signal, so duplicates of the same name+version dedup cleanly unless a
@@ -79,6 +87,68 @@ module StillActive
     end
 
     private
+
+    # Place each package in the CycloneDX dependency graph, so a cross-ecosystem
+    # audit can say which packages you actually declared and, for the rest, the
+    # declared package that pulls each one in. Same contract as the native path:
+    # `direct` is a boolean, and `dependency_path` is present only for a transitive
+    # package, head-first so it names the dependency a maintainer can act on.
+    #
+    # Both fields are attached ONLY to packages the graph actually places. A
+    # generator can emit a near-empty graph (a Syft directory scan of a Ruby project
+    # produced one edge across 789 components), and stamping `direct: false` on
+    # everything it failed to mention would be the positive claim "none of these are
+    # yours" about a document that never said. Absent means unknown, which the
+    # renderers already treat correctly: they test `direct == false`, not falsiness.
+    def attach_dependency_graph(doc, deps, entries_by_ref)
+      return if entries_by_ref.empty?
+
+      placements = SbomGraph.resolve(
+        dependencies: doc["dependencies"],
+        root_ref: doc.dig("metadata", "component", "bom-ref"),
+        library_refs: entries_by_ref.keys.to_set
+      )
+      return if placements.nil?
+
+      identities = entries_by_ref.transform_values { |entry| "#{entry[:ecosystem]}/#{entry[:name]}" }
+      # Fold per package identity first. A generator may list one package under
+      # several bom-refs (Syft emits a component per location), and those copies are
+      # collapsed by `uniq` below; if they carried different placements they would
+      # stop being equal and the package would appear twice in the audit.
+      best = {}
+      entries_by_ref.each do |ref, entry|
+        placement = placements[ref]
+        next if placement.nil?
+
+        key = identity_key(entry)
+        best[key] = better_placement(best[key], placement)
+      end
+
+      deps.each do |entry|
+        placement = best[identity_key(entry)]
+        next if placement.nil?
+
+        entry[:direct] = placement[:direct]
+        next if placement[:direct]
+
+        path = Array(placement[:path]).filter_map { |ref| identities[ref] }
+        entry[:dependency_path] = path unless path.empty?
+      end
+    end
+
+    def identity_key(entry)
+      [entry[:ecosystem], entry[:name], entry[:version]]
+    end
+
+    # Declared beats pulled-in (you can act on it directly), and among transitive
+    # placements the shorter path wins, matching the native path's shortest-path BFS.
+    def better_placement(current, candidate)
+      return candidate if current.nil?
+      return current if current[:direct]
+      return candidate if candidate[:direct]
+
+      (Array(candidate[:path]).length < Array(current[:path]).length) ? candidate : current
+    end
 
     # Whether a component is marked dev/test-only. CycloneDX `scope` (excluded =
     # not part of the product, optional = not needed at runtime) is the standard;

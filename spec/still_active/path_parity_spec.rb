@@ -42,6 +42,8 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
       activity_level
       archived
       constraints
+      dependency_path
+      direct
       language_ceiling
       last_commit_date
       latest_version
@@ -74,10 +76,6 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
     {
       alternatives: "structural: alternatives come from the Ruby Toolbox catalog, which indexes gems only. " \
         "No cross-ecosystem equivalent has been adopted.",
-      dependency_path: "closeable: Bundler resolves the tree, so the native path knows who pulled a gem in. " \
-        "CycloneDX carries a dependency graph still_active does not read yet (SbomReader takes the flat component list).",
-      direct: "closeable: same as dependency_path. Direct-vs-transitive needs the SBOM's dependency graph, " \
-        "which is present in the format but not yet parsed.",
       latest_pre_release_version: "structural: RubyGems exposes every version, so the native path can pick the newest " \
         "pre-release. deps.dev models one default version per package and has no pre-release channel to read.",
       latest_pre_release_version_release_date: "structural: see latest_pre_release_version.",
