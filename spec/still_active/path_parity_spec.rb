@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "prism"
 
 # Cross-path field parity: still_active assesses dependencies through two
 # independent paths, the native Bundler audit (Workflow) and the cross-ecosystem
@@ -161,45 +162,94 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
     File.read(File.join(root, "lib", "still_active", "cli.rb"))
   end
 
-  # EcosystemLens.assess builds one hash literal and then attaches conditional
-  # fields to it. Both forms are read: the literal's own keys, and every
-  # `gem_data[:key] =` in the file (attach_constraints, attach_language_ceiling
-  # and friends all live in ecosystem_lens.rb, so this file is the whole surface).
-  def lens_fields
-    literal = lens_source[/gem_data = \{(.*?)^\s{6}\}/m, 1]
-    raise "could not find the `gem_data = { ... }` literal in ecosystem_lens.rb; update this extractor" if literal.nil?
+  # Walk a file's AST, yielding every node, so the extractors below can ask
+  # structural questions instead of matching text. Reading Ruby with regexes
+  # would work today and break on the next reformat: this repo did exactly one
+  # of those recently (#152, adopting Standard), and an indentation-anchored
+  # pattern would have silently changed meaning. Prism is stdlib on the
+  # supported Rubies (1.9.0 on both 3.3 and 4.0), and this spec never ships
+  # (the gemspec packages lib/ and bin/ only), so it costs no dependency.
+  def each_node(source, &block)
+    walk = lambda do |node|
+      return unless node.is_a?(Prism::Node)
 
-    keys = literal.scan(/^\s{8}([a-z_][a-z0-9_]*):/).flatten +
-      lens_source.scan(/gem_data\[:([a-z_][a-z0-9_]*)\]\s*(?:\|\|)?=/).flatten
-    extract("EcosystemLens", keys, 18)
+      block.call(node)
+      node.compact_child_nodes.each { |child| walk.call(child) }
+    end
+    walk.call(Prism.parse(source).value)
+  end
+
+  # Every key written onto a hash held in the local variable `name`: the keys of
+  # a `name = {...}` literal, plus every `name[:key] =` and `name[:key] ||=`
+  # anywhere in the file.
+  def keys_written_to(source, name)
+    keys = []
+    each_node(source) do |node|
+      case node
+      when Prism::LocalVariableWriteNode
+        next unless node.name == name && node.value.is_a?(Prism::HashNode)
+
+        node.value.elements.each do |element|
+          keys << element.key.unescaped if element.is_a?(Prism::AssocNode) && element.key.is_a?(Prism::SymbolNode)
+        end
+      when Prism::CallNode, Prism::IndexOrWriteNode
+        # `h[:k] = v` parses as a call to :[]= ; `h[:k] ||= v` is its own node.
+        next if node.is_a?(Prism::CallNode) && node.name != :[]=
+        next unless node.receiver.is_a?(Prism::LocalVariableReadNode) && node.receiver.name == name
+
+        argument = node.arguments&.arguments&.first
+        keys << argument.unescaped if argument.is_a?(Prism::SymbolNode)
+      end
+    end
+    keys
+  end
+
+  # The symbol arguments of every `receiver.method_name(...)` call in a file,
+  # for the two places a field set is expressed as call arguments rather than
+  # as writes: `dep.slice(:production)` and `data.merge(activity_level:, ...)`.
+  def symbol_arguments_of(source, receiver_name, method_name)
+    keys = []
+    each_node(source) do |node|
+      next unless node.is_a?(Prism::CallNode) && node.name == method_name
+      next unless node.receiver.is_a?(Prism::LocalVariableReadNode) && node.receiver.name == receiver_name
+
+      node.arguments&.arguments&.each do |argument|
+        case argument
+        when Prism::SymbolNode
+          keys << argument.unescaped
+        when Prism::KeywordHashNode, Prism::HashNode
+          argument.elements.each do |element|
+            keys << element.key.unescaped if element.is_a?(Prism::AssocNode) && element.key.is_a?(Prism::SymbolNode)
+          end
+        end
+      end
+    end
+    keys
+  end
+
+  # EcosystemLens.assess builds one hash literal and then attaches conditional
+  # fields to it. attach_constraints, attach_language_ceiling and friends all
+  # live in ecosystem_lens.rb, so this one file is the lens's whole surface.
+  def lens_fields
+    extract("EcosystemLens", keys_written_to(lens_source, :gem_data), 18)
   end
 
   # SbomWorkflow copies SBOM-sourced keys onto the assessment via `dep.slice(...)`.
   def sbom_workflow_fields
-    slices = sbom_workflow_source.scan(/\.merge\(dep\.slice\(([^)]*)\)\)/).join(",")
-    extract("SbomWorkflow", slices.scan(/:([a-z_]+)/).flatten, 1)
+    extract("SbomWorkflow", symbol_arguments_of(sbom_workflow_source, :dep, :slice), 1)
   end
 
   # PoisonSecurityCorrelator runs on BOTH paths and writes onto the dependency
   # hash (`data[:key] =`), so whatever it sets is shared by construction. Nested
   # writes (`constraint[:...]`, `ceiling[:...]`) are fields of a nested object,
-  # not of the dependency, so the receiver is pinned to `data`.
+  # not of the dependency, and are excluded because the receiver is pinned to `data`.
   def correlator_fields
-    extract("PoisonSecurityCorrelator", correlator_source.scan(/\bdata\[:([a-z_][a-z0-9_]*)\]\s*=/).flatten, 3)
+    extract("PoisonSecurityCorrelator", keys_written_to(correlator_source, :data), 3)
   end
 
   # emit_sbom_json derives two more fields onto each dependency at render time.
   def sbom_render_fields
-    body = cli_source[/def emit_sbom_json.*?^    end/m]
-    raise "could not find emit_sbom_json in cli.rb; update this extractor" if body.nil?
-
-    # Anchored on indentation rather than the first `)`, which would land inside
-    # the first value expression (`ActivityHelper.activity_level(data)`) and report
-    # one key instead of two.
-    merge_block = body[/data\.merge\(\n(.*?)^\s{10}\)/m, 1]
-    raise "emit_sbom_json no longer merges derived fields onto each dependency; update this extractor" if merge_block.nil?
-
-    extract("emit_sbom_json", merge_block.scan(/^\s{12}([a-z_][a-z0-9_]*):/).flatten, 2)
+    extract("emit_sbom_json", symbol_arguments_of(cli_source, :data, :merge), 2)
   end
 
   # Everything the SBOM path puts on a dependency that reaches the JSON output.
