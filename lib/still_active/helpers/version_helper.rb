@@ -113,7 +113,11 @@ module StillActive
     # ("Apache-2.0 OR MIT"), which passes through untouched. nil when unknown,
     # never an empty string, so a missing licence can't render as a present blank.
     def format_licenses(licenses)
-      return if licenses.nil? || licenses.empty?
+      # Array() so a drifted feed serving a bare string instead of an array can't
+      # raise here. This runs inside the per-dependency assessment, so an exception
+      # would cost that dependency its entire verdict over a cosmetic field.
+      licenses = Array(licenses)
+      return if licenses.empty?
 
       licenses.join(", ")
     end

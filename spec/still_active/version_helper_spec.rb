@@ -231,6 +231,12 @@ RSpec.describe(StillActive::VersionHelper) do
       expect(described_class.format_licenses(nil)).to(be_nil)
       expect(described_class.format_licenses([])).to(be_nil)
     end
+
+    it("survives a drifted feed serving a bare string instead of an array") do
+      # This runs inside the per-dependency assessment: raising here would cost
+      # that dependency its whole verdict over a cosmetic field.
+      expect(described_class.format_licenses("MIT")).to(eq("MIT"))
+    end
   end
 
   describe("#license") do
