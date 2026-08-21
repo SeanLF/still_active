@@ -48,6 +48,8 @@ The new `--fail-if-poison[=TIER]` and `--fail-if-language-ceiling[=TIER]` gates 
 
 ### Fixed
 
+- **The `--sbom` JSON output is documented.** It is a 3.0 headline feature that emits `schema_version: 1` while `docs/schema.md` described only the Gemfile audit's shape, so two structurally different documents both claimed version 1 and one of them had no written contract at all. The cross-ecosystem envelope, its `unassessable` entries, and the fields specific to that path (`ecosystem`, `name`, `purl`, `production`, `direct`, `dependency_path`, `version_unresolved`) are now documented, along with the rule for telling the two apart: check for `gems` versus `dependencies`, not `schema_version`. A doc-consistency spec now fails if the `--sbom` path emits a field that document never mentions, since unlike the native output there is no JSON Schema to catch it.
+
 - **Verified against five real SBOM generators, not one.** The `--sbom` path is now exercised in the test suite against verbatim output from Syft, Trivy, `npm sbom`, `cyclonedx-npm` and `cyclonedx-py`, committed as fixtures rather than hand-written. They disagree about nearly everything a reader could naively depend on: three CycloneDX spec versions (1.5, 1.6, 1.7), four `metadata.component` types including absent entirely, and five mutually incompatible bom-ref conventions (a PURL with a `package-id` qualifier, a bare UUID, `name@version`, a pipe-delimited parent/child path, and a requirements-file line number). Given the same project all five now produce the same verdict, and the suite fails if a future change makes one of them disagree. This closes the gap behind both SBOM bugs found before it: a synthetic fixture only ever encodes the shape whoever wrote it already had in mind.
 
 

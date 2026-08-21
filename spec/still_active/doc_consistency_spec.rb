@@ -87,4 +87,47 @@ RSpec.describe("documentation consistency") do # rubocop:disable RSpec/DescribeC
       )
     end
   end
+
+  # The --sbom JSON carries `schema_version: 1` but is NOT covered by the JSON
+  # Schema file, so nothing but this stops its documented shape drifting from the
+  # emitted one. It went undocumented entirely until a pre-3.0 readiness pass
+  # noticed two structurally different documents both claiming version 1.
+  describe("--sbom JSON <-> docs/schema.md") do
+    let(:schema_md) { File.read(File.join(root, "docs", "schema.md")) }
+
+    # The per-dependency keys the SBOM path can emit, derived the same way the
+    # parity spec derives them: from the lens, what SbomWorkflow copies across,
+    # what the correlator writes, and what emit_sbom_json derives at render time.
+    let(:emitted_fields) do
+      lens = File.read(File.join(root, "lib", "still_active", "ecosystem_lens.rb"))
+      workflow = File.read(File.join(root, "lib", "still_active", "sbom_workflow.rb"))
+      correlator = File.read(File.join(root, "lib", "still_active", "poison_security_correlator.rb"))
+      literal = lens[/gem_data = \{(.*?)^\s{6}\}/m, 1].to_s
+      fields = literal.scan(/^\s{8}([a-z_][a-z0-9_]*):/).flatten +
+        lens.scan(/gem_data\[:([a-z_][a-z0-9_]*)\]/).flatten +
+        workflow.scan(/dep\.slice\(([^)]*)\)/).join(",").scan(/:([a-z_]+)/).flatten +
+        correlator.scan(/\bdata\[:([a-z_][a-z0-9_]*)\]\s*=/).flatten
+      # capped_deps is an internal work-list the correlator deletes before output.
+      (fields.uniq - ["capped_deps"]).sort
+    end
+
+    it("derives a plausible field set, so a broken extractor cannot pass vacuously") do
+      expect(emitted_fields.size).to(be >= 18, "field extraction found #{emitted_fields.size}; the sources it reads were probably restructured")
+    end
+
+    it("documents every per-dependency field the --sbom path can emit") do
+      undocumented = emitted_fields.reject { |field| schema_md.include?("`#{field}`") }
+
+      expect(undocumented).to(
+        be_empty,
+        "the --sbom JSON emits these but docs/schema.md never mentions them: #{undocumented.join(", ")}. " \
+          "That output carries schema_version but no JSON Schema, so this doc is its only contract."
+      )
+    end
+
+    it("tells a consumer how to distinguish the two documents") do
+      # Both carry `schema_version: 1`, so keying on it is the mistake to prevent.
+      expect(schema_md).to(match(/`gems`.{0,40}`dependencies`|`dependencies`.{0,40}`gems`/m))
+    end
+  end
 end
