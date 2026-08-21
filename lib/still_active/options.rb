@@ -147,6 +147,9 @@ module StillActive
       opts.on("--fail-if-critical", "Exit 1 if any gem has critical activity warning") do
         StillActive.config { |config| config.fail_if_critical = true }
       end
+      opts.on("--fail-if-deprecated", "Exit 1 if any dependency's maintainer has deprecated it") do
+        StillActive.config { |config| config.fail_if_deprecated = true }
+      end
       opts.on("--fail-if-warning", "Exit 1 if any gem has warning or critical activity warning") do
         StillActive.config { |config| config.fail_if_warning = true }
       end

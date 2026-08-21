@@ -48,6 +48,7 @@ module StillActive
       data.each do |key, value|
         case key
         when "fail_if_critical" then set_boolean(config, :fail_if_critical=, value, key, warnings)
+        when "fail_if_deprecated" then set_boolean(config, :fail_if_deprecated=, value, key, warnings)
         when "fail_if_warning" then set_boolean(config, :fail_if_warning=, value, key, warnings)
         when "fail_if_poison" then apply_fail_if_poison(config, value, warnings)
         when "fail_if_language_ceiling" then apply_fail_if_language_ceiling(config, value, warnings)

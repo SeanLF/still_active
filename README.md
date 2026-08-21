@@ -103,6 +103,7 @@ still_active --fail-if-vulnerable            # any known vulnerability (or =low|
 still_active --fail-if-outdated=3            # more than 3 libyears behind latest
 still_active --fail-if-poison                # a dormant package caps a dep below its latest major
 still_active --fail-if-language-ceiling      # a pin strands you on an EOL language runtime
+still_active --fail-if-deprecated            # a maintainer has declared a dependency deprecated
 
 # PR review: report only what got worse since a saved snapshot, exit 1 on any regression
 still_active --json > /tmp/main.json && still_active --baseline=/tmp/main.json

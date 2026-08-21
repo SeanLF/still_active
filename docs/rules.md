@@ -164,6 +164,8 @@ It also fires where recency-based tooling is blind by construction. A package de
 
 **Interaction with `status`:** a deprecated package is never `legacy`. `legacy` means "long-dormant but done, low risk", and a deprecation is the maintainer contradicting exactly that reading. A deprecated package carrying a vulnerability is `dead` even when it is still publishing releases, because waiting for a patch on a package its maintainer has abandoned is not a plan.
 
+**Gating:** `--fail-if-deprecated` exits 1 on any deprecated dependency. A boolean, with no tier, because a deprecation is not scored: the maintainer either declared it or did not. It is the only gate that can fire on a package every date-based signal reads as healthy, which is why it is separate from `--fail-if-critical` rather than folded into it.
+
 **When to suppress:** when the migration is scheduled but not done, or when you have deliberately pinned a deprecated package you vendor yourself. Suppress the `deprecated` signal for the specific package in `.still_active.yml`, ideally with an `expires:` date.
 
 ---

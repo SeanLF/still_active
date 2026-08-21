@@ -481,7 +481,7 @@ module StillActive
 
     def check_exit_status(result)
       config = StillActive.config
-      return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated || config.fail_if_poison || config.fail_if_language_ceiling
+      return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated || config.fail_if_poison || config.fail_if_language_ceiling || config.fail_if_deprecated
 
       warn_unknown_severity_gate(result, config)
       # Match the gate on the dependency's identity (bare gem name natively,
@@ -526,7 +526,19 @@ module StillActive
         failed_vulnerability?(name, data, config, suppressions) ||
         failed_outdated?(name, data, config, suppressions) ||
         failed_poison?(name, data, config, suppressions) ||
-        failed_language_ceiling?(name, data, config, suppressions)
+        failed_language_ceiling?(name, data, config, suppressions) ||
+        failed_deprecated?(name, data, config, suppressions)
+    end
+
+    # A boolean gate, with no tier, because a deprecation is not scored: the
+    # maintainer either declared it or did not. It is also the only gate here that
+    # can fire on a package every date-based signal reads as healthy, which is the
+    # reason it exists separately rather than folding into the activity gate.
+    def failed_deprecated?(name, data, config, suppressions)
+      return false unless config.fail_if_deprecated
+      return false if suppressions.suppressed?(gem: name, signal: :deprecated)
+
+      data[:deprecated] == true
     end
 
     def failed_poison?(name, data, config, suppressions)
