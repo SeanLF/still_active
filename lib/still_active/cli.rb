@@ -129,7 +129,7 @@ module StillActive
       unless DepsDevClient.advisory_schema_ok?
         warn("warning: deps.dev vulnerability schema check failed (its `advisoryKeys` field may have changed, or the API is unreachable); vulnerability counts may be understated -- a clean result is NOT authoritative")
       end
-      sbom = SbomReader.parse(path)
+      sbom = restrict_to_direct(SbomReader.parse(path))
       outcome = if $stderr.tty?
         SbomWorkflow.call(sbom) { |done, total| $stderr.print("\rAssessing #{done}/#{total} dependencies...") }
       else
@@ -144,6 +144,30 @@ module StillActive
       render_sbom_output(outcome.assessed, unassessable, path)
       warn_unassessable(unassessable)
       check_exit_status(outcome.assessed)
+    end
+
+    # --direct-only used to be silently ignored on the SBOM path: the flag parsed,
+    # changed nothing, and the audit still covered the full transitive set. Now that
+    # the reader places packages in the CycloneDX dependency graph, it can be
+    # honoured for real. Both ways of coming up short are said out loud rather than
+    # quietly shrinking (or quietly not shrinking) the audit, because a narrowed
+    # scope that reads as a full one is the failure mode that matters.
+    def restrict_to_direct(sbom)
+      return sbom unless StillActive.config.direct_only
+
+      placed, unplaced = sbom.dependencies.partition { |dep| dep.key?(:direct) }
+      if placed.empty?
+        warn("warning: --direct-only needs the SBOM's dependency graph, and this document places no package in one " \
+          "(a Syft directory scan often emits almost no relationships); auditing the full dependency set instead")
+        return sbom
+      end
+      if unplaced.any?
+        noun = (unplaced.size == 1) ? "dependency" : "dependencies"
+        warn("warning: --direct-only excluded #{unplaced.size} #{noun} the SBOM's dependency graph does not place, " \
+          "so they could not be shown to be direct; drop --direct-only to audit them")
+      end
+
+      SbomReader::Result.new(dependencies: placed.select { |dep| dep[:direct] }, unassessable: sbom.unassessable)
     end
 
     # The assessment is the same per-dependency shape whether the input was a

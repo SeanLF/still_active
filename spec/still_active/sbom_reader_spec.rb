@@ -7,6 +7,19 @@ RSpec.describe(StillActive::SbomReader) do
 
   def sbom(*components) = {"bomFormat" => "CycloneDX", "components" => components}.to_json
 
+  # A document that also carries the CycloneDX dependency graph, which is what
+  # `direct` and `dependency_path` are read from.
+  def sbom_with_graph(components:, dependencies:, root: nil)
+    doc = {"bomFormat" => "CycloneDX", "components" => components, "dependencies" => dependencies}
+    doc["metadata"] = {"component" => {"bom-ref" => root, "type" => "application"}} if root
+    doc.to_json
+  end
+
+  # A library component carrying an explicit bom-ref, so the graph can name it.
+  def node(ref, name, ecosystem = "npm", version = "1.0.0")
+    {"type" => "library", "bom-ref" => ref, "name" => name, "purl" => "pkg:#{ecosystem}/#{name}@#{version}"}
+  end
+
   it("extracts only the mappable library components (drops file/application, github, generic, null-purl)") do
     names = deps.map { |d| [d[:ecosystem], d[:name]] }
     expect(names).to(contain_exactly(
@@ -188,6 +201,100 @@ RSpec.describe(StillActive::SbomReader) do
       body = sbom({"type" => "application", "name" => "self", "scope" => "excluded"}, lib("lodash"))
       dep = described_class.read_string(body).find { |d| d[:name] == "lodash" }
       expect(dep).not_to(have_key(:production))
+    end
+  end
+
+  describe("the CycloneDX dependency graph") do
+    it("marks the packages a manifest declares as direct (the Trivy shape)") do
+      body = sbom_with_graph(
+        root: "root",
+        # Trivy's real shape: the per-manifest node is an `application`, not a
+        # library, so it is scaffolding to descend through rather than a dependency.
+        components: [
+          {"type" => "application", "bom-ref" => "m", "name" => "Gemfile.lock"},
+          node("a", "express"),
+          node("b", "body-parser")
+        ],
+        dependencies: [
+          {"ref" => "root", "dependsOn" => ["m"]},
+          {"ref" => "m", "dependsOn" => ["a"]},
+          {"ref" => "a", "dependsOn" => ["b"]}
+        ]
+      )
+      result = described_class.read_string(body)
+
+      express = result.find { |d| d[:name] == "express" }
+      body_parser = result.find { |d| d[:name] == "body-parser" }
+      expect(express[:direct]).to(be(true))
+      expect(body_parser[:direct]).to(be(false))
+    end
+
+    it("names the direct dependency that pulls a transitive package in, by ecosystem/name") do
+      body = sbom_with_graph(
+        root: "root",
+        components: [node("a", "express"), node("b", "body-parser"), node("c", "bytes")],
+        dependencies: [
+          {"ref" => "root", "dependsOn" => ["a"]},
+          {"ref" => "a", "dependsOn" => ["b"]},
+          {"ref" => "b", "dependsOn" => ["c"]}
+        ]
+      )
+      bytes = described_class.read_string(body).find { |d| d[:name] == "bytes" }
+
+      # Head-first, and the identity is the cross-ecosystem one the gates and
+      # suppressions key on, not a bare name.
+      expect(bytes[:dependency_path]).to(eq(["npm/express", "npm/body-parser", "npm/bytes"]))
+    end
+
+    it("gives a direct package no dependency_path, matching the native path") do
+      body = sbom_with_graph(
+        root: "root",
+        components: [node("a", "express")],
+        dependencies: [{"ref" => "root", "dependsOn" => ["a"]}]
+      )
+      express = described_class.read_string(body).first
+
+      expect(express[:direct]).to(be(true))
+      expect(express).not_to(have_key(:dependency_path))
+    end
+
+    it("omits both fields entirely when the document carries no dependency graph") do
+      # The failure that matters: stamping `direct: false` on every package would be
+      # the positive claim "none of these are yours" about a document that never
+      # said. A Syft directory scan really does emit almost no relationships.
+      dep = described_class.read_string(sbom(node("a", "express"))).first
+
+      expect(dep).not_to(have_key(:direct))
+      expect(dep).not_to(have_key(:dependency_path))
+    end
+
+    it("leaves a package the graph never mentions unplaced, even when other packages are placed") do
+      body = sbom_with_graph(
+        root: "root",
+        components: [node("a", "express"), node("z", "orphan")],
+        dependencies: [{"ref" => "root", "dependsOn" => ["a"]}]
+      )
+      result = described_class.read_string(body)
+
+      expect(result.find { |d| d[:name] == "express" }[:direct]).to(be(true))
+      expect(result.find { |d| d[:name] == "orphan" }).not_to(have_key(:direct))
+    end
+
+    it("does not duplicate a package a generator lists under several bom-refs") do
+      # Syft emits a component per location. The copies collapse via uniq, which
+      # only works if they end up carrying the same placement.
+      body = sbom_with_graph(
+        root: "root",
+        components: [node("a1", "express"), node("a2", "express"), node("b", "body-parser")],
+        dependencies: [
+          {"ref" => "root", "dependsOn" => ["a1"]},
+          {"ref" => "a1", "dependsOn" => ["b"]}
+        ]
+      )
+      result = described_class.read_string(body)
+
+      expect(result.count { |d| d[:name] == "express" }).to(eq(1))
+      expect(result.find { |d| d[:name] == "express" }[:direct]).to(be(true))
     end
   end
 end
