@@ -62,7 +62,7 @@ module StillActive
             # otherwise): absent stays "unknown", never a false that reads as test-only.
             result["#{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}"] =
               EcosystemLens.assess(ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], constraint_cache: constraint_cache, runtime_ranges: runtime_ranges)
-                .merge(dep.slice(:production, :direct, :dependency_path))
+                .merge(dep.slice(:production, :direct, :dependency_path, :purl))
           rescue => e
             # One dependency's failure must not abort the audit, but it must not
             # disappear either: record it as an unassessable entry (same shape as
@@ -70,7 +70,7 @@ module StillActive
             # production rides along (when known, via slice) so a failed prod dep
             # stays distinguishable from a failed dev one.
             failures << {ecosystem: dep[:ecosystem], name: dep[:name], version: dep[:version], reason: :assessment_error, error: "#{e.class}: #{e.message}"}
-              .merge(dep.slice(:production, :direct, :dependency_path))
+              .merge(dep.slice(:production, :direct, :dependency_path, :purl))
             warn("error assessing #{dep[:ecosystem]}/#{dep[:name]}@#{dep[:version]}: #{e.class}\n\t#{e.message}")
           ensure
             completed += 1

@@ -241,7 +241,12 @@ module StillActive
           return [:unassessable, {ecosystem: ecosystem, name: full_name, version: parsed.version, reason: :private_registry, repository_url: repository_url}]
         end
 
-        [:dependency, {ecosystem: ecosystem, name: full_name, version: parsed.version}]
+        # The input's own PURL, kept verbatim rather than parsed-and-rebuilt. An
+        # enriched SBOM re-emits it unchanged, so whatever a consumer matched on
+        # the input it matches on our output, and no per-ecosystem PURL
+        # reconstruction (npm scopes, maven group:artifact, go module paths) can
+        # get it subtly wrong.
+        [:dependency, {ecosystem: ecosystem, name: full_name, version: parsed.version, purl: preserved_purl(purl)}]
       elsif NOISE_TYPES.include?(type)
         nil # CI actions / opaque binaries: not a package dependency
       else
@@ -254,6 +259,21 @@ module StillActive
       # one malformed component degrades to unassessable, never a backtrace that drops
       # every other dependency's verdict (SbomReader's documented "never raises").
       [:unassessable, {ecosystem: nil, name: name, reason: :malformed_purl}]
+    end
+
+    # The input's PURL, kept for re-emission in an enriched SBOM, with Syft's
+    # `package-id` qualifier removed. That qualifier is Syft's internal per-location
+    # bookkeeping rather than part of the package's identity, and it is why the same
+    # package can appear twice under two different PURLs; dropping it is what lets
+    # those copies still collapse. Everything else is left byte-identical rather than
+    # re-serialized through PackageURL, so a consumer that matched the input PURL
+    # matches ours, with no chance of a normalization changing the encoding.
+    def preserved_purl(purl)
+      base, separator, query = purl.partition("?")
+      return purl if separator.empty?
+
+      kept = query.split("&").reject { |pair| pair.start_with?("package-id=") }
+      kept.empty? ? base : "#{base}?#{kept.join("&")}"
     end
 
     # Whether a repository_url points at a known public registry. We only read the

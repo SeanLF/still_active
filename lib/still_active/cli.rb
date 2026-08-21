@@ -176,16 +176,17 @@ module StillActive
     # cross-ecosystem/CI use case; JSON stays the piped default. Two formats need
     # the native Ruby audit's shape (a lockfile to annotate for SARIF's line
     # numbers, a gems/ruby snapshot for the diff), which a cross-ecosystem SBOM
-    # can't honestly supply, so they error loudly rather than silently falling
-    # back to JSON: --baseline (diff) and --cyclonedx (SBOM in, SBOM out would
-    # need per-ecosystem PURL reconstruction; the honest way to add it later is to
-    # thread the input SBOM's own PURLs through rather than rebuild them).
+    # can't honestly supply, so it errors loudly rather than silently falling back
+    # to JSON: --baseline, which needs a gems/ruby snapshot to diff against.
+    # --cyclonedx used to error here too, on the grounds that SBOM-in/SBOM-out
+    # would need per-ecosystem PURL reconstruction; it is supported now because it
+    # turned out not to need any, the input's own PURLs being threaded through.
     def render_sbom_output(result, unassessable, sbom_path)
       config = StillActive.config
       if config.baseline_path
         unsupported_sbom_format!("--baseline")
       elsif config.cyclonedx_path
-        unsupported_sbom_format!("--cyclonedx")
+        emit_sbom_cyclonedx(result, config.cyclonedx_path)
       elsif config.sarif_path
         emit_sbom_sarif(result, config.sarif_path, sbom_path)
       else
@@ -200,6 +201,18 @@ module StillActive
     def unsupported_sbom_format!(flag)
       warn("error: #{flag} output is not supported in --sbom mode (it needs the native Ruby audit's lockfile/snapshot, which a cross-ecosystem SBOM can't supply); use --sarif, --markdown, --terminal, or --json")
       exit(2)
+    end
+
+    # SBOM in, enriched SBOM out: the input annotated with the maintenance signals
+    # it had no way to carry, so it can be fed onward to Dependency-Track rather
+    # than read by a human. Each component re-emits the PURL it arrived with, so a
+    # consumer matches this exactly as it matched the input.
+    def emit_sbom_cyclonedx(result, cyclonedx_path)
+      write_output(cyclonedx_path, CyclonedxHelper.render_sbom(
+        result: result,
+        tool_version: StillActive::VERSION,
+        spec_version: StillActive.config.cyclonedx_version || "1.6"
+      ))
     end
 
     def emit_sbom_sarif(result, sarif_path, sbom_path)

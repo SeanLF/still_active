@@ -3,6 +3,7 @@
 require "json"
 require "digest"
 require "time"
+require_relative "status_helper"
 require_relative "vulnerability_helper"
 
 module StillActive
@@ -27,7 +28,34 @@ module StillActive
       components = build_components(result, ruby_info)
       vulnerabilities = build_vulnerabilities(result)
 
-      document = {
+      document = envelope(components, spec_version, tool_version, now)
+      document["vulnerabilities"] = vulnerabilities unless vulnerabilities.empty?
+      JSON.pretty_generate(document)
+    end
+
+    # The cross-ecosystem sibling of `render`, for a --sbom audit. The one thing it
+    # must not do is rebuild PURLs: npm scopes, maven group:artifact and Go module
+    # paths are all easy to reconstruct subtly wrong, and the input SBOM already
+    # carries the authoritative one. So each component re-emits the PURL it arrived
+    # with, which means a consumer (Dependency-Track being the point of this) matches
+    # our output exactly as it matched the input, now annotated with the maintenance
+    # signals it had no way to compute.
+    def render_sbom(result:, tool_version:, spec_version: "1.6", now: Time.now.utc)
+      components = result.sort_by { |key, _| key.to_s }.map { |key, data| sbom_component(key.to_s, data) }
+      vulnerabilities = result.sort_by { |key, _| key.to_s }.flat_map do |key, data|
+        ref = sbom_ref(key.to_s, data)
+        (data[:vulnerabilities] || []).map { |advisory| vulnerability(advisory, ref) }
+      end
+
+      document = envelope(components, spec_version, tool_version, now)
+      document["vulnerabilities"] = vulnerabilities unless vulnerabilities.empty?
+      JSON.pretty_generate(document)
+    end
+
+    private
+
+    def envelope(components, spec_version, tool_version, now)
+      {
         "bomFormat" => "CycloneDX",
         "specVersion" => spec_version,
         "serialNumber" => deterministic_serial(components),
@@ -38,11 +66,31 @@ module StillActive
         },
         "components" => components
       }
-      document["vulnerabilities"] = vulnerabilities unless vulnerabilities.empty?
-      JSON.pretty_generate(document)
     end
 
-    private
+    # The input's own PURL identifies the component. It is always present for an
+    # assessed dependency (SbomReader routes a component with no PURL to
+    # `unassessable`, so it never reaches an assessment), but the composite result
+    # key stands in defensively rather than emitting a component with no identity.
+    def sbom_ref(key, data)
+      data[:purl] || key
+    end
+
+    def sbom_component(key, data)
+      ref = sbom_ref(key, data)
+      component = {"type" => "library", "name" => data[:name] || key}
+      component["version"] = data[:version_used] if data[:version_used]
+      component["bom-ref"] = ref
+      component["purl"] = data[:purl] if data[:purl]
+      component["licenses"] = licenses(data[:license]) if data[:license]
+      if data[:repository_url]
+        component["externalReferences"] = [{"type" => "vcs", "url" => data[:repository_url]}]
+      end
+      properties = sbom_properties(data)
+      component["properties"] = properties unless properties.empty?
+      component
+    end
+
 
     def build_components(result, ruby_info)
       components = result.sort_by { |name, _| name.to_s }.map { |name, data| gem_component(name.to_s, data) }
@@ -89,14 +137,38 @@ module StillActive
       license.split(", ").map { |id| {"license" => {"id" => id}} }
     end
 
-    def gem_properties(data)
+    # Signals both paths compute. `status` is the folded verdict a consumer would
+    # otherwise have to re-derive, which is the whole reason for emitting an
+    # enriched SBOM rather than the input one.
+    def shared_properties(data)
       {
+        "still_active:status" => StatusHelper.gem_status(data).to_s,
         "still_active:archived" => boolean_property(data[:archived]),
+        "still_active:deprecated" => boolean_property(data[:deprecated]),
+        "still_active:deprecation_reason" => data[:deprecation_reason],
         "still_active:scorecard_score" => data[:scorecard_score]&.to_s,
         "still_active:libyear" => data[:libyear]&.to_s,
-        "still_active:last_commit_date" => iso8601(data[:last_commit_date]),
+        "still_active:last_commit_date" => iso8601(data[:last_commit_date])
+      }
+    end
+
+    def to_properties(hash)
+      hash.filter_map { |name, value| {"name" => name, "value" => value} unless value.nil? }
+    end
+
+    def gem_properties(data)
+      to_properties(shared_properties(data).merge(
         "still_active:version_yanked" => boolean_property(data[:version_yanked])
-      }.filter_map { |name, value| {"name" => name, "value" => value} unless value.nil? }
+      ))
+    end
+
+    # Cross-ecosystem extras: which ecosystem the package came from, and whether it
+    # is one the project declared (both meaningless on the Ruby-only native path).
+    def sbom_properties(data)
+      to_properties(shared_properties(data).merge(
+        "still_active:ecosystem" => data[:ecosystem]&.to_s,
+        "still_active:direct" => boolean_property(data[:direct])
+      ))
     end
 
     # The Ruby interpreter. CycloneDX's "platform" type fits semantically, but
