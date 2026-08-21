@@ -116,7 +116,7 @@ Rule reference (SA001-SA010), suppression, and composing with `dependency-review
 
 ## Cross-ecosystem audit
 
-Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft), Trivy, or any producer) and `still_active` assesses `npm`, `pypi`, `cargo`, `go`, `maven`, and `nuget` packages the same way it does gems, via [deps.dev](https://deps.dev) and [ecosyste.ms](https://ecosyste.ms). The SBOM is treated as **untrusted input** (only ecosystem/name/version are read, repositories resolve from deps.dev, and anything unassessable is surfaced rather than faked as `ok`). Most signals apply everywhere; a few are deliberately scoped.
+Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft), Trivy, `npm sbom`, `cyclonedx-npm`, `cyclonedx-py`, or any producer; see [generator compatibility](#generator-compatibility)) and `still_active` assesses `npm`, `pypi`, `cargo`, `go`, `maven`, and `nuget` packages the same way it does gems, via [deps.dev](https://deps.dev) and [ecosyste.ms](https://ecosyste.ms). The SBOM is treated as **untrusted input** (only ecosystem/name/version are read, repositories resolve from deps.dev, and anything unassessable is surfaced rather than faked as `ok`). Most signals apply everywhere; a few are deliberately scoped.
 
 <details>
 <summary>Which signal covers which ecosystem</summary>
@@ -134,6 +134,28 @@ Full rule detail in [`docs/rules.md`](docs/rules.md).
 </details>
 
 The play is **maintenance**, not CVE scanning, so compose Trivy/Grype for full vulnerability coverage.
+
+### Generator compatibility
+
+CycloneDX producers disagree about almost everything a reader could naively depend on, so the SBOM path derives what it needs structurally rather than from any one tool's convention. Each of these is exercised in the test suite against **verbatim output** from the tool, not a hand-written fixture:
+
+| generator | spec | `metadata.component` | bom-ref convention |
+| --- | --- | --- | --- |
+| Syft | 1.7 | `file`, and not a graph node at all | `pkg:npm/…?package-id=…` |
+| Trivy | 1.7 | `application` | UUID |
+| `npm sbom` | 1.5 | `library` | `name@version` |
+| `cyclonedx-npm` | 1.6 | `application` | `parent@ver\|child@ver` |
+| `cyclonedx-py` | 1.6 | absent | `requirements-L1` |
+
+Given the same project, all of them produce the same verdict.
+
+Two behaviours worth knowing, because they are deliberate rather than incidental:
+
+- **The scanned project is never audited as one of its own dependencies.** Syft and `npm sbom` both list it as an ordinary library component with a PURL, which is indistinguishable from a real dependency by shape alone; it is identified through the dependency graph instead.
+- **`direct` and `dependency_path` are only reported when the SBOM's dependency graph actually places a package.** A generator can emit a graph with no usable edges (`cyclonedx-py` from a requirements file does exactly that, and a Syft directory scan is often sparse), and claiming everything is transitive would be a positive claim about a document that never said.
+
+An SPDX document is refused with a clear error rather than read as an empty, all-clear audit.
+
 
 ## Output formats
 
