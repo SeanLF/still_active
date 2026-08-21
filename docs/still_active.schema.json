@@ -4,181 +4,651 @@
   "title": "still_active --json output",
   "description": "Versioned machine schema for `still_active --json`. Stable within a major version; additive fields do not bump schema_version. See docs/schema.md for prose.",
   "type": "object",
-  "required": ["schema_version", "tool", "generated_at", "summary", "gems"],
+  "required": [
+    "schema_version",
+    "tool",
+    "generated_at",
+    "summary",
+    "gems"
+  ],
   "additionalProperties": false,
   "properties": {
-    "$schema": { "type": "string" },
-    "schema_version": { "type": "integer", "const": 1 },
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
     "tool": {
       "type": "object",
-      "required": ["name", "version"],
+      "required": [
+        "name",
+        "version"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string", "const": "still_active" },
-        "version": { "type": "string" }
+        "name": {
+          "type": "string",
+          "const": "still_active"
+        },
+        "version": {
+          "type": "string"
+        }
       }
     },
-    "generated_at": { "type": "string", "format": "date-time" },
-    "summary": { "$ref": "#/$defs/summary" },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
     "gems": {
       "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/gem" }
+      "additionalProperties": {
+        "$ref": "#/$defs/gem"
+      }
     },
-    "ruby": { "$ref": "#/$defs/ruby" },
-    "pr_context": { "$ref": "#/$defs/pr_context" }
+    "ruby": {
+      "$ref": "#/$defs/ruby"
+    },
+    "pr_context": {
+      "$ref": "#/$defs/pr_context"
+    }
   },
   "$defs": {
     "summary": {
       "type": "object",
-      "required": ["total_gems", "direct", "transitive", "activity", "archived", "up_to_date", "outdated", "vulnerable_gems", "vulnerabilities"],
+      "required": [
+        "total_gems",
+        "direct",
+        "transitive",
+        "activity",
+        "archived",
+        "up_to_date",
+        "outdated",
+        "vulnerable_gems",
+        "vulnerabilities"
+      ],
       "additionalProperties": false,
       "properties": {
-        "total_gems": { "type": "integer", "minimum": 0 },
-        "direct": { "type": "integer", "minimum": 0 },
-        "transitive": { "type": "integer", "minimum": 0 },
+        "total_gems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "direct": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "transitive": {
+          "type": "integer",
+          "minimum": 0
+        },
         "activity": {
           "type": "object",
-          "required": ["ok", "stale", "critical", "archived", "unknown"],
+          "required": [
+            "ok",
+            "stale",
+            "critical",
+            "archived",
+            "unknown"
+          ],
           "additionalProperties": false,
           "properties": {
-            "ok": { "type": "integer", "minimum": 0 },
-            "stale": { "type": "integer", "minimum": 0 },
-            "critical": { "type": "integer", "minimum": 0 },
-            "archived": { "type": "integer", "minimum": 0 },
-            "unknown": { "type": "integer", "minimum": 0 }
+            "ok": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "stale": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "critical": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "archived": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unknown": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
-        "archived": { "type": "integer", "minimum": 0 },
-        "up_to_date": { "type": "integer", "minimum": 0 },
-        "outdated": { "type": "integer", "minimum": 0 },
-        "vulnerable_gems": { "type": "integer", "minimum": 0 },
-        "vulnerabilities": { "type": "integer", "minimum": 0 },
-        "status": { "type": "string", "enum": ["ok", "legacy", "stale", "archived", "vulnerable", "dead", "unknown"] },
-        "ruby_eol": { "type": "boolean" }
+        "archived": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "up_to_date": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outdated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vulnerable_gems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vulnerabilities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "legacy",
+            "stale",
+            "archived",
+            "deprecated",
+            "vulnerable",
+            "dead",
+            "unknown"
+          ]
+        },
+        "ruby_eol": {
+          "type": "boolean"
+        }
       }
     },
     "gem": {
       "type": "object",
-      "required": ["source_type", "direct", "activity_level"],
+      "required": [
+        "source_type",
+        "direct",
+        "activity_level"
+      ],
       "additionalProperties": false,
       "properties": {
-        "source_type": { "type": "string", "enum": ["rubygems", "git", "path", "unknown"] },
-        "direct": { "type": "boolean" },
-        "dependency_path": { "type": "array", "items": { "type": "string" } },
-        "version_used": { "type": ["string", "null"] },
-        "latest_version": { "type": ["string", "null"] },
-        "latest_version_release_date": { "type": ["string", "null"], "format": "date-time" },
-        "latest_pre_release_version": { "type": ["string", "null"] },
-        "latest_pre_release_version_release_date": { "type": ["string", "null"], "format": "date-time" },
-        "repository_url": { "type": ["string", "null"] },
-        "last_commit_date": { "type": ["string", "null"], "format": "date-time" },
-        "archived": { "type": ["boolean", "null"] },
-        "activity_level": { "type": "string", "enum": ["ok", "stale", "critical", "archived", "unknown"] },
-        "status": { "type": "string", "enum": ["ok", "legacy", "stale", "archived", "vulnerable", "dead", "unknown"] },
-        "unreleased_commits": { "type": ["integer", "null"] },
-        "scorecard_score": { "type": ["number", "null"] },
-        "scorecard_maintained": { "type": ["number", "null"] },
-        "vulnerability_count": { "type": "integer", "minimum": 0 },
-        "vulnerabilities": { "type": "array", "items": { "$ref": "#/$defs/vulnerability" } },
-        "alternatives": { "type": "array", "items": { "type": "string" } },
-        "ruby_gems_url": { "type": "string" },
-        "up_to_date": { "type": ["boolean", "null"] },
-        "version_used_release_date": { "type": ["string", "null"], "format": "date-time" },
-        "version_yanked": { "type": "boolean" },
-        "license": { "type": ["string", "null"] },
-        "libyear": { "type": ["number", "null"] },
-        "poison": { "type": "boolean" },
-        "poison_severity": { "type": "string", "enum": ["note", "warning", "critical"] },
-        "poison_security_relevant": { "type": "boolean" },
-        "poison_below_fix": { "type": "boolean", "description": "True when a cap holds a vulnerable dependency below its security fix (the strongest poison case)." },
-        "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
-        "language_ceiling": { "$ref": "#/$defs/language_ceiling" }
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "rubygems",
+            "git",
+            "path",
+            "unknown"
+          ]
+        },
+        "direct": {
+          "type": "boolean"
+        },
+        "dependency_path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "version_used": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "latest_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "latest_version_release_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "latest_pre_release_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "latest_pre_release_version_release_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "repository_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "last_commit_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "archived": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "activity_level": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "stale",
+            "critical",
+            "archived",
+            "unknown"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "legacy",
+            "stale",
+            "archived",
+            "deprecated",
+            "vulnerable",
+            "dead",
+            "unknown"
+          ]
+        },
+        "unreleased_commits": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "scorecard_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "scorecard_maintained": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "vulnerability_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vulnerabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/vulnerability"
+          }
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ruby_gems_url": {
+          "type": "string"
+        },
+        "up_to_date": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "version_used_release_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "version_yanked": {
+          "type": "boolean"
+        },
+        "license": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "libyear": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "poison": {
+          "type": "boolean"
+        },
+        "poison_severity": {
+          "type": "string",
+          "enum": [
+            "note",
+            "warning",
+            "critical"
+          ]
+        },
+        "poison_security_relevant": {
+          "type": "boolean"
+        },
+        "poison_below_fix": {
+          "type": "boolean",
+          "description": "True when a cap holds a vulnerable dependency below its security fix (the strongest poison case)."
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/constraint"
+          }
+        },
+        "language_ceiling": {
+          "$ref": "#/$defs/language_ceiling"
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "The maintainer has declared this package deprecated in its registry. A stated fact, not inferred from release dates."
+        },
+        "deprecation_reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The message the maintainer left with the deprecation, often naming the replacement. null when none was given."
+        }
       }
     },
     "constraint": {
       "type": "object",
-      "required": ["dependency", "requirement", "dep_latest", "majors_behind", "kind"],
+      "required": [
+        "dependency",
+        "requirement",
+        "dep_latest",
+        "majors_behind",
+        "kind"
+      ],
       "additionalProperties": false,
       "properties": {
-        "dependency": { "type": "string" },
-        "requirement": { "type": "string" },
-        "dep_latest": { "type": ["string", "null"] },
-        "majors_behind": { "type": "integer", "minimum": 0 },
-        "kind": { "type": "string", "enum": ["ceiling", "exact_pin", "permissive"] },
-        "capped_dep_vulnerable": { "type": "boolean" },
-        "capped_below_fix": { "type": "boolean", "description": "True when every fix for the capped dep's advisory lies outside this cap: you can't patch without replacing the dormant capper." },
-        "below_fix_advisory": { "type": "string", "description": "The advisory id the cap holds you below the fix for." },
-        "below_fix_fixed_in": { "type": "string", "description": "The nearest fixed version, which the cap forbids." }
+        "dependency": {
+          "type": "string"
+        },
+        "requirement": {
+          "type": "string"
+        },
+        "dep_latest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "majors_behind": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ceiling",
+            "exact_pin",
+            "permissive"
+          ]
+        },
+        "capped_dep_vulnerable": {
+          "type": "boolean"
+        },
+        "capped_below_fix": {
+          "type": "boolean",
+          "description": "True when every fix for the capped dep's advisory lies outside this cap: you can't patch without replacing the dormant capper."
+        },
+        "below_fix_advisory": {
+          "type": "string",
+          "description": "The advisory id the cap holds you below the fix for."
+        },
+        "below_fix_fixed_in": {
+          "type": "string",
+          "description": "The nearest fixed version, which the cap forbids."
+        }
       }
     },
     "language_ceiling": {
       "type": "object",
-      "required": ["runtime", "requirement", "eol_forced", "severity", "oldest_supported", "latest_stable"],
+      "required": [
+        "runtime",
+        "requirement",
+        "eol_forced",
+        "severity",
+        "oldest_supported",
+        "latest_stable"
+      ],
       "additionalProperties": false,
       "properties": {
-        "runtime": { "type": "string" },
-        "requirement": { "type": "string" },
-        "eol_forced": { "type": "boolean" },
-        "severity": { "type": "string", "enum": ["note", "warning", "critical"] },
-        "ceiling_version": { "type": ["string", "null"] },
-        "ceiling_eol_date": { "type": ["string", "null"], "format": "date-time" },
-        "oldest_supported": { "type": "string" },
-        "latest_stable": { "type": "string" },
-        "fixed_by_upgrade": { "type": "boolean" },
-        "upgrade_blocked": { "type": "boolean" }
+        "runtime": {
+          "type": "string"
+        },
+        "requirement": {
+          "type": "string"
+        },
+        "eol_forced": {
+          "type": "boolean"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "note",
+            "warning",
+            "critical"
+          ]
+        },
+        "ceiling_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ceiling_eol_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "oldest_supported": {
+          "type": "string"
+        },
+        "latest_stable": {
+          "type": "string"
+        },
+        "fixed_by_upgrade": {
+          "type": "boolean"
+        },
+        "upgrade_blocked": {
+          "type": "boolean"
+        }
       }
     },
     "vulnerability": {
       "type": "object",
-      "required": ["id"],
+      "required": [
+        "id"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "url": { "type": ["string", "null"] },
-        "title": { "type": ["string", "null"] },
-        "aliases": { "type": "array", "items": { "type": "string" } },
-        "cvss3_score": { "type": ["number", "null"] },
-        "cvss3_vector": { "type": ["string", "null"] },
-        "cvss2_score": { "type": ["number", "null"] },
-        "source": { "type": "string", "enum": ["deps.dev", "ruby-advisory-db", "merged"] },
-        "osv_severity": { "type": ["string", "null"], "description": "OSV/GHSA qualitative severity label (e.g. HIGH), used when deps.dev can't score a CVSS-4-only advisory." },
-        "osv_cvss_score": { "type": ["number", "null"] },
-        "cvss_version": { "type": ["string", "null"], "description": "CVSS version of the scored vector (e.g. 3.1, 4.0)." },
-        "cvss_vector": { "type": ["string", "null"] },
-        "fixed_versions": { "type": "array", "items": { "type": "string" }, "description": "Versions that patch the advisory (from OSV ranges); empty when no fix is published." },
-        "no_fix_available": { "type": "boolean", "description": "True when the advisory has no published fixed version, so you can't upgrade out of it." }
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cvss3_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cvss3_vector": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cvss2_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "deps.dev",
+            "ruby-advisory-db",
+            "merged"
+          ]
+        },
+        "osv_severity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "OSV/GHSA qualitative severity label (e.g. HIGH), used when deps.dev can't score a CVSS-4-only advisory."
+        },
+        "osv_cvss_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cvss_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "CVSS version of the scored vector (e.g. 3.1, 4.0)."
+        },
+        "cvss_vector": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fixed_versions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Versions that patch the advisory (from OSV ranges); empty when no fix is published."
+        },
+        "no_fix_available": {
+          "type": "boolean",
+          "description": "True when the advisory has no published fixed version, so you can't upgrade out of it."
+        }
       }
     },
     "ruby": {
       "type": "object",
-      "required": ["version", "eol"],
+      "required": [
+        "version",
+        "eol"
+      ],
       "additionalProperties": false,
       "properties": {
-        "version": { "type": "string" },
-        "release_date": { "type": ["string", "null"], "format": "date-time" },
-        "eol_date": { "type": ["string", "null"], "format": "date-time" },
-        "eol": { "type": "boolean" },
-        "latest_version": { "type": ["string", "null"] },
-        "latest_release_date": { "type": ["string", "null"], "format": "date-time" },
-        "libyear": { "type": ["number", "null"] }
+        "version": {
+          "type": "string"
+        },
+        "release_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "eol_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "eol": {
+          "type": "boolean"
+        },
+        "latest_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "latest_release_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "libyear": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
       }
     },
     "pr_context": {
       "type": "object",
-      "required": ["bot", "bumps"],
+      "required": [
+        "bot",
+        "bumps"
+      ],
       "additionalProperties": false,
       "properties": {
-        "bot": { "type": "string", "enum": ["dependabot", "renovate"] },
+        "bot": {
+          "type": "string",
+          "enum": [
+            "dependabot",
+            "renovate"
+          ]
+        },
         "bumps": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["gem", "to"],
+            "required": [
+              "gem",
+              "to"
+            ],
             "additionalProperties": false,
             "properties": {
-              "gem": { "type": "string" },
-              "from": { "type": ["string", "null"] },
-              "to": { "type": "string" }
+              "gem": {
+                "type": "string"
+              },
+              "from": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "to": {
+                "type": "string"
+              }
             }
           }
         }

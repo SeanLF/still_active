@@ -188,6 +188,17 @@ module StillActive
         out << mark_suppressed(result("SA007", name, "#{display} #{version}: this version has been yanked from RubyGems.", location), display, :yanked)
       end
 
+      if data[:deprecated]
+        # Fires independently of the activity signals on purpose: a package
+        # deprecated last month with a release last week looks perfectly healthy by
+        # dates, which is exactly the case recency-based tooling cannot see. The
+        # maintainer's own message is carried through when they left one, since it
+        # usually names the successor.
+        reason = data[:deprecation_reason]
+        detail = reason ? " Maintainer's note: #{reason}" : ""
+        out << mark_suppressed(result("SA010", name, "#{display} #{version}: deprecated by its maintainer.#{detail}", location), display, :deprecated)
+      end
+
       if data[:poison] && !Array(data[:constraints]).empty?
         # Level tracks the poison tier (critical->error, ...); a plain majors-behind
         # tier change keeps the (rule_id, gem_name) fingerprint so it doesn't re-alert.

@@ -112,6 +112,12 @@ module StillActive
         # version response already fetched above, so this is no extra call. nil when
         # the package declares none, never a blank string.
         license: VersionHelper.format_licenses(info&.dig(:licenses)),
+        # The maintainer's own deprecation declaration, and the message left with
+        # it. A declared fact rather than a date heuristic, and the one signal a
+        # release-recency check can never produce: a package deprecated last month
+        # with a release last week looks perfectly healthy by dates alone.
+        deprecated: info&.dig(:deprecated) == true,
+        deprecation_reason: info&.dig(:deprecation_reason),
         repository_url: project_id && "https://#{project_id}",
         last_commit_date: repo[:last_commit_date],
         archived: repo[:archived],

@@ -146,6 +146,28 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 **When to suppress:** when the pinned version is deliberate and the runtime ceiling is accepted. Suppress the `language_ceiling` signal for the specific package in `.still_active.yml`, ideally with an `expires:` date so the acceptance is revisited.
 
+## SA010 — Deprecated Package {#sa010}
+
+**Triggers when:** the maintainer has marked the package deprecated in its registry. Read from the deps.dev version record still_active already fetches for advisories and release dates, so it costs no extra request on either path.
+
+**Why it matters:** every other rule here infers abandonment from evidence: dates, repository state, release cadence. This one does not infer anything. The person who publishes the package has said to stop using it, and the deprecation message usually names the successor (`left-pad`'s reads "use String.prototype.padStart()"). It is the signal the rest of the tool approximates.
+
+It also fires where recency-based tooling is blind by construction. A package deprecated last month with a release last week looks perfectly healthy by dates, so SA010 is deliberately independent of the activity signals rather than a modifier on them.
+
+**Coverage, honestly:** npm is the ecosystem where this is populated today. RubyGems, PyPI and Cargo have no deprecation mechanism to read, so the field is present and `false` for them rather than meaningful. Nothing is inferred to fill that gap: absence of a deprecation is not evidence of maintenance. Any ecosystem deps.dev later populates lights up with no change here.
+
+**Enforcement:** a declaration, not a wall. Nothing stops you installing a deprecated package; npm prints the message on install. still_active reports the declaration, and the `status` verdict treats it as more serious than an archived repository (which can just mean development moved) and less urgent than a live vulnerability.
+
+**SARIF level:** `error` · **security-severity:** 7.5 · **CWE:** [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html)
+
+**How to fix:** read the deprecation message, which usually names the successor, and migrate. There will be no further fixes, including security patches.
+
+**Interaction with `status`:** a deprecated package is never `legacy`. `legacy` means "long-dormant but done, low risk", and a deprecation is the maintainer contradicting exactly that reading. A deprecated package carrying a vulnerability is `dead` even when it is still publishing releases, because waiting for a patch on a package its maintainer has abandoned is not a plan.
+
+**When to suppress:** when the migration is scheduled but not done, or when you have deliberately pinned a deprecated package you vendor yourself. Suppress the `deprecated` signal for the specific package in `.still_active.yml`, ideally with an `expires:` date.
+
+---
+
 ---
 
 ## Stability

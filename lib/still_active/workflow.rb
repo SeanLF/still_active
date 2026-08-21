@@ -390,6 +390,12 @@ module StillActive
       {
         scorecard_score: scorecard&.dig(:score),
         scorecard_maintained: scorecard&.dig(:maintained),
+        # The maintainer's own "stop using this" declaration, from the same
+        # response as the advisories. RubyGems has no deprecation mechanism, so
+        # this is effectively always false for gems today; it is threaded anyway
+        # so the field means the same thing on both paths.
+        deprecated: info&.dig(:deprecated) == true,
+        deprecation_reason: info&.dig(:deprecation_reason),
         vulnerability_count: vulnerabilities.length,
         vulnerabilities: vulnerabilities
       }

@@ -118,6 +118,25 @@ module StillActive
       lines.join("\n")
     end
 
+    # Packages whose maintainer has declared them deprecated. Its own section
+    # rather than a table column because the message is the actionable part: it
+    # usually names the successor, and it is the maintainer speaking rather than
+    # anything still_active inferred.
+    def deprecated_section(result)
+      flagged = result.select { |_name, data| data[:deprecated] }
+      return "" if flagged.empty?
+
+      lines = ["", "**Deprecated by their maintainers** (no further fixes, including security patches):"]
+      flagged.sort_by { |name, _| name }.each do |name, data|
+        reason = data[:deprecation_reason]
+        # The message is registry-supplied free text in a bullet list, and commonly
+        # contains a URL, so it goes through the inline escaper.
+        note = reason ? ": #{MarkdownEscape.inline(reason)}" : ""
+        lines << "- #{MarkdownEscape.code_span(DependencyHelper.identity(name, data))}#{note}"
+      end
+      lines.join("\n")
+    end
+
     # A dormant dep that caps your tree below its latest major (the poison-pill
     # signal). Consistent with the other finding sections: worst caps + total, the
     # direct parent named for a transitive pill. The full cap list is in the JSON.

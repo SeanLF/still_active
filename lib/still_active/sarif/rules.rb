@@ -168,6 +168,21 @@ module StillActive
           level: "note",
           security_severity: nil, # maintenance/compatibility, not a CVE (as SA002/SA004/SA005/SA008)
           tags: ["maintenance", "runtime", "external/cwe/cwe-1104"]
+        },
+        {
+          id: "SA010",
+          name: "DeprecatedPackage",
+          short: "Gem is deprecated by its maintainer",
+          full: "The maintainer has marked this gem deprecated in its registry. Unlike every other maintenance signal here, this is not inferred from dates or repository state: the person who publishes it has said to stop using it, and the deprecation message often names the replacement. A deprecated package can still look healthy by release recency, so this fires independently of the activity signals.",
+          help_text: "Read the deprecation message, which usually names the successor, and migrate to it. There will be no further fixes, including security patches.",
+          level: "error",
+          security_severity: "7.5",
+          tags: ["security", "supply-chain", "maintenance", "external/cwe/cwe-1104"],
+          neutral: {
+            short: "Package is deprecated by its maintainer",
+            full: "The maintainer has marked this package deprecated in its registry. Unlike every other maintenance signal here, this is not inferred from dates or repository state: the person who publishes it has said to stop using it, and the deprecation message often names the replacement. A deprecated package can still look healthy by release recency, so this fires independently of the activity signals.",
+            help_text: "Read the deprecation message, which usually names the successor, and migrate to it. There will be no further fixes, including security patches."
+          }
         }
       ].freeze
 

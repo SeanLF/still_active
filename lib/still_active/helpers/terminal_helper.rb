@@ -160,7 +160,22 @@ module StillActive
       # A language-runtime ceiling is orthogonal to poison/alternatives (a gem can
       # be maintained yet still cap your Ruby), so it always gets its own line.
       lines << language_ceiling_line(data)
+      # So is a deprecation, and more so: it is the maintainer's own statement
+      # rather than anything derived from the row above it, and a deprecated gem
+      # can look entirely healthy in every other column.
+      lines << deprecation_line(data)
       lines.compact
+    end
+
+    # "  ↳ deprecated by maintainer: <their message>". Red, because a deprecation
+    # is an instruction to stop using the package, and the message usually names
+    # the replacement, so it is the most actionable text on the row.
+    def deprecation_line(data)
+      return unless data[:deprecated]
+
+      reason = data[:deprecation_reason]
+      text = reason ? "deprecated by maintainer: #{reason}" : "deprecated by maintainer"
+      "  #{AnsiHelper.red("\u21B3 #{text}")}"
     end
 
     # "  ↳ ruby ceiling: <receipt>" (or "python ceiling"), coloured by tier (red =

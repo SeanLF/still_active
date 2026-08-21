@@ -19,9 +19,14 @@ module StillActive
     # dormant or archived gem carrying an unpatched advisory is :dead (no one is
     # going to fix it, migrate). :unknown is least severe -- an absence, not a
     # finding -- so missing data never reads as :ok.
-    SEVERITY = [:unknown, :ok, :legacy, :stale, :archived, :vulnerable, :dead].freeze
+    # :deprecated sits above :archived and below :vulnerable. An archived repo is
+    # circumstantial (development may simply have moved), whereas a deprecation is
+    # the maintainer explicitly telling you to stop using the package, frequently
+    # naming the replacement. A live vulnerability is still the more urgent thing.
+    SEVERITY = [:unknown, :ok, :legacy, :stale, :archived, :deprecated, :vulnerable, :dead].freeze
 
-    # Returns :dead, :vulnerable, :archived, :legacy, :stale, :ok, or :unknown.
+    # Returns :dead, :vulnerable, :deprecated, :archived, :legacy, :stale, :ok,
+    # or :unknown.
     def gem_status(gem_data)
       vulnerable = gem_data[:vulnerability_count].to_i.positive?
 
@@ -33,12 +38,25 @@ module StillActive
       return :unknown if gem_data[:version_unresolved] && !vulnerable
 
       level = ActivityHelper.activity_level(gem_data)
+      # The maintainer's own declaration that this package should no longer be
+      # used. Unlike every other input here it is a stated fact rather than a date
+      # heuristic, so it is read before the activity level rather than blended
+      # with it.
+      deprecated = gem_data[:deprecated] == true
 
       if vulnerable
-        # A vulnerability in a dormant or archived gem won't be patched -> :dead;
-        # in an actively-released gem a fix is plausible -> :vulnerable.
-        return [:critical, :archived].include?(level) ? :dead : :vulnerable
+        # A vulnerability in a dormant, archived or deprecated gem won't be patched
+        # -> :dead; in an actively-released gem a fix is plausible -> :vulnerable.
+        # Deprecation counts even on a gem still shipping releases: the maintainer
+        # has said to stop using it, so waiting for the patch is not a plan.
+        return (deprecated || [:critical, :archived].include?(level)) ? :dead : :vulnerable
       end
+
+      # Deliberately ahead of the :critical -> :legacy branch below. :legacy means
+      # "long-dormant but done, low risk", and a deprecated package is the exact
+      # case that must not be filed there: left-pad is dormant AND clean AND its
+      # maintainer says to use String.prototype.padStart() instead.
+      return :deprecated if deprecated
 
       case level
       when :archived

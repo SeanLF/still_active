@@ -6,8 +6,8 @@ RSpec.describe(StillActive::Sarif::Rules) do
   describe(".all") do
     subject(:rules) { described_class.all }
 
-    it("returns the SA001..SA009 catalog") do
-      expect(rules.map { |r| r[:id] }).to(eq(["SA001", "SA002", "SA003", "SA004", "SA005", "SA006", "SA007", "SA008", "SA009"]))
+    it("returns the SA001..SA010 catalog") do
+      expect(rules.map { |r| r[:id] }).to(eq(["SA001", "SA002", "SA003", "SA004", "SA005", "SA006", "SA007", "SA008", "SA009", "SA010"]))
     end
 
     it("every rule has required fields") do
@@ -55,7 +55,7 @@ RSpec.describe(StillActive::Sarif::Rules) do
     it("drops the native-only SA006 (Ruby EOL) the SBOM path can never emit") do
       # A Go/npm repo's Code Scanning tab should not advertise a "Ruby runtime EOL"
       # rule. Every other stable id survives, in order.
-      expect(rules.map { |r| r[:id] }).to(eq(["SA001", "SA002", "SA003", "SA004", "SA005", "SA007", "SA008", "SA009"]))
+      expect(rules.map { |r| r[:id] }).to(eq(["SA001", "SA002", "SA003", "SA004", "SA005", "SA007", "SA008", "SA009", "SA010"]))
     end
 
     it("carries no gem/RubyGems/Gemfile wording anywhere in the neutral catalog") do
