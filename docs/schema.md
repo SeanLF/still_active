@@ -118,6 +118,19 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `latest_release_date` | string \| nil | ISO-8601 timestamp. |
 | `libyear` | float \| nil | Years between current Ruby release and latest. |
 
+## The supported integration surface
+
+**This JSON envelope is the API.** If you are building on top of still_active, parse this (or the SARIF output, or the CycloneDX output). Those are versioned, contract-tested against real output, and covered by the policy below.
+
+**The Ruby constants under `StillActive::` are internal**, and are not a supported interface even though they are technically public. Concretely, they are not usable as one:
+
+- `StillActive.config` is a process-global mutable singleton read from across the library, so two audits with different settings cannot run in one process, and concurrent use is unsafe.
+- `Workflow.call` takes no arguments; it reads its input from that singleton.
+- Every threshold decision (`--fail-if-*` and suppression matching) is private to `CLI`, so there is no supported way to ask "is this result a failure under these thresholds" without reimplementing it.
+- `CLI#run` calls `exit` directly, so it cannot be embedded.
+
+None of this is an oversight to be worked around; it is what makes the CLI simple. Shell out and parse the output. If you need something the output does not carry, that is worth [an issue](https://github.com/SeanLF/still_active/issues) rather than reaching into the internals, because the internals will change without a `schema_version` bump and the output will not.
+
 ## Versioning policy
 
 - **Additive changes** (new fields): no schema bump.

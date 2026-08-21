@@ -109,6 +109,8 @@ still_active --json > /tmp/main.json && still_active --baseline=/tmp/main.json
 ```
 </details>
 
+Building on top of still_active? The versioned JSON envelope is the supported interface (the Ruby constants are internal): [`docs/schema.md`](docs/schema.md).
+
 Rule reference (SA001-SA010), suppression, and composing with `dependency-review-action`: [`docs/rules.md`](docs/rules.md), [`docs/ci.md`](docs/ci.md). This repo audits itself every push, so you can browse live findings in its [Code Scanning tab](https://github.com/SeanLF/still_active/security/code-scanning?query=tool%3Astill_active+is%3Aopen).
 
 ## Cross-ecosystem audit
