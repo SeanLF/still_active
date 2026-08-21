@@ -46,6 +46,10 @@ module StillActive
       # bundler-audit ignore list when the vulnerability gate is on.
       hint = ConfigFile.import_hint(config_data)
       warn("hint: #{hint}") if hint
+      # Ahead of the SBOM dispatch so BOTH paths get it. It used to sit below,
+      # which meant an --sbom run setting two output modes said nothing at all and
+      # silently emitted one of them.
+      warn_output_flag_conflicts(options)
       # An SBOM audit is cross-ecosystem: it runs the deps.dev/ecosyste.ms lens
       # over the SBOM's packages, not Bundler over a lockfile. Dispatch before the
       # Bundler resolution below so a Gemfile is never required (or read).
@@ -60,7 +64,6 @@ module StillActive
         end
       end
 
-      warn_output_flag_conflicts(options)
       warn_stale_suppressions
 
       result = if $stderr.tty?
@@ -183,12 +186,16 @@ module StillActive
     # turned out not to need any, the input's own PURLs being threaded through.
     def render_sbom_output(result, unassessable, sbom_path)
       config = StillActive.config
+      # Same precedence as the native path and as active_output_modes, which is
+      # what the "using X, ignoring Y" warning reads from: the two flags must not
+      # mean different things depending on whether the input was a Gemfile or an
+      # SBOM, and the warning must not name a mode other than the one that runs.
       if config.baseline_path
         unsupported_sbom_format!("--baseline")
-      elsif config.cyclonedx_path
-        emit_sbom_cyclonedx(result, config.cyclonedx_path)
       elsif config.sarif_path
         emit_sbom_sarif(result, config.sarif_path, sbom_path)
+      elsif config.cyclonedx_path
+        emit_sbom_cyclonedx(result, config.cyclonedx_path)
       else
         case resolve_format
         when :json then emit_sbom_json(result, unassessable)
@@ -199,7 +206,7 @@ module StillActive
     end
 
     def unsupported_sbom_format!(flag)
-      warn("error: #{flag} output is not supported in --sbom mode (it needs the native Ruby audit's lockfile/snapshot, which a cross-ecosystem SBOM can't supply); use --sarif, --markdown, --terminal, or --json")
+      warn("error: #{flag} output is not supported in --sbom mode (it needs the native Ruby audit's lockfile/snapshot, which a cross-ecosystem SBOM can't supply); use --sarif, --cyclonedx, --markdown, --terminal, or --json")
       exit(2)
     end
 
