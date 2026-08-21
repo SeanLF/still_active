@@ -125,6 +125,11 @@ module StillActive
     # or assessment-level: the lens call raised) rather than silently dropping it.
     def run_sbom
       path = StillActive.config.sbom_path
+      # Before anything expensive. Whether an output mode can work on this path is
+      # knowable from the flags alone, and discovering it after the audit meant a
+      # large SBOM burned minutes and hundreds of requests against free APIs to
+      # produce a result that was then thrown away.
+      unsupported_sbom_format!("--baseline") if StillActive.config.baseline_path
       require_parseable_sbom(path)
       # deps.dev is the SBOM path's sole vulnerability source and an alpha API; a
       # field rename would silently zero every vuln count. Canary the schema once
@@ -190,9 +195,8 @@ module StillActive
       # what the "using X, ignoring Y" warning reads from: the two flags must not
       # mean different things depending on whether the input was a Gemfile or an
       # SBOM, and the warning must not name a mode other than the one that runs.
-      if config.baseline_path
-        unsupported_sbom_format!("--baseline")
-      elsif config.sarif_path
+      # --baseline is already rejected at the top of run_sbom, before the audit.
+      if config.sarif_path
         emit_sbom_sarif(result, config.sarif_path, sbom_path)
       elsif config.cyclonedx_path
         emit_sbom_cyclonedx(result, config.cyclonedx_path)

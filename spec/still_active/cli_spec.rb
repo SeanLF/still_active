@@ -1477,6 +1477,22 @@ RSpec.describe(StillActive::CLI) do
         expect(props["still_active:status"]).to(eq("deprecated"))
       end
 
+      it("rejects an impossible output mode BEFORE running the audit, not after paying for it") do
+        # The incompatibility is knowable from the flags alone. Discovering it
+        # after the audit means a large SBOM burns minutes and hundreds of calls
+        # against free APIs for a result that is thrown away.
+        File.write("baseline.json", "{}")
+        allow(StillActive::SbomReader).to(receive(:parse))
+        allow(StillActive::SbomWorkflow).to(receive(:call))
+
+        expect { cli.run(["--sbom=sbom.json", "--baseline=baseline.json"]) }
+          .to(output(/baseline.*not supported.*sbom/im).to_stderr
+            .and(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) }))
+
+        expect(StillActive::SbomReader).not_to(have_received(:parse))
+        expect(StillActive::SbomWorkflow).not_to(have_received(:call))
+      end
+
       it("errors loudly (exit 2) rather than a silent JSON fallback when --baseline is combined with --sbom") do
         File.write("baseline.json", "{}")
         expect { cli.run(["--sbom=sbom.json", "--baseline=baseline.json"]) }
