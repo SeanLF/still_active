@@ -16,9 +16,10 @@ RSpec.describe(StillActive::EcosystemLens) do
 
   # Stub the deps.dev version endpoint (advisory keys + SOURCE_REPO link + the
   # locked version's publishedAt, the libyear input).
-  def stub_version(advisory_keys: [], source_repo: nil, published_at: nil)
+  def stub_version(advisory_keys: [], source_repo: nil, published_at: nil, licenses: nil)
     links = source_repo ? [{"label" => "SOURCE_REPO", "url" => source_repo}] : []
     body = {"advisoryKeys" => advisory_keys.map { {"id" => _1} }, "links" => links, "publishedAt" => published_at}
+    body["licenses"] = licenses if licenses
     stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/[^/]+/packages/.+/versions/.+})
       .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: body.to_json)
   end
@@ -70,6 +71,40 @@ RSpec.describe(StillActive::EcosystemLens) do
         vulnerability_count: 0
       ))
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:ok))
+    end
+
+    it("carries the licence (parity with the native path's license)") do
+      stub_version(source_repo: "https://github.com/expressjs/express", licenses: ["MIT"])
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+
+      result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1")
+
+      expect(result[:license]).to(eq("MIT"))
+    end
+
+    it("reads a licence the pinned version declares as an SPDX expression") do
+      stub_version(source_repo: "https://github.com/serde-rs/serde", licenses: ["Apache-2.0 OR MIT"])
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+
+      result = described_class.assess(ecosystem: :cargo, name: "serde", version: "1.0.190")
+
+      expect(result[:license]).to(eq("Apache-2.0 OR MIT"))
+    end
+
+    it("leaves the licence nil when deps.dev serves none, rather than an empty string") do
+      stub_version(source_repo: "https://github.com/expressjs/express")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+
+      result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1")
+
+      expect(result).to(have_key(:license))
+      expect(result[:license]).to(be_nil)
     end
 
     it("carries the latest stable version string (parity with the native path's latest_version)") do

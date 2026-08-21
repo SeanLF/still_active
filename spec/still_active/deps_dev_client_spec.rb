@@ -49,6 +49,30 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(result[:published_at]).to(eq("2025-09-22T04:04:12Z"))
     end
 
+    it("returns the licences the version endpoint already serves") do
+      # The licence rides along in the response we already fetch for advisories and
+      # the release date, so surfacing it costs no extra request.
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/express/versions/5\.2\.1})
+        .to_return(
+          status: 200,
+          headers: {"Content-Type" => "application/json"},
+          body: {"advisoryKeys" => [], "licenses" => ["MIT"]}.to_json
+        )
+      result = described_class.version_info(gem_name: "express", version: "5.2.1", system: :npm)
+      expect(result[:licenses]).to(eq(["MIT"]))
+    end
+
+    it("reports no licences as an empty array, not nil") do
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/nolicence/versions/1\.0\.0})
+        .to_return(
+          status: 200,
+          headers: {"Content-Type" => "application/json"},
+          body: {"advisoryKeys" => []}.to_json
+        )
+      result = described_class.version_info(gem_name: "nolicence", version: "1.0.0", system: :npm)
+      expect(result[:licenses]).to(eq([]))
+    end
+
     it("ignores a GitHub funding link (github.com/sponsors/X) as a repository") do
       # deps.dev sometimes returns a SOURCE_REPO of https://github.com/sponsors/<user>
       # (a funding link, not a repo). Parsed as owner/repo it becomes sponsors/<user>,

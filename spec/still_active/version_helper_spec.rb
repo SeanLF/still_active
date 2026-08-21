@@ -214,6 +214,25 @@ RSpec.describe(StillActive::VersionHelper) do
     end
   end
 
+  describe(".format_licenses") do
+    # The shared primitive both paths join through: the native path reads a
+    # RubyGems version hash, the SBOM path a deps.dev `licenses` array, and both
+    # are an array of SPDX strings, so the rendering must not diverge.
+    it("joins an SPDX array the same way the native path does") do
+      expect(described_class.format_licenses(["MIT", "Apache-2.0"])).to(eq("MIT, Apache-2.0"))
+    end
+
+    it("passes an SPDX expression through untouched") do
+      # cargo/serde really returns this single-element expression, not two entries.
+      expect(described_class.format_licenses(["Apache-2.0 OR MIT"])).to(eq("Apache-2.0 OR MIT"))
+    end
+
+    it("returns nil for nil and for an empty array") do
+      expect(described_class.format_licenses(nil)).to(be_nil)
+      expect(described_class.format_licenses([])).to(be_nil)
+    end
+  end
+
   describe("#license") do
     it("returns nil for nil input") do
       expect(described_class.license(version_hash: nil)).to(be_nil)

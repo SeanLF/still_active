@@ -42,7 +42,13 @@ module StillActive
         # The locked version's release date -- the cross-ecosystem libyear input
         # (paired with the package's latest-release date). Already in this response,
         # so no extra fetch; nil when the feed omits it.
-        published_at: body["publishedAt"]
+        published_at: body["publishedAt"],
+        # The pinned version's SPDX licences, the same array shape RubyGems serves
+        # (verified across npm, pypi, cargo, go and maven). Also already in this
+        # response, so licence parity with the native path costs no extra request.
+        # Always an array, so a caller can't mistake "no licence declared" for a
+        # failed lookup.
+        licenses: body["licenses"] || []
       }
     end
 
