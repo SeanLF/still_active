@@ -51,6 +51,35 @@ module StillActive
       resolved
     end
 
+    # The library components that are the scanned project(s) rather than
+    # dependencies of one. A Syft SBOM lists the project as an ordinary library
+    # with a purl, indistinguishable from a dependency by shape alone, so
+    # still_active audited the user's own code and reported it as critically
+    # stale (it has no registry entry, so it looks abandoned).
+    #
+    # The graph tells them apart: the project is what nothing depends on. The rule
+    # is deliberately conservative on both halves. It requires an OUTGOING edge, so
+    # a dependency whose parent edge the generator simply failed to record stays a
+    # dependency rather than vanishing from the audit, and it only ever considers
+    # libraries, so Trivy's application-typed root and manifest nodes (never
+    # dependencies to begin with) are not reported here. A merged SBOM covering
+    # several projects yields all of them.
+    def project_refs(dependencies:, library_refs:)
+      edges = edges_from(dependencies)
+      return Set.new if edges.empty?
+
+      pointed_at = Set.new
+      edges.each_value { |children| pointed_at.merge(children) }
+
+      edges.each_with_object(Set.new) do |(ref, children), roots|
+        next unless library_refs.include?(ref)
+        next if pointed_at.include?(ref)
+        next if children.empty?
+
+        roots << ref
+      end
+    end
+
     private
 
     # {ref => [child refs]}, skipping anything malformed. A generator is free to

@@ -280,6 +280,37 @@ RSpec.describe(StillActive::SbomReader) do
       expect(result.find { |d| d[:name] == "orphan" }).not_to(have_key(:direct))
     end
 
+    it("does not audit the scanned project itself as one of its own dependencies") do
+      # Syft lists the project as an ordinary library with a purl. Assessed, it has
+      # no registry entry, so it reported as critically stale: a confident false
+      # verdict about the user's own code.
+      body = sbom_with_graph(
+        components: [node("probe", "probe"), node("a", "express")],
+        dependencies: [
+          {"ref" => "probe", "dependsOn" => ["a"]},
+          {"ref" => "a", "dependsOn" => []}
+        ]
+      )
+      result = described_class.read_string(body)
+
+      expect(result.map { |d| d[:name] }).to(contain_exactly("express"))
+    end
+
+    it("still audits a parentless package that pulls nothing in") do
+      # The conservative half: a dependency whose parent edge the generator failed
+      # to record must not vanish from the audit.
+      body = sbom_with_graph(
+        components: [node("root", "proj"), node("a", "express"), node("z", "orphan")],
+        dependencies: [
+          {"ref" => "root", "dependsOn" => ["a"]},
+          {"ref" => "z", "dependsOn" => []}
+        ]
+      )
+      result = described_class.read_string(body)
+
+      expect(result.map { |d| d[:name] }).to(include("orphan"))
+    end
+
     it("does not duplicate a package a generator lists under several bom-refs") do
       # Syft emits a component per location. The copies collapse via uniq, which
       # only works if they end up carrying the same placement.
