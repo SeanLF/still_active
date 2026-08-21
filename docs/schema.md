@@ -118,6 +118,50 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `latest_release_date` | string \| nil | ISO-8601 timestamp. |
 | `libyear` | float \| nil | Years between current Ruby release and latest. |
 
+## The `--sbom` output is a different shape
+
+A cross-ecosystem audit emits a **different document** from the Gemfile audit, and the two are told apart by their keys, not by `schema_version`:
+
+| | native (`--gemfile` / `--gems`) | cross-ecosystem (`--sbom`) |
+| --- | --- | --- |
+| `$schema` | present, points at this schema | **absent** |
+| dependency map | `gems`, keyed by bare gem name | `dependencies`, keyed `ecosystem/name@version` |
+| coverage gaps | n/a | `unassessable` array |
+| `ruby` / `pr_context` | present when known | absent |
+
+**Check for `gems` versus `dependencies`, not `schema_version`.** Both documents carry `schema_version: 1`, because the versioning policy below governs both, but only the native one claims this schema. The SBOM output deliberately omits `$schema`: pointing at a contract it does not match would be a false claim.
+
+The SBOM output is **not** covered by the JSON Schema file. It is documented here and versioned by the same policy, and that difference is deliberate rather than an omission: composite keys and an `unassessable` list do not fit the native `gem` definition.
+
+### Envelope
+
+| field | type | notes |
+| --- | --- | --- |
+| `schema_version` | integer | `1`. Same policy as the native output. |
+| `tool` | object | `{ name, version }`. |
+| `generated_at` | string | ISO-8601 timestamp. |
+| `summary` | object | `total_assessed`, `unassessable_count`, `status` (worst per-dependency verdict), `status_counts` (a tally per status). |
+| `dependencies` | object | Keyed `ecosystem/name@version`, so a package appearing at two versions in a merged SBOM does not collide. |
+| `unassessable` | array | Components that could not be assessed. Never silently dropped. |
+
+### Per dependency
+
+Most fields carry the same meaning as the native `gem` object above, so they are not repeated here: `activity_level`, `archived`, `deprecated`, `deprecation_reason`, `last_commit_date`, `latest_version`, `latest_version_release_date`, `libyear`, `license`, `repository_url`, `scorecard_maintained`, `scorecard_score`, `status`, `up_to_date`, `version_used`, `version_used_release_date`, `vulnerabilities`, `vulnerability_count`.
+
+Fields specific to this path:
+
+| field | type | notes |
+| --- | --- | --- |
+| `ecosystem` | string | `npm`, `pypi`, `cargo`, `go`, `maven`, `nuget`, `rubygems`. The native audit is Ruby by definition, so it has nothing to disambiguate. |
+| `name` | string | The bare package name. The native result is keyed by it; here the key is composite, so it is carried as a field. |
+| `purl` | string | The input SBOM's own package URL, kept verbatim (minus Syft's `package-id` bookkeeping) so an enriched SBOM re-emits what the consumer already matched on. |
+| `production` | bool | Present only when the SBOM marks dev-vs-prod scope. Absent means unknown, never assumed production. |
+| `direct` | bool | Present only when the SBOM's dependency graph places the package. **Absent means the document could not say**, which is not the same as `false`. |
+| `dependency_path` | array | Present only for a transitive package, head-first, naming the declared dependency that pulls it in as `ecosystem/name`. |
+| `version_unresolved` | bool | The pinned version could not be resolved while the package could. The cross-ecosystem analogue of `version_yanked`. |
+
+Each `unassessable` entry carries `ecosystem`, `name` and a `reason` (an unsupported ecosystem, a missing version or PURL, a private registry, a malformed PURL, or a failed lookup), plus `version` and `production` when known.
+
 ## The supported integration surface
 
 **This JSON envelope is the API.** If you are building on top of still_active, parse this (or the SARIF output, or the CycloneDX output). Those are versioned, contract-tested against real output, and covered by the policy below.
