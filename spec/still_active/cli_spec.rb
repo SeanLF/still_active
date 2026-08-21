@@ -910,6 +910,60 @@ RSpec.describe(StillActive::CLI) do
     end
   end
 
+  describe("--fail-if-deprecated") do
+    def deprecated_gem
+      # Deliberately healthy on every date-based signal: recently released, recent
+      # commits, no advisories. The only thing wrong with it is that its maintainer
+      # said to stop using it, which is exactly the case no other gate catches.
+      gem_data(last_commit_date: recent_date).merge(
+        deprecated: true,
+        deprecation_reason: "use String.prototype.padStart()"
+      )
+    end
+
+    it("exits 1 on a package whose maintainer deprecated it") do
+      StillActive.config.fail_if_deprecated = true
+      expect { cli.send(:check_exit_status, {"left-pad" => deprecated_gem}) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("catches a deprecated package that every other gate reads as healthy") do
+      # The point of the gate: --fail-if-critical and --fail-if-vulnerable both
+      # pass this package, because by dates and advisories it is fine.
+      StillActive.config.fail_if_critical = true
+      StillActive.config.fail_if_vulnerable = true
+      expect { cli.send(:check_exit_status, {"left-pad" => deprecated_gem}) }.not_to(raise_error)
+
+      StillActive.config.fail_if_deprecated = true
+      expect { cli.send(:check_exit_status, {"left-pad" => deprecated_gem}) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
+    end
+
+    it("does not exit when nothing is deprecated") do
+      StillActive.config.fail_if_deprecated = true
+      expect { cli.send(:check_exit_status, {"rails" => gem_data(last_commit_date: recent_date)}) }
+        .not_to(raise_error)
+    end
+
+    it("does not exit when the flag is off, even with a deprecated package") do
+      expect { cli.send(:check_exit_status, {"left-pad" => deprecated_gem}) }.not_to(raise_error)
+    end
+
+    it("honours a `deprecated` suppression for that package") do
+      StillActive.config.fail_if_deprecated = true
+      StillActive.config.suppressions = StillActive::Suppressions.from(
+        [{"gem" => "left-pad", "signal" => "deprecated", "reason" => "migration scheduled"}]
+      )
+      expect { cli.send(:check_exit_status, {"left-pad" => deprecated_gem}) }.not_to(raise_error)
+    end
+
+    it("does not exit when the deprecated package is --ignore'd") do
+      StillActive.config.fail_if_deprecated = true
+      StillActive.config.ignored_gems = ["left-pad"]
+      expect { cli.send(:check_exit_status, {"left-pad" => deprecated_gem}) }.not_to(raise_error)
+    end
+  end
+
   describe("--fail-if-poison") do
     def poison_gem(severity = :critical)
       gem_data(last_commit_date: ancient_date).merge(

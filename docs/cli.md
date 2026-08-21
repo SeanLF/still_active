@@ -29,6 +29,7 @@ Usage: still_active [options]
         --safe-range-end=YEARS       maximum years since last release considered safe, no warning (default 1.5)
         --warning-range-end=YEARS    maximum years since last release that triggers a warning, beyond this is critical (default 3)
         --fail-if-critical           Exit 1 if any gem has critical activity warning
+        --fail-if-deprecated         Exit 1 if any dependency's maintainer has deprecated it
         --fail-if-warning            Exit 1 if any gem has warning or critical activity warning
         --fail-if-vulnerable[=SEVERITY]
                                      Exit 1 if any gem has vulnerabilities (optionally at or above SEVERITY)

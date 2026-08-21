@@ -17,6 +17,7 @@ module StillActive
       :cyclonedx_path,
       :cyclonedx_version,
       :fail_if_critical,
+      :fail_if_deprecated,
       :fail_if_poison,
       :fail_if_language_ceiling,
       :fail_if_warning,
@@ -40,6 +41,7 @@ module StillActive
       @unreleased_commits = false
       @direct_only = false
       @fail_if_critical = false
+      @fail_if_deprecated = false
       @fail_if_poison = false
       @fail_if_language_ceiling = false
       @fail_if_outdated = nil
