@@ -100,6 +100,9 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
       name: "structural: the native result hash is keyed by bare gem name, so the name is the key. The SBOM result " \
         "is keyed ecosystem/name@version (two versions of one package can coexist in a merged SBOM), " \
         "so the bare name has to be carried as a field.",
+      purl: "structural: the input SBOM's own package URL, kept verbatim so an enriched " \
+        "SBOM can re-emit it rather than reconstructing per-ecosystem PURLs by hand. The native " \
+        "path has no input PURL to preserve; it builds one from the gem name and source type.",
       production: "closeable: CycloneDX marks dev-vs-prod scope and still_active reads it. Bundler knows a gem's " \
         "group too, but the native path does not thread it through yet.",
       version_unresolved: "structural: the SBOM analogue of version_yanked. deps.dev cannot confirm the pinned " \

@@ -38,11 +38,19 @@ RSpec.describe(StillActive::SbomReader) do
 
   it("carries the version per package") do
     requests = deps.find { |d| d[:name] == "requests" }
-    expect(requests).to(eq({ecosystem: :pypi, name: "requests", version: "2.31.0"}))
+    expect(requests).to(eq({ecosystem: :pypi, name: "requests", version: "2.31.0", purl: "pkg:pypi/requests@2.31.0"}))
   end
 
   it("strips Syft's ?package-id qualifier") do
     expect(deps.find { |d| d[:name] == "requests" }[:version]).to(eq("2.31.0"))
+  end
+
+  it("keeps the input's own PURL for re-emission, minus Syft's package-id bookkeeping") do
+    # Byte-identical apart from that qualifier: an enriched SBOM re-emits what the
+    # consumer already matched on, rather than a reconstruction of it.
+    expect(deps.find { |d| d[:name] == "@babel/code-frame" }[:purl]).to(eq("pkg:npm/%40babel/code-frame@7.29.0"))
+    expect(deps.find { |d| d[:name] == "github.com/gorilla/mux" }[:purl]).to(eq("pkg:golang/github.com/gorilla/mux@v1.8.0"))
+    expect(deps.find { |d| d[:name] == "com.google.guava:guava" }[:purl]).to(eq("pkg:maven/com.google.guava/guava@33.0.0"))
   end
 
   it("dedups a package that appears more than once (same purl, different package-id)") do
@@ -140,12 +148,12 @@ RSpec.describe(StillActive::SbomReader) do
 
     it("still assesses a package whose repository_url redundantly names the PUBLIC registry") do
       body = sbom({"type" => "library", "purl" => "pkg:pypi/requests@2.0.0?repository_url=https://pypi.org"})
-      expect(described_class.read_string(body)).to(eq([{ecosystem: :pypi, name: "requests", version: "2.0.0"}]))
+      expect(described_class.read_string(body)).to(eq([{ecosystem: :pypi, name: "requests", version: "2.0.0", purl: "pkg:pypi/requests@2.0.0?repository_url=https://pypi.org"}]))
     end
 
     it("extracts a scoped (possibly private) npm package by its full @scope/name") do
       body = sbom({"type" => "library", "purl" => "pkg:npm/%40myorg/secret@2.0.0"})
-      expect(described_class.read_string(body)).to(eq([{ecosystem: :npm, name: "@myorg/secret", version: "2.0.0"}]))
+      expect(described_class.read_string(body)).to(eq([{ecosystem: :npm, name: "@myorg/secret", version: "2.0.0", purl: "pkg:npm/%40myorg/secret@2.0.0"}]))
     end
 
     it("skips a PURL with no version (cannot be assessed)") do

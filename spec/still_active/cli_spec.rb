@@ -1412,10 +1412,46 @@ RSpec.describe(StillActive::CLI) do
           .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) })
       end
 
-      it("errors loudly (exit 2) rather than emitting garbage purls when --cyclonedx is combined with --sbom") do
-        expect { cli.run(["--sbom=sbom.json", "--cyclonedx=out.cdx.json"]) }
-          .to(output(/cyclonedx.*not supported.*sbom/im).to_stderr
-            .and(raise_error(SystemExit) { |e| expect(e.status).to(eq(2)) }))
+      # This used to error, on the grounds that SBOM-in/SBOM-out needed
+      # per-ecosystem PURL reconstruction. It does not: the input carries the
+      # authoritative PURL, so the enriched output re-emits it and a consumer
+      # matches our output exactly as it matched the input.
+      it("emits an enriched CycloneDX SBOM that re-emits the input's own purls") do
+        allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
+          outcome({
+            "npm/left-pad@1.0.0" => npm_flagged.merge(purl: "pkg:npm/left-pad@1.0.0", name: "left-pad", ecosystem: :npm),
+            "maven/com.google.guava:guava@33.0.0" => {
+              ecosystem: :maven, name: "com.google.guava:guava", version_used: "33.0.0",
+              purl: "pkg:maven/com.google.guava/guava@33.0.0", vulnerability_count: 0
+            }
+          })
+        ))
+        cli.run(["--sbom=sbom.json", "--cyclonedx=out.cdx.json"])
+        doc = JSON.parse(File.read("out.cdx.json"))
+
+        expect(doc["bomFormat"]).to(eq("CycloneDX"))
+        purls = doc["components"].map { |c| c["purl"] }
+        # maven is the reconstruction-hard case (group:artifact vs group/artifact);
+        # it round-trips untouched because nothing rebuilds it.
+        expect(purls).to(contain_exactly("pkg:npm/left-pad@1.0.0", "pkg:maven/com.google.guava/guava@33.0.0"))
+        expect(doc["components"].map { |c| c["bom-ref"] }).to(eq(purls))
+      end
+
+      it("annotates each component with the maintenance signals the input could not carry") do
+        allow(StillActive::SbomWorkflow).to(receive(:call).and_return(
+          outcome({"npm/left-pad@1.0.0" => npm_flagged.merge(
+            purl: "pkg:npm/left-pad@1.0.0", name: "left-pad", ecosystem: :npm,
+            deprecated: true, deprecation_reason: "use String.prototype.padStart()"
+          )})
+        ))
+        cli.run(["--sbom=sbom.json", "--cyclonedx=out.cdx.json"])
+        props = JSON.parse(File.read("out.cdx.json"))["components"].first["properties"]
+          .to_h { |p| [p["name"], p["value"]] }
+
+        expect(props["still_active:ecosystem"]).to(eq("npm"))
+        expect(props["still_active:deprecated"]).to(eq("true"))
+        expect(props["still_active:deprecation_reason"]).to(eq("use String.prototype.padStart()"))
+        expect(props["still_active:status"]).to(eq("deprecated"))
       end
 
       it("errors loudly (exit 2) rather than a silent JSON fallback when --baseline is combined with --sbom") do

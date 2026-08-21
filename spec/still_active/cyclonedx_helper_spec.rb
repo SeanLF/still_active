@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "json_schemer"
+
 require "json"
 
 RSpec.describe(StillActive::CyclonedxHelper) do
@@ -174,6 +176,82 @@ RSpec.describe(StillActive::CyclonedxHelper) do
       vulnerabilities.each do |v|
         v["affects"].each { |a| expect(refs).to(include(a["ref"])) }
       end
+    end
+  end
+
+  # The point of the enriched SBOM is that another tool ingests it, so "looks
+  # right" is not the bar: it is validated against the official CycloneDX 1.6
+  # schema, vendored here the same way the SARIF schema is. The two sibling
+  # schemas the spec $refs (SPDX licence ids, JSF signatures) are vendored too so
+  # validation runs offline.
+  describe(".render_sbom validity") do
+    def cyclonedx_schemer
+      dir = File.expand_path("../fixtures/cyclonedx", __dir__)
+      siblings = {
+        "spdx.schema.json" => JSON.parse(File.read(File.join(dir, "spdx.schema.json"))),
+        "jsf-0.82.schema.json" => JSON.parse(File.read(File.join(dir, "jsf-0.82.schema.json")))
+      }
+      JSONSchemer.schema(
+        JSON.parse(File.read(File.join(dir, "bom-1.6.schema.json"))),
+        ref_resolver: ->(uri) { siblings[File.basename(uri.path.to_s)] }
+      )
+    end
+
+    let(:assessed) do
+      {
+        "npm/left-pad@1.3.0" => {
+          ecosystem: :npm, name: "left-pad", version_used: "1.3.0",
+          purl: "pkg:npm/left-pad@1.3.0", license: "WTFPL", archived: true,
+          deprecated: true, deprecation_reason: "use String.prototype.padStart()",
+          repository_url: "https://github.com/left-pad/left-pad",
+          scorecard_score: 3.9, libyear: 2.5, direct: false,
+          vulnerability_count: 1,
+          vulnerabilities: [{id: "CVE-2026-1", source: "deps.dev", severity: "high", cvss_score: 7.5}]
+        },
+        # The reconstruction-hard cases: maven's group:artifact and a Go module
+        # path. Nothing rebuilds these, so they round-trip untouched.
+        "maven/com.google.guava:guava@33.0.0" => {
+          ecosystem: :maven, name: "com.google.guava:guava", version_used: "33.0.0",
+          purl: "pkg:maven/com.google.guava/guava@33.0.0", vulnerability_count: 0
+        },
+        "go/github.com/pkg/errors@v0.9.1" => {
+          ecosystem: :go, name: "github.com/pkg/errors", version_used: "v0.9.1",
+          purl: "pkg:golang/github.com/pkg/errors@v0.9.1", vulnerability_count: 0
+        }
+      }
+    end
+
+    it("emits a document that validates against the official CycloneDX 1.6 schema") do
+      doc = JSON.parse(described_class.render_sbom(result: assessed, tool_version: "3.0.0"))
+
+      errors = cyclonedx_schemer.validate(doc).to_a
+      expect(errors).to(be_empty, -> { errors.first(3).map { |e| "#{e["data_pointer"]}: #{e["error"]}" }.join("\n") })
+    end
+
+    it("re-emits every input purl verbatim, including maven and go") do
+      doc = JSON.parse(described_class.render_sbom(result: assessed, tool_version: "3.0.0"))
+
+      expect(doc["components"].map { |c| c["purl"] }).to(contain_exactly(
+        "pkg:npm/left-pad@1.3.0",
+        "pkg:maven/com.google.guava/guava@33.0.0",
+        "pkg:golang/github.com/pkg/errors@v0.9.1"
+      ))
+      expect(doc["components"].map { |c| c["bom-ref"] }).to(eq(doc["components"].map { |c| c["purl"] }))
+    end
+
+    it("carries the maintenance signals the input SBOM could not") do
+      doc = JSON.parse(described_class.render_sbom(result: assessed, tool_version: "3.0.0"))
+      left_pad = doc["components"].find { |c| c["name"] == "left-pad" }
+      props = left_pad["properties"].to_h { |p| [p["name"], p["value"]] }
+
+      expect(props).to(include(
+        "still_active:status" => "dead",
+        "still_active:archived" => "true",
+        "still_active:deprecated" => "true",
+        "still_active:ecosystem" => "npm",
+        "still_active:direct" => "false"
+      ))
+      expect(doc["vulnerabilities"].first["affects"].first["ref"]).to(eq("pkg:npm/left-pad@1.3.0"))
     end
   end
 end
