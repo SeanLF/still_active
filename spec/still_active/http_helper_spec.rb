@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/http_helper"
+require_relative "../../lib/still_active/helpers/http_helper"
 
 RSpec.describe(StillActive::HttpHelper) do
   let(:auth) { {"Authorization" => "Bearer secret-token"} }

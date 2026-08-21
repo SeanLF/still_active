@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/status_helper"
+require_relative "../../lib/still_active/helpers/status_helper"
 
 RSpec.describe(StillActive::StatusHelper) do
   # activity_level reads the global activity thresholds, so reset to defaults

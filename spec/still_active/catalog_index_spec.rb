@@ -6,7 +6,7 @@ require "rubygems/package"
 require "tmpdir"
 require "fileutils"
 require "json"
-require_relative "../../lib/helpers/catalog_index"
+require_relative "../../lib/still_active/helpers/catalog_index"
 
 RSpec.describe(StillActive::CatalogIndex) do
   # Build a gzipped tarball shaped like the rubytoolbox/catalog repo.

@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative "../helpers/vulnerability_helper"
-require_relative "../helpers/constraint_helper"
-require_relative "../helpers/semver_satisfaction"
+require_relative "helpers/vulnerability_helper"
+require_relative "helpers/constraint_helper"
+require_relative "helpers/semver_satisfaction"
 
 module StillActive
   # Whole-tree correlation, run once after the fan-out: a poison cap is far more

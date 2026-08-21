@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/endoflife_helper"
+require_relative "../../lib/still_active/helpers/endoflife_helper"
 
 RSpec.describe(StillActive::EndoflifeHelper) do
   # The ecosystem-neutral support-window builder over an endoflife.date feed.

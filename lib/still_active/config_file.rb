@@ -2,8 +2,8 @@
 
 require "yaml"
 require_relative "suppressions"
-require_relative "../helpers/constraint_helper"
-require_relative "../helpers/vulnerability_helper"
+require_relative "helpers/constraint_helper"
+require_relative "helpers/vulnerability_helper"
 
 module StillActive
   # Loads a committed .still_active.yml and applies it to the config as the layer

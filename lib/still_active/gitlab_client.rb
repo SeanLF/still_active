@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "time"
-require_relative "../helpers/http_helper"
+require_relative "helpers/http_helper"
 
 module StillActive
   module GitlabClient

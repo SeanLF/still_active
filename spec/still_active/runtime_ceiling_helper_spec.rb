@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/runtime_ceiling_helper"
+require_relative "../../lib/still_active/helpers/runtime_ceiling_helper"
 
 RSpec.describe(StillActive::RuntimeCeilingHelper) do
   # The runtime as of the fixtures: 3.3/3.4/4.0 supported, 3.2 and below EOL.

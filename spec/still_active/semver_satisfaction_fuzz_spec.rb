@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/semver_satisfaction"
+require_relative "../../lib/still_active/helpers/semver_satisfaction"
 
 # "Never raises, always tri-state" fuzz suite for SemverSatisfaction.evaluate. The
 # primitive must return true/false/nil for ANY input -- it feeds the below-the-fix

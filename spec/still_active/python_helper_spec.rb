@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/python_helper"
+require_relative "../../lib/still_active/helpers/python_helper"
 
 RSpec.describe(StillActive::PythonHelper) do
   let(:cycles) do

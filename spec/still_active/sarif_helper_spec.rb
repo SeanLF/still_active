@@ -2,7 +2,7 @@
 
 require "json"
 require "json_schemer"
-require_relative "../../lib/helpers/sarif_helper"
+require_relative "../../lib/still_active/helpers/sarif_helper"
 
 RSpec.describe(StillActive::SarifHelper) do
   let(:lockfile_path) { File.expand_path("../fixtures/sarif/Gemfile.lock", __dir__) }

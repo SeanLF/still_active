@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/pep440_helper"
+require_relative "../../lib/still_active/helpers/pep440_helper"
 
 RSpec.describe(StillActive::Pep440Helper) do
   # The shim translates a PEP 440 `requires_python` specifier into a RubyGems

@@ -3,7 +3,7 @@
 require "cgi"
 require "rubygems/resolver"
 require "uri"
-require_relative "../helpers/http_helper"
+require_relative "helpers/http_helper"
 
 module StillActive
   # The RubyGems compact index (`/info/<gem>`), which is what Bundler itself

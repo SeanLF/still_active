@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../lib/helpers/lockfile_indexer"
+require_relative "../../lib/still_active/helpers/lockfile_indexer"
 
 RSpec.describe(StillActive::LockfileIndexer) do
   let(:content) { File.read(File.expand_path("../fixtures/lockfile_indexer/standard.lock", __dir__)) }

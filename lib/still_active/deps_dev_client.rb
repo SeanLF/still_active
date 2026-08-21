@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "../helpers/http_helper"
-require_relative "../helpers/version_helper"
+require_relative "helpers/http_helper"
+require_relative "helpers/version_helper"
 
 module StillActive
   module DepsDevClient
