@@ -47,6 +47,7 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
       latest_version
       latest_version_release_date
       libyear
+      license
       poison
       poison_below_fix
       poison_security_relevant
@@ -80,8 +81,6 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
       latest_pre_release_version: "structural: RubyGems exposes every version, so the native path can pick the newest " \
         "pre-release. deps.dev models one default version per package and has no pre-release channel to read.",
       latest_pre_release_version_release_date: "structural: see latest_pre_release_version.",
-      license: "closeable: deps.dev serves licence data on its version endpoint, but DepsDevClient does not parse it. " \
-        "This is the cheapest of the closeable gaps.",
       ruby_gems_url: "structural: a rubygems.org package page is Ruby-specific by definition.",
       source_type: "structural: Bundler source kinds (rubygems, git, path, private host) are a lockfile concept. " \
         "The SBOM path carries `ecosystem` from the PURL instead, which is the cross-ecosystem analogue.",

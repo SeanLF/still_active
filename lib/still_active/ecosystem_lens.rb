@@ -12,6 +12,7 @@ require_relative "helpers/dotnet_helper"
 require_relative "helpers/libyear_helper"
 require_relative "helpers/pep440_helper"
 require_relative "helpers/runtime_ceiling_helper"
+require_relative "helpers/version_helper"
 require_relative "helpers/vulnerability_helper"
 
 module StillActive
@@ -106,6 +107,11 @@ module StillActive
         # prerelease or an ahead-of-stable pin reads current (true), not "behind" --
         # parity with the native path's `>=` comparison. nil when latest is unknown.
         up_to_date: version_current?(version, latest_version),
+        # The pinned version's licence, rendered exactly as the native path renders
+        # it (VersionHelper does the joining for both). It rides along in the
+        # version response already fetched above, so this is no extra call. nil when
+        # the package declares none, never a blank string.
+        license: VersionHelper.format_licenses(info&.dig(:licenses)),
         repository_url: project_id && "https://#{project_id}",
         last_commit_date: repo[:last_commit_date],
         archived: repo[:archived],

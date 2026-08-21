@@ -104,8 +104,20 @@ module StillActive
     # SPDX license identifier(s) from the RubyGems versions payload.
     # Comma-joined when a gem declares more than one. nil when unknown.
     def license(version_hash:)
-      licenses = version_hash&.dig("licenses")
-      return if licenses.nil? || licenses.empty?
+      format_licenses(version_hash&.dig("licenses"))
+    end
+
+    # The shared rendering both paths join through, so a licence reads the same
+    # whether it came from RubyGems (native) or deps.dev (--sbom). Both serve an
+    # array of SPDX strings, and a single element may itself be an expression
+    # ("Apache-2.0 OR MIT"), which passes through untouched. nil when unknown,
+    # never an empty string, so a missing licence can't render as a present blank.
+    def format_licenses(licenses)
+      # Array() so a drifted feed serving a bare string instead of an array can't
+      # raise here. This runs inside the per-dependency assessment, so an exception
+      # would cost that dependency its entire verdict over a cosmetic field.
+      licenses = Array(licenses)
+      return if licenses.empty?
 
       licenses.join(", ")
     end
