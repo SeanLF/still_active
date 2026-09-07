@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-09-07
+
 ### Changed
 
 - **`cvss-suite` is now a REQUIRED runtime dependency** (`>= 5.0`), no longer opt-in. Its 5.0 release dropped the constraints that kept it optional through 3.0 (a Ruby 2.6 floor, a `bigdecimal` cap, an exact `bundler` pin), so it now passes the same audit still_active runs on your own lockfile. It resolves automatically on `gem install`; the Ruby floor is unchanged. The `cvss-suite` input on the GitHub Action becomes a no-op.
