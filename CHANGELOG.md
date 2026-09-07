@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **`cvss-suite` is now a REQUIRED runtime dependency** (`>= 5.0`), no longer opt-in. Its 5.0 release dropped the constraints that kept it optional through 3.0 (a Ruby 2.6 floor, a `bigdecimal` cap, an exact `bundler` pin), so it now passes the same audit still_active runs on your own lockfile. It resolves automatically on `gem install`; the Ruby floor is unchanged. The `cvss-suite` input on the GitHub Action becomes a no-op.
+- **CVSS-4-only advisories are always scored now**, and the number is the **base score** (what NVD and GHSA publish), not cvss-suite's `overall_score`, which folds threat metrics into the vector when present. Under `--fail-if-vulnerable=<severity>` an advisory that used to fail closed as unscored gets a real number, so a previously red run can go green when that number sits below your threshold. The GHSA label still floors the band, so a HIGH never demotes.
+
 ## [3.0.0] - 2026-08-21
 
 The maintenance lens goes cross-ecosystem. In one line each:

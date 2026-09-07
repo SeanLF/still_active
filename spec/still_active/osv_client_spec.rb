@@ -60,9 +60,9 @@ RSpec.describe(StillActive::OsvClient) do
         {"type" => "CVSS_V4", "score" => v4_vector}
       ])
       stub_vuln("GHSA-cvss", body: record)
-      # cvss-suite is an optional dependency (CvssHelper.score), so here we assert
-      # OsvClient hands the V4 vector (not the v3) to the scorer and surfaces the
-      # result -- the .with guard fails if it picked v3. The math is CvssHelper's own.
+      # The math is CvssHelper's own (cvss_helper_spec); here we assert OsvClient
+      # hands the V4 vector (not the v3) to the scorer and surfaces the result --
+      # the .with guard fails if it picked v3.
       allow(StillActive::CvssHelper).to(receive(:score).with(v4_vector).and_return(9.3))
 
       detail = described_class.detail(advisory_id: "GHSA-cvss")
