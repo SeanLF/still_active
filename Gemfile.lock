@@ -4,6 +4,7 @@ PATH
     still_active (3.0.0)
       async (>= 2.2)
       bundler (>= 2.0)
+      cvss-suite (>= 5.0)
       faraday-retry
       gems
       octokit
@@ -32,6 +33,8 @@ GEM
     crack (1.0.1)
       bigdecimal
       rexml
+    cvss-suite (5.0.0)
+      bigdecimal (>= 3.1)
     debug (1.11.1)
       irb (~> 1.10)
       reline (>= 0.3.8)
@@ -213,6 +216,7 @@ CHECKSUMS
   concurrent-ruby (1.3.8) sha256=b2f1be836e968ccc78ccfce277ea79c72a88633f22306782c16ff23fb415d1e1
   console (1.37.0) sha256=8093b286c2595a063849c098594fee5155ecc7967d36f3aa8cbe7569c8f3efd7
   crack (1.0.1) sha256=ff4a10390cd31d66440b7524eb1841874db86201d5b70032028553130b6d4c7e
+  cvss-suite (5.0.0) sha256=130db969ea28ad702bf13244ccbd6a19b566ccb70234bcb0d761d0099772f1b2
   debug (1.11.1) sha256=2e0b0ac6119f2207a6f8ac7d4a73ca8eb4e440f64da0a3136c30343146e952b6
   diff-lcs (2.0.0) sha256=708a5d52ec2945b50f8f53a181174aa1ef2c496edf81c05957fe956dabb363d5
   erb (6.0.7) sha256=c5ca6dc25b0ef974a44dc8f59fe847577122483b1968a38dec305c60bf91ee92
