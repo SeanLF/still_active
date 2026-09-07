@@ -33,5 +33,21 @@ RSpec.describe(StillActive::CvssHelper) do
       expect(described_class.score(nil)).to(be_nil)
       expect(described_class.score("")).to(be_nil)
     end
+
+    it("returns nil, never raises, on hostile input (the number is display-only and must not crash the run)") do
+      hostile = [
+        "CVSS:4.0/",
+        "CVSS:9.9/AV:N",
+        "CVSS:3.1/AV:X/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "AV:N/AC:L/Au:N/C:P/I:P",
+        "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/AV:L",
+        "\u00e9" * 50,
+        "x" * 20_000,
+        "CVSS:4.0/#{"AV:N/" * 500}",
+        12_345,
+        :symbol
+      ]
+      hostile.each { |vector| expect(described_class.score(vector)).to(be_nil, "#{vector.to_s[0, 40].inspect} did not yield nil") }
+    end
   end
 end
