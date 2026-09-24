@@ -465,4 +465,69 @@ RSpec.describe(StillActive::OsvClient) do
       expect(a_request(:post, "https://api.osv.dev/v1/query")).not_to(have_been_made)
     end
   end
+
+  describe(".advisories") do
+    # The Go vulndb record shape: a GO- id, CVE aliases, a summary, and no severity
+    # or CVSS at all (the Go team does not score), with the fix on each release line.
+    def go_record
+      {
+        "id" => "GO-2026-4337",
+        "aliases" => ["CVE-2025-68121"],
+        "summary" => "Unexpected session resumption in crypto/tls",
+        "affected" => [
+          {"package" => {"name" => "stdlib", "ecosystem" => "Go"},
+           "ranges" => [{"type" => "SEMVER", "events" => [{"introduced" => "0"}, {"fixed" => "1.24.13"}, {"introduced" => "1.25.0-0"}, {"fixed" => "1.25.7"}]}]}
+        ]
+      }
+    end
+
+    def stub_query(body:, status: 200)
+      stub_request(:post, "https://api.osv.dev/v1/query")
+        .with(body: {version: "1.25.5", package: {name: "stdlib", ecosystem: "Go"}}.to_json)
+        .to_return(status: status, headers: {"Content-Type" => "application/json"}, body: body.is_a?(String) ? body : body.to_json)
+    end
+
+    def advisories
+      described_class.advisories(ecosystem: :go, name: "stdlib", version: "1.25.5")
+    end
+
+    it("reads every advisory OSV lists for the version, without a per-advisory fetch") do
+      stub_query(body: {vulns: [go_record]})
+
+      expect(advisories).to(contain_exactly(include(
+        id: "GO-2026-4337",
+        aliases: ["CVE-2025-68121"],
+        title: "Unexpected session resumption in crypto/tls",
+        url: "https://osv.dev/vulnerability/GO-2026-4337",
+        source: "osv",
+        osv_severity: nil,
+        fixed_versions: ["1.24.13", "1.25.7"]
+      )))
+      expect(a_request(:get, %r{api\.osv\.dev/v1/vulns/})).not_to(have_been_made)
+    end
+
+    it("reads the CVSS a record does carry") do
+      stub_query(body: {vulns: [osv_record.merge("id" => "GHSA-x")]})
+
+      expect(advisories.first).to(include(osv_severity: "HIGH", cvss_version: "3.1", osv_cvss_score: 7.5))
+    end
+
+    it("answers [] for OSV's bare all-clear") do
+      stub_query(body: {})
+
+      expect(advisories).to(eq([]))
+    end
+
+    # nil is "we don't know", which the caller must not render as clean.
+    it("answers nil for a truncated page, an error envelope, or a failed request") do
+      stub_query(body: {vulns: [go_record], next_page_token: "abc"})
+      expect(advisories).to(be_nil)
+
+      stub_query(body: {code: 3, message: "bad"})
+      expect(advisories).to(be_nil)
+
+      stub_query(body: "", status: 500)
+      expect(advisories).to(be_nil)
+    end
+  end
 end

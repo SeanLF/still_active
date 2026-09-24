@@ -130,6 +130,8 @@ Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft)
 | Language-runtime ceiling (SA009) | Ruby | Python |
 | Ruby EOL (SA006), yanked (SA007) | Yes | n/a |
 
+The Go toolchain (`stdlib`) isn't a module deps.dev can serve, so it's read from endoflife.date and OSV instead, and an end-of-life Go release line is reported as deprecated (SA010).
+
 Full rule detail in [`docs/rules.md`](docs/rules.md).
 </details>
 
