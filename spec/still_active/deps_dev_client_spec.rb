@@ -387,6 +387,26 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(described_class.project_scorecard(project_id: nil)).to(be_nil)
     end
 
+    it("does not ask deps.dev about a host it cannot index") do
+      # deps.dev answers 400 "invalid project key" for anything but these three
+      # hosts; golang.org/x/* all link to go.googlesource.com, so every Go SBOM
+      # warned on every x/ module.
+      ["go.googlesource.com/sys", "gitlab.gnome.org/GNOME/glib", "codeberg.org/forgejo/forgejo"].each do |project_id|
+        expect(described_class.project_scorecard(project_id: project_id)).to(be_nil)
+      end
+      expect(a_request(:get, /api\.deps\.dev/)).not_to(have_been_made)
+    end
+
+    it("asks deps.dev about gitlab.com and bitbucket.org projects") do
+      stub_request(:get, /api\.deps\.dev/).to_return(
+        headers: {"Content-Type" => "application/json"},
+        body: {scorecard: {overallScore: 6.0, date: "2026-01-02", checks: []}}.to_json
+      )
+
+      expect(described_class.project_scorecard(project_id: "gitlab.com/gitlab-org/gitlab")).to(include(score: 6.0))
+      expect(described_class.project_scorecard(project_id: "bitbucket.org/atlassian/python-bitbucket")).to(include(score: 6.0))
+    end
+
     it("returns nil on timeout") do
       stub_request(:get, /api\.deps\.dev/).to_timeout
 
@@ -464,6 +484,13 @@ RSpec.describe(StillActive::DepsDevClient) do
 
     it("strips GitHub tree/blob extras") do
       expect(project_id("https://github.com/rails/rails/tree/v7.1.0")).to(eq("github.com/rails/rails"))
+    end
+
+    it("lowercases the host and drops www., so the key is one deps.dev accepts") do
+      # deps.dev 400s `GitHub.com/rails/rails`; the scorecard guard also matches the
+      # host exactly, so an unnormalized host would skip a lookup that works.
+      expect(project_id("https://GitHub.com/rails/rails")).to(eq("github.com/rails/rails"))
+      expect(project_id("https://www.github.com/rails/rails")).to(eq("github.com/rails/rails"))
     end
 
     it("strips a trailing slash and .git suffix") do

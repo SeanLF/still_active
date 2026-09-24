@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **No more HTTP 400 warnings for repositories deps.dev doesn't index.** deps.dev keys projects under github.com, gitlab.com and bitbucket.org only, so every `golang.org/x/*` module (hosted on go.googlesource.com), and anything on Codeberg or a self-hosted GitLab, printed a warning for a lookup that could never succeed. still_active no longer makes that request. A `GitHub.com` or `www.github.com` repository link is normalized, so those now get their scorecard.
+
 ## [3.1.0] - 2026-09-07
 
 ### Changed

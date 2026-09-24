@@ -115,8 +115,13 @@ module StillActive
       default_version_info(name: name, system: system)&.dig(:published_at)
     end
 
+    # The only hosts deps.dev keys projects under; any other answers 400 "invalid
+    # project key" (go.googlesource.com, self-hosted GitLab, Codeberg), so asking is
+    # a guaranteed warning with nothing to gain.
+    PROJECT_HOSTS = ["github.com", "gitlab.com", "bitbucket.org"].freeze
+
     def project_scorecard(project_id:)
-      return if project_id.nil?
+      return unless PROJECT_HOSTS.include?(project_id.to_s.split("/").first)
 
       path = "/v3alpha/projects/#{encode(project_id)}"
       body = HttpHelper.get_json(BASE_URI, path)
@@ -228,6 +233,7 @@ module StillActive
       # a real port (`host:443/...`) alone -- a colon before a digit isn't a path.
       cleaned = cleaned.sub(%r{\A([^/:]+):(?=\D)}, '\1/')
       host, *segments = cleaned.split("/")
+      host = host&.downcase&.delete_prefix("www.")
       segments = repo_path_segments(host, segments)
       return if host.nil? || segments.empty?
 
