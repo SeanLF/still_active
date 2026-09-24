@@ -148,7 +148,7 @@ When uploaded via `github/codeql-action/upload-sarif`, findings appear in the Gi
 
 ## SA010 — Deprecated Package {#sa010}
 
-**Triggers when:** the maintainer has marked the package deprecated in its registry. Read from the deps.dev version record still_active already fetches for advisories and release dates, so it costs no extra request on either path.
+**Triggers when:** the maintainer has marked the package deprecated in its registry. Read from the deps.dev version record still_active already fetches for advisories and release dates, so it costs no extra request on either path. The Go toolchain (`stdlib`) has no registry flag, so an end-of-life Go release line (from endoflife.date) is reported here instead: the Go team ending a line is the same declaration, and the line gets no more fixes.
 
 **Why it matters:** every other rule here infers abandonment from evidence: dates, repository state, release cadence. This one does not infer anything. The person who publishes the package has said to stop using it, and the deprecation message usually names the successor (`left-pad`'s reads "use String.prototype.padStart()"). It is the signal the rest of the tool approximates.
 

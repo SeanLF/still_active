@@ -81,6 +81,45 @@ module StillActive
       body = HttpHelper.get_json(BASE_URI, "/v1/vulns/#{encode(advisory_id)}")
       return unless body.is_a?(Hash)
 
+      parse_record(body)
+    end
+
+    # Every advisory OSV lists for this exact version, carrying the same OSV fields
+    # enrich adds, or nil when OSV could not answer completely. This is the discovery
+    # source for a package deps.dev can't serve per version (the Go toolchain), so
+    # nil must stay distinct from [] here too: the caller reads nil as "unknown",
+    # never as clean. The query returns whole records, so nothing is fetched per id.
+    def advisories(ecosystem:, name:, version:)
+      osv_ecosystem = ECOSYSTEM_NAMES[ecosystem]
+      return if osv_ecosystem.nil?
+
+      query = {version: version, package: {name: name, ecosystem: osv_ecosystem}}
+      body = HttpHelper.post_json(BASE_URI, "/v1/query", body: JSON.generate(query))
+      return unless body.is_a?(Hash) && identifiers_from(body)
+
+      Array(body["vulns"]).map do |vuln|
+        record = parse_record(vuln)
+        {
+          id: vuln["id"],
+          aliases: Array(vuln["aliases"]).grep(String),
+          title: vuln["summary"],
+          url: "https://osv.dev/vulnerability/#{vuln["id"]}",
+          source: "osv",
+          osv_severity: record[:severity_label],
+          osv_cvss_score: record[:cvss_score],
+          cvss_version: record[:cvss_version],
+          cvss_vector: record[:cvss_vector],
+          fixed_versions: fixed_versions(record, ecosystem: ecosystem, name: name)
+        }
+      end
+    rescue => e
+      warn("warning: OSV advisory lookup for #{name}@#{version} failed: #{e.class} (#{e.message})")
+      nil
+    end
+
+    private
+
+    def parse_record(body)
       cvss = best_cvss(body)
       {
         # OSV's own identity for the advisory, unioned into the match against a query
@@ -95,8 +134,6 @@ module StillActive
         affected: Array(body["affected"]).filter_map { |entry| parse_affected(entry) }
       }
     end
-
-    private
 
     # Applies one OSV record to one advisory, in place. Returns OSV's identifiers for
     # the advisory when it is eligible for the version confirmation below (only OSV

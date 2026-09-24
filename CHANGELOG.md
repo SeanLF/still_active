@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **The Go toolchain (`pkg:golang/stdlib`) is assessed from endoflife.date and OSV, not deps.dev.** deps.dev keys it `go1.27.1` where the purl says `1.27.1`, its index stops at go1.25.5, and its advisory list is the same for every version, so stdlib read as behind a stale "latest" and **every stdlib pin reported zero advisories**. It now reads its latest release from endoflife.date, its advisories from OSV for that exact version, and an end-of-life release line as deprecated, naming the line to move to. If OSV or the feed can't answer, the version reads `unknown` and a warning says its advisories went unchecked.
 - **No more HTTP 400 warnings for repositories deps.dev doesn't index.** deps.dev keys projects under github.com, gitlab.com and bitbucket.org only, so every `golang.org/x/*` module (hosted on go.googlesource.com), and anything on Codeberg or a self-hosted GitLab, printed a warning for a lookup that could never succeed. still_active no longer makes that request. A `GitHub.com` or `www.github.com` repository link is normalized, so those now get their scorecard.
 
 ## [3.1.0] - 2026-09-07

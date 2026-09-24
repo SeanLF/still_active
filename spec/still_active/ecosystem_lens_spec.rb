@@ -624,4 +624,148 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::DepsDevClient).not_to(have_received(:target_frameworks))
     end
   end
+
+  # The Go toolchain is a runtime, not a module: deps.dev keys it `go1.25.5` where
+  # the purl says `1.25.5`, its index stops at go1.25.5, and its advisory list is the
+  # same 167 for every version (all verified 2026-09-24). So stdlib reads its release
+  # lines from endoflife.date and its advisories from OSV by version, never deps.dev.
+  describe(".assess Go toolchain (stdlib)") do
+    def stub_go_feed(status: 200)
+      cycles = [
+        {"cycle" => "1.27", "releaseDate" => "2026-08-19", "eol" => false, "latest" => "1.27.1", "latestReleaseDate" => "2026-09-01"},
+        {"cycle" => "1.26", "releaseDate" => "2026-02-10", "eol" => false, "latest" => "1.26.8", "latestReleaseDate" => "2026-09-01"},
+        {"cycle" => "1.25", "releaseDate" => "2025-08-12", "eol" => "2026-08-19", "latest" => "1.25.14", "latestReleaseDate" => "2026-08-19"}
+      ]
+      stub_request(:get, "https://endoflife.date/api/go.json")
+        .to_return(status: status, headers: {"Content-Type" => "application/json"}, body: cycles.to_json)
+    end
+
+    def stub_osv(version:, body: {}, status: 200)
+      stub_request(:post, "https://api.osv.dev/v1/query")
+        .with(body: {version: version, package: {name: "stdlib", ecosystem: "Go"}}.to_json)
+        .to_return(status: status, headers: {"Content-Type" => "application/json"}, body: body.to_json)
+    end
+
+    def tls_advisory
+      {"id" => "GO-2026-4337", "aliases" => ["CVE-2025-68121"], "summary" => "crypto/tls",
+       "affected" => [{"package" => {"name" => "stdlib", "ecosystem" => "Go"},
+                       "ranges" => [{"type" => "SEMVER", "events" => [{"introduced" => "1.25.0-0"}, {"fixed" => "1.25.7"}]}]}]}
+    end
+
+    def assess(version)
+      described_class.assess(ecosystem: :go, name: "stdlib", version: version)
+    end
+
+    it("reads the current release as current, with no deps.dev lookup") do
+      stub_go_feed
+      stub_osv(version: "1.27.1")
+
+      result = assess("1.27.1")
+
+      expect(result).to(include(
+        version_used: "1.27.1",
+        latest_version: "1.27.1",
+        latest_version_release_date: "2026-09-01",
+        version_used_release_date: "2026-09-01",
+        up_to_date: true,
+        deprecated: false,
+        vulnerability_count: 0
+      ))
+      expect(result).not_to(have_key(:version_unresolved))
+      expect(StillActive::StatusHelper.gem_status(result)).to(eq(:ok))
+      expect(a_request(:any, /api\.deps\.dev/)).not_to(have_been_made)
+    end
+
+    it("accepts the go- and v-prefixed forms generators write") do
+      stub_go_feed
+      stub_osv(version: "1.27.1")
+
+      expect(assess("go1.27.1")).to(include(latest_version: "1.27.1", up_to_date: true))
+      expect(assess("v1.27.1")).to(include(latest_version: "1.27.1", up_to_date: true))
+    end
+
+    # Go 1.20 and earlier shipped their first release as go1.20, and OSV answers it.
+    it("queries OSV for a two-part release") do
+      stub_go_feed
+      stub_osv(version: "1.25", body: {vulns: [tls_advisory]})
+
+      result = assess("1.25")
+
+      expect(result).to(include(vulnerability_count: 1, version_used_release_date: "2025-08-12"))
+      expect(result).not_to(have_key(:version_unresolved))
+    end
+
+    # OSV writes a Go prerelease 1.27.0-rc.1, so asking for 1.27rc1 would come back
+    # empty and read as clean.
+    it("reads a prerelease as :unknown without asking OSV") do
+      stub_go_feed
+
+      result = assess("go1.27rc1")
+
+      expect(result[:version_unresolved]).to(be(true))
+      expect(a_request(:post, /api\.osv\.dev/)).not_to(have_been_made)
+    end
+
+    it("reports an end-of-life line's advisories and says the line is over") do
+      stub_go_feed
+      stub_osv(version: "1.25.5", body: {vulns: [tls_advisory]})
+
+      result = assess("1.25.5")
+
+      expect(result).to(include(up_to_date: false, deprecated: true, vulnerability_count: 1))
+      expect(result[:deprecation_reason]).to(eq("The Go team ended the 1.25 release line on 2026-08-19; it gets no further security fixes. Upgrade to 1.27.1."))
+      expect(result[:vulnerabilities].first).to(include(id: "GO-2026-4337", fixed_versions: ["1.25.7"]))
+      # A patch that isn't its line's latest has no release date in the feed.
+      expect(result[:version_used_release_date]).to(be_nil)
+    end
+
+    it("reads a supported older line as behind but not deprecated") do
+      stub_go_feed
+      stub_osv(version: "1.26.8")
+
+      expect(assess("1.26.8")).to(include(up_to_date: false, deprecated: false, deprecation_reason: nil))
+    end
+
+    # A failed OSV answer is not an all-clear: the version reads :unknown.
+    it("reads :unknown when OSV can't answer") do
+      stub_go_feed
+      stub_osv(version: "1.27.1", body: {vulns: [], next_page_token: "abc"})
+
+      result = nil
+      # Only JSON carries the status, so the miss has to be said out loud too.
+      expect { result = assess("1.27.1") }.to(output(/go\/stdlib@1\.27\.1.*not checked/).to_stderr)
+
+      expect(result[:version_unresolved]).to(be(true))
+      expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
+    end
+
+    it("reads :unknown for a release line the feed doesn't list") do
+      stub_go_feed
+      stub_osv(version: "1.99.0")
+
+      expect(assess("1.99.0")[:version_unresolved]).to(be(true))
+    end
+
+    it("reads :unknown with no latest when the feed is down") do
+      stub_go_feed(status: 503)
+      stub_osv(version: "1.27.1")
+
+      result = assess("1.27.1")
+
+      expect(result).to(include(latest_version: nil, deprecated: false))
+      expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
+    end
+
+    it("leaves a Go module named stdlib elsewhere to the registry path") do
+      stub_version(source_repo: "https://github.com/x/stdlib")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+      stub_request(:post, "https://api.osv.dev/v1/query").to_return(status: 200, body: "{}", headers: {"Content-Type" => "application/json"})
+
+      described_class.assess(ecosystem: :go, name: "github.com/x/stdlib", version: "v1.0.0")
+
+      expect(a_request(:get, /endoflife\.date/)).not_to(have_been_made)
+    end
+  end
 end

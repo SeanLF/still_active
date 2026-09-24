@@ -4,6 +4,7 @@ require_relative "deps_dev_client"
 require_relative "osv_client"
 require_relative "ecosystems_client"
 require_relative "github_client"
+require_relative "go_toolchain"
 require_relative "pypi_client"
 require "time"
 require_relative "helpers/activity_helper"
@@ -55,31 +56,15 @@ module StillActive
     FLAT_RESOLUTION_ECOSYSTEMS = [:rubygems, :pypi].freeze
 
     def assess(ecosystem:, name:, version:, constraint_cache: {}, runtime_ranges: {})
-      info = DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)
-      default = DepsDevClient.default_version_info(name: name, system: ecosystem)
-      # Retry the version lookup once when it came back empty but the package DID
-      # resolve: HttpHelper collapses a genuine 404 and a transient network blip to
-      # the same nil, and a healthy version must not be mis-flagged as unresolved
-      # (below) on a one-off miss. A real 404 stays nil; a blip recovers the data.
-      info ||= DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem) if default
-      # Recover the repo from the default version when the exact locked version
-      # isn't indexed (yanked/normalization mismatch): otherwise its project link
-      # vanishes and a still-fresh package date would read a false :ok with
-      # archived/scorecard silently dropped. The native Bundler path resolves the
-      # repo independently of deps.dev's per-version record; this gives the lens
-      # the same resilience.
-      # The pinned version isn't indexed by deps.dev (info nil) while the package IS
-      # (default present, so the feed is up): the version is yanked/nonexistent, not a
-      # transient miss. Flag it so status reads :unknown rather than letting the still-
-      # fresh PACKAGE date report a nonexistent version as :ok.
-      version_unresolved = info.nil? && !default.nil?
-      project_id = info&.dig(:project_id) || project_id_from(name, ecosystem, default)
-      vulnerabilities = vulnerabilities_for(info)
-      # Enrich with OSV: a real GHSA severity label (deps.dev can't score a CVSS-4-only
-      # advisory) and the fixed-version ranges the "capped below the fix" signal needs.
-      # Passing the version also lets OSV confirm the advisory actually applies to it,
-      # correcting deps.dev's lag on an advisory amended with backport fixes.
-      vulnerabilities = OsvClient.enrich(vulnerabilities, ecosystem: ecosystem, name: name, version: version)
+      signals =
+        if GoToolchain.toolchain?(ecosystem, name)
+          version = GoToolchain.release(version)
+          GoToolchain.signals(version: version)
+        else
+          registry_signals(ecosystem: ecosystem, name: name, version: version)
+        end
+      info, default, vulnerabilities, project_id, version_unresolved =
+        signals.values_at(:info, :default, :vulnerabilities, :project_id, :version_unresolved)
       scorecard = DepsDevClient.project_scorecard(project_id: project_id)
       repo = repo_signals(project_id)
 
@@ -133,6 +118,37 @@ module StillActive
     end
 
     private
+
+    # A package's signals from deps.dev, with OSV enrichment:
+    # { info:, default:, vulnerabilities:, project_id:, version_unresolved: }.
+    def registry_signals(ecosystem:, name:, version:)
+      info = DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)
+      default = DepsDevClient.default_version_info(name: name, system: ecosystem)
+      # Retry the version lookup once when it came back empty but the package DID
+      # resolve: HttpHelper collapses a genuine 404 and a transient network blip to
+      # the same nil, and a healthy version must not be mis-flagged as unresolved
+      # (below) on a one-off miss. A real 404 stays nil; a blip recovers the data.
+      info ||= DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem) if default
+      # Recover the repo from the default version when the exact locked version
+      # isn't indexed (yanked/normalization mismatch): otherwise its project link
+      # vanishes and a still-fresh package date would read a false :ok with
+      # archived/scorecard silently dropped. The native Bundler path resolves the
+      # repo independently of deps.dev's per-version record; this gives the lens
+      # the same resilience.
+      # The pinned version isn't indexed by deps.dev (info nil) while the package IS
+      # (default present, so the feed is up): the version is yanked/nonexistent, not a
+      # transient miss. Flag it so status reads :unknown rather than letting the still-
+      # fresh PACKAGE date report a nonexistent version as :ok.
+      version_unresolved = info.nil? && !default.nil?
+      project_id = info&.dig(:project_id) || project_id_from(name, ecosystem, default)
+      vulnerabilities = vulnerabilities_for(info)
+      # Enrich with OSV: a real GHSA severity label (deps.dev can't score a CVSS-4-only
+      # advisory) and the fixed-version ranges the "capped below the fix" signal needs.
+      # Passing the version also lets OSV confirm the advisory actually applies to it,
+      # correcting deps.dev's lag on an advisory amended with backport fixes.
+      vulnerabilities = OsvClient.enrich(vulnerabilities, ecosystem: ecosystem, name: name, version: version)
+      {info: info, default: default, vulnerabilities: vulnerabilities, project_id: project_id, version_unresolved: version_unresolved}
+    end
 
     # Language-runtime ceiling for the cross-ecosystem path, the sibling of the
     # native Ruby ceiling in Workflow. Python declares its runtime constraint as a

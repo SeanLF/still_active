@@ -87,11 +87,12 @@ module StillActive
       end
     end
 
-    private
-
+    # The feed's raw cycles, newest first, or nil when it's unavailable.
     def fetch_cycles(feed_path)
       HttpHelper.get_json(ENDOFLIFE_URI, feed_path)
     end
+
+    private
 
     def normalize_cycle(cycle)
       version = cycle["cycle"]
