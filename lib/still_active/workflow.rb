@@ -501,7 +501,8 @@ module StillActive
       repo.merge(project_id: deps_dev_project_id(repo))
     end
 
-    # deps.dev scorecards index github.com and gitlab.com only. A Forgejo/Codeberg
+    # Of the forges Repository recognizes, deps.dev indexes github.com and
+    # gitlab.com (DepsDevClient::PROJECT_HOSTS). A Forgejo/Codeberg
     # repo has no deps.dev project, so leave its project_id nil rather than minting
     # a bogus github.com/owner/name that would fetch the wrong (or no) scorecard.
     DEPS_DEV_HOST_BY_SOURCE = {github: "github.com", gitlab: "gitlab.com"}.freeze
