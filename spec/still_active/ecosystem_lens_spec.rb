@@ -713,7 +713,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       result = assess("1.25.5")
 
       expect(result).to(include(up_to_date: false, deprecated: true, vulnerability_count: 1))
-      expect(result[:deprecation_reason]).to(eq("Go 1.25 reached end of life on 2026-08-19 and gets no further security fixes; upgrade to 1.27.1"))
+      expect(result[:deprecation_reason]).to(eq("The Go team ended the 1.25 release line on 2026-08-19; it gets no further security fixes. Upgrade to 1.27.1."))
       expect(result[:vulnerabilities].first).to(include(id: "GO-2026-4337", fixed_versions: ["1.25.7"]))
       # A patch that isn't its line's latest has no release date in the feed.
       expect(result[:version_used_release_date]).to(be_nil)

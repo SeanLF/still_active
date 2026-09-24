@@ -180,7 +180,7 @@ module StillActive
           tags: ["security", "supply-chain", "maintenance", "external/cwe/cwe-1104"],
           neutral: {
             short: "Package is deprecated by its maintainer",
-            full: "The maintainer has marked this package deprecated in its registry. Unlike every other maintenance signal here, this is not inferred from dates or repository state: the person who publishes it has said to stop using it, and the deprecation message often names the replacement. A deprecated package can still look healthy by release recency, so this fires independently of the activity signals.",
+            full: "The maintainer has marked this package deprecated in its registry. Unlike every other maintenance signal here, this is not inferred from dates or repository state: the person who publishes it has said to stop using it, and the deprecation message often names the replacement. A deprecated package can still look healthy by release recency, so this fires independently of the activity signals. A language runtime counts too: when the Go team ends a Go release line, the toolchain on it is reported here.",
             help_text: "Read the deprecation message, which usually names the successor, and migrate to it. There will be no further fixes, including security patches."
           }
         }

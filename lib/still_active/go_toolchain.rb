@@ -67,9 +67,10 @@ module StillActive
     def end_of_life(cycle, latest)
       return {deprecated: false, deprecation_reason: nil} unless EndoflifeHelper.eol_reached?(cycle["eol"])
 
+      # Worded as what the Go team did, since output labels it the maintainer's note.
       on = EndoflifeHelper.parse_eol(cycle["eol"])&.strftime(" on %Y-%m-%d")
-      upgrade = latest && "; upgrade to #{latest["latest"]}"
-      {deprecated: true, deprecation_reason: "Go #{cycle["cycle"]} reached end of life#{on} and gets no further security fixes#{upgrade}"}
+      upgrade = latest && " Upgrade to #{latest["latest"]}."
+      {deprecated: true, deprecation_reason: "The Go team ended the #{cycle["cycle"]} release line#{on}; it gets no further security fixes.#{upgrade}"}
     end
   end
 end
