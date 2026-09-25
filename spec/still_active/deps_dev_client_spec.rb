@@ -405,6 +405,17 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(a_request(:get, /api\.deps\.dev/)).not_to(have_been_made)
     end
 
+    it("doesn't serve a caller that skips the cache (a canary) from the prefetched table") do
+      stub_request(:post, batch_url).to_return(batch_response([entry("PYPI", "django", "3.0.0", {"advisoryKeys" => []})]))
+      live = stub_request(:get, %r{/packages/django/versions/3\.0\.0\z})
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"advisoryKeys" => [{"id" => "A"}]}.to_json)
+
+      described_class.prefetch_versions([[:pypi, "django", "3.0.0"]])
+
+      expect(described_class.version_info(gem_name: "django", version: "3.0.0", system: :pypi, cache: false)[:advisory_keys]).to(eq(["A"]))
+      expect(live).to(have_been_requested)
+    end
+
     it("never lets a prefetch error abort the audit") do
       allow(StillActive::HttpHelper).to(receive(:post_json).and_raise(NoMethodError, "boom"))
 
