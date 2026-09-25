@@ -2,7 +2,6 @@
 
 require_relative "../../lib/still_active/artifactory_client"
 
-# rubocop:disable RSpec/MultipleDescribes
 RSpec.describe(StillActive::ArtifactoryClient) do
   before { StillActive.reset }
 
@@ -113,7 +112,7 @@ RSpec.describe(StillActive::ArtifactoryClient) do
     it("returns versions from the RubyGems client when there is no compact index") do
       api_versions = [{"number" => "1.0.0", "prerelease" => false, "created_at" => "2025-06-01T00:00:00Z"}]
       allow(StillActive::CompactIndexClient).to(receive(:versions).and_return([]))
-      allow(StillActive::ArtifactoryClient::RubygemsClient).to(receive(:versions).and_return(api_versions))
+      allow(StillActive::RubygemsClient).to(receive(:versions).and_return(api_versions))
 
       result = described_class.versions(gem_name: gem_name, source_uri: source_uri)
 
@@ -123,7 +122,7 @@ RSpec.describe(StillActive::ArtifactoryClient) do
     it("falls back to the AQL client when the RubyGems client returns empty") do
       aql_versions = [{"number" => "7.0.0", "prerelease" => false, "created_at" => "2024-07-01T00:00:00Z"}]
       allow(StillActive::CompactIndexClient).to(receive(:versions).and_return([]))
-      allow(StillActive::ArtifactoryClient::RubygemsClient).to(receive(:versions).and_return([]))
+      allow(StillActive::RubygemsClient).to(receive(:versions).and_return([]))
       allow(StillActive::ArtifactoryClient::AqlClient).to(receive(:versions).and_return(aql_versions))
 
       result = described_class.versions(gem_name: gem_name, source_uri: source_uri)
@@ -245,159 +244,3 @@ RSpec.describe(StillActive::ArtifactoryClient) do
     end
   end
 end
-
-RSpec.describe(StillActive::ArtifactoryClient::RubygemsClient) do
-  before { StillActive.reset }
-
-  let(:source_uri) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/" }
-  let(:gem_name) { "private_gem" }
-  let(:versions_api_url) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/api/v1/versions/#{gem_name}.json" }
-
-  describe(".versions") do
-    it("returns versions on success") do
-      body = [{"number" => "1.0.0", "prerelease" => false, "created_at" => "2025-06-01T00:00:00Z"}]
-      stub_request(:get, versions_api_url)
-        .to_return(status: 200, body: body.to_json, headers: {"Content-Type" => "application/json"})
-
-      result = described_class.versions(gem_name: gem_name, source_uri: source_uri)
-
-      expect(result).to(eq(body))
-    end
-
-    it("returns empty on 404") do
-      stub_request(:get, versions_api_url).to_return(status: 404)
-
-      result = described_class.versions(gem_name: gem_name, source_uri: source_uri)
-
-      expect(result).to(eq([]))
-    end
-
-    it("applies provided headers to the request") do
-      body = [{"number" => "1.0.0", "prerelease" => false, "created_at" => "2025-06-01T00:00:00Z"}]
-      stub_request(:get, versions_api_url)
-        .with(headers: {"Authorization" => "Bearer test-token"})
-        .to_return(status: 200, body: body.to_json, headers: {"Content-Type" => "application/json"})
-
-      described_class.versions(
-        gem_name: gem_name,
-        source_uri: source_uri,
-        headers: {"Authorization" => "Bearer test-token"}
-      )
-
-      expect(WebMock).to(have_requested(:get, versions_api_url))
-    end
-  end
-end
-
-RSpec.describe(StillActive::ArtifactoryClient::AqlClient) do
-  before { StillActive.reset }
-
-  let(:source_uri) { "https://my-org.jfrog.io/artifactory/api/gems/my-repo/" }
-  let(:aql_url) { "https://my-org.jfrog.io/artifactory/api/search/aql" }
-
-  describe(".versions") do
-    # AQL lists cached .gem files, so `created` is when this Artifactory first
-    # pulled the artifact, not when it was published. Measured against real
-    # release dates the lag ran to 891 days (issue #142), and staleness and
-    # libyear are computed from these timestamps, so no date beats a wrong one.
-    it("does not present the artifact cache timestamp as a release date") do
-      aql_body = {"results" => [{"name" => "widget-1.0.0.gem", "created" => "2024-07-01T00:00:00Z"}]}
-      stub_request(:post, aql_url)
-        .to_return(status: 200, body: aql_body.to_json, headers: {"Content-Type" => "application/json"})
-
-      result = described_class.versions(gem_name: "widget", source_uri: source_uri)
-
-      expect(result.first["number"]).to(eq("1.0.0"))
-      expect(result.first["created_at"]).to(be_nil)
-    end
-
-    it("deduplicates platform variants") do
-      aql_body = {
-        "results" => [
-          {"name" => "rails-7.0.0.gem", "created" => "2024-07-01T00:00:00Z"},
-          {"name" => "rails-7.0.0-x86_64-linux.gem", "created" => "2024-07-02T00:00:00Z"},
-          {"name" => "rails-6.1.0.gem", "created" => "2024-01-01T00:00:00Z"}
-        ]
-      }
-      stub_request(:post, aql_url)
-        .to_return(status: 200, body: aql_body.to_json, headers: {"Content-Type" => "application/json"})
-
-      result = described_class.versions(gem_name: "rails", source_uri: source_uri)
-
-      expect(result.map { |h| h["number"] }).to(eq(["7.0.0", "6.1.0"]))
-    end
-
-    it("sorts versions descending by Gem::Version") do
-      aql_body = {
-        "results" => [
-          {"name" => "widget-1.10.0.gem", "created" => "2024-01-01T00:00:00Z"},
-          {"name" => "widget-2.0.0.gem", "created" => "2024-02-01T00:00:00Z"},
-          {"name" => "widget-10.0.0.gem", "created" => "2024-03-01T00:00:00Z"}
-        ]
-      }
-      stub_request(:post, aql_url)
-        .to_return(status: 200, body: aql_body.to_json, headers: {"Content-Type" => "application/json"})
-
-      result = described_class.versions(gem_name: "widget", source_uri: source_uri)
-
-      expect(result.map { |h| h["number"] }).to(eq(["10.0.0", "2.0.0", "1.10.0"]))
-    end
-
-    it("ignores unrelated artifacts that share a name prefix") do
-      aql_body = {
-        "results" => [
-          {"name" => "datadog-2.0.0.gem", "created" => "2024-01-01T00:00:00Z"},
-          {"name" => "datadog-ruby_core_source.gem", "created" => "2024-01-01T00:00:00Z"}
-        ]
-      }
-      stub_request(:post, aql_url)
-        .to_return(status: 200, body: aql_body.to_json, headers: {"Content-Type" => "application/json"})
-
-      result = described_class.versions(gem_name: "datadog", source_uri: source_uri)
-
-      expect(result.map { |h| h["number"] }).to(eq(["2.0.0"]))
-    end
-
-    it("builds well-formed JSON when the gem name contains a quote") do
-      evil_gem_name = %(evil"name)
-      stub_request(:post, aql_url)
-        .to_return(status: 200, body: {"results" => []}.to_json, headers: {"Content-Type" => "application/json"})
-
-      described_class.versions(gem_name: evil_gem_name, source_uri: source_uri)
-
-      expect(WebMock).to(have_requested(:post, aql_url).with do |request|
-        criteria = request.body[/\Aitems\.find\((.*)\)\.include/, 1]
-        parsed = JSON.parse(criteria)
-        expect(parsed.dig("name", "$match")).to(eq(%(evil"name-*.gem)))
-        true
-      end)
-    end
-
-    it("returns empty and warns when the source URI cannot be parsed") do
-      bad_uri = "https://my-org.jfrog.io/no-api/here/"
-
-      result = nil
-      expect do
-        result = described_class.versions(gem_name: "private_gem", source_uri: bad_uri)
-      end.to(output(/unrecognized Artifactory source URL/).to_stderr)
-
-      expect(result).to(eq([]))
-      expect(WebMock).not_to(have_requested(:post, aql_url))
-    end
-
-    it("applies provided headers and sets Content-Type to text/plain") do
-      stub_request(:post, aql_url)
-        .with(headers: {"Authorization" => "Bearer test-token", "Content-Type" => "text/plain"})
-        .to_return(status: 200, body: {"results" => []}.to_json, headers: {"Content-Type" => "application/json"})
-
-      described_class.versions(
-        gem_name: "private_gem",
-        source_uri: source_uri,
-        headers: {"Authorization" => "Bearer test-token"}
-      )
-
-      expect(WebMock).to(have_requested(:post, aql_url))
-    end
-  end
-end
-# rubocop:enable RSpec/MultipleDescribes
