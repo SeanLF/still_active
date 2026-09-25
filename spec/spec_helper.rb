@@ -45,6 +45,8 @@ RSpec.configure do |config|
     # (e.g. a widened warning_range_end silently demoting an "abandoned" SARIF gem).
     # Runs before any describe-level `before`, so per-example config setup still wins.
     StillActive.reset
+    # Pooled connections hold WebMock's fake sockets; a spec must not inherit one.
+    StillActive::HttpHelper.reset_connections!
 
     ["GITHUB_TOKEN", "GH_TOKEN", "GITLAB_TOKEN"].each { |var| ENV.delete(var) }
     allow(Open3).to(receive(:capture3).and_call_original)

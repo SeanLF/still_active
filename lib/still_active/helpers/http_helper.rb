@@ -22,6 +22,11 @@ module StillActive
       EOFError
     ].freeze
     MAX_REDIRECTS = 3
+    # A 429 or 503 that says when to come back gets one retry, if that's soon.
+    MAX_RETRY_AFTER_SECONDS = 10
+    # Idle connections kept per host. The fan-out runs 10 at a time, so more than
+    # that would only ever sit idle.
+    MAX_IDLE_PER_HOST = 10
     # Ceiling on a single response body. These are metadata endpoints (version
     # lists, scorecards, advisories); legitimate responses are well under this.
     # A source URL is lockfile-derived and a `*.jfrog.io` host is attacker-
@@ -38,6 +43,13 @@ module StillActive
     IDENTITY = ->(body) { body }
 
     extend self
+
+    # Close and forget every pooled connection. Specs call it between examples,
+    # since a pooled connection holds WebMock's fake socket.
+    def reset_connections!
+      pool.each_value { |idle| idle.each { close(_1) } }
+      @pool = nil
+    end
 
     def get_json(base_uri, path, headers: {}, params: {}, strict: false)
       uri = base_uri.dup
@@ -82,17 +94,25 @@ module StillActive
     # The block is yielded each URI and returns the request object, so GET and
     # POST share the redirect/auth/cap logic.
     def request_json(uri, headers, parse: JSON_PARSER, strict: false)
-      MAX_REDIRECTS.times do
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = true
-        http.open_timeout = 10
-        http.read_timeout = 10
-
+      retried = false
+      # The Retry-After retry repeats a pass rather than spending one of these.
+      passes = 0
+      while (passes += 1) <= MAX_REDIRECTS
         request = yield(uri)
         headers.each { |key, value| request[key] = value }
 
-        outcome, payload = perform(http, request, uri, parse)
+        outcome, payload = with_connection(uri) { |http| perform(http, request, uri, parse) }
         case outcome
+        when :retry_after
+          if retried
+            warn("warning: #{uri.host}#{uri.path} is still rate limited after one retry")
+            return unavailable(strict, uri)
+          end
+          warn("warning: #{uri.host}#{uri.path} returned HTTP #{payload[:code]}, retrying in #{payload[:seconds]}s as it asked")
+          sleep(payload[:seconds])
+          retried = true
+          passes -= 1
+          next
         when :done
           # A 404 is how a source says "no record"; a 200 of `null` says nothing.
           return payload unless payload.nil? && strict
@@ -154,14 +174,27 @@ module StillActive
     #   [:not_found, nil]      a 404, which is an answer, not a failure
     #   [:stop, nil]           any other non-success (warns), or body over cap
     #   [:done, parsed]        a 2xx with the parsed body (JSON or text)
-    # Redirect and non-success bodies are never read: returning from the block
-    # unwinds through Net::HTTP, which closes the connection without draining
-    # the body, so a huge error/redirect body can't OOM us either.
+    # Redirect and error bodies are never read: returning from the block unwinds
+    # through Net::HTTP without draining the body, so a huge one can't OOM us, and
+    # with_connection closes that connection. A success or a 404 is read to the end
+    # and the block finishes normally, so Net::HTTP does its end-of-request
+    # bookkeeping: it honours Connection: close and records the time for its idle
+    # check, which is what makes the connection safe to pool. Returning from inside
+    # skipped both, and a POST on a connection the server had closed then failed.
     def perform(http, request, uri, parse)
+      body = nil
       http.request(request) do |response|
         return [:redirect, response] if response.is_a?(Net::HTTPRedirection)
 
-        return [:not_found, nil] if response.is_a?(Net::HTTPNotFound)
+        if response.is_a?(Net::HTTPNotFound)
+          return [:stop, nil] if read_capped_body(response, uri).nil?
+
+          next
+        end
+
+        if (seconds = retry_after(response))
+          return [:retry_after, {code: response.code, seconds: seconds}]
+        end
 
         unless response.is_a?(Net::HTTPSuccess)
           warn("warning: #{uri.host}#{uri.path} returned HTTP #{response.code}")
@@ -170,9 +203,57 @@ module StillActive
 
         body = read_capped_body(response, uri)
         return [:stop, nil] if body.nil?
-
-        return [:done, parse.call(body)]
       end
+      body.nil? ? [:not_found, nil] : [:done, parse.call(body)]
+    end
+
+    # The seconds a 429 or 503 asks us to wait, when it gives a number of them and
+    # the wait is short enough to be worth it; nil otherwise. The HTTP-date form is
+    # read as "not soon", since the sources we call send seconds.
+    def retry_after(response)
+      return unless response.code == "429" || response.code == "503"
+
+      value = response["Retry-After"].to_s.strip
+      return unless value.match?(/\A\d+\z/)
+
+      value.to_i if value.to_i <= MAX_RETRY_AFTER_SECONDS
+    end
+
+    # One started connection per host, reused across requests. Only a success or a
+    # 404, read to the end with Net::HTTP's request finished normally, goes back
+    # (see perform); anything else may have unread bytes and is closed. On reuse,
+    # Net::HTTP reconnects a connection the server closed or that sat idle past
+    # its keep-alive timeout.
+    def with_connection(uri)
+      http = pool[[uri.host, uri.port]].pop || open_connection(uri)
+      outcome = nil
+      begin
+        outcome = yield(http)
+      ensure
+        if [:done, :not_found].include?(outcome&.first) && pool[[uri.host, uri.port]].size < MAX_IDLE_PER_HOST
+          pool[[uri.host, uri.port]] << http
+        else
+          close(http)
+        end
+      end
+    end
+
+    def open_connection(uri)
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = true
+      http.open_timeout = 10
+      http.read_timeout = 10
+      http.start
+    end
+
+    def close(http)
+      http.finish if http.started?
+    rescue IOError
+      nil
+    end
+
+    def pool
+      @pool ||= Hash.new { |hash, key| hash[key] = [] }
     end
 
     # Reads the body in chunks, abandoning the read (returns nil) as soon as it

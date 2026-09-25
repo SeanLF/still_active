@@ -270,4 +270,79 @@ RSpec.describe(StillActive::HttpHelper) do
       expect { expect(described_class.get_json(base, "/x")).to(be_nil) }.to(output.to_stderr)
     end
   end
+
+  # One TLS handshake per host, not per request: a connection goes back to the pool
+  # only after a fully read success, since an early return leaves bytes unread.
+  describe("connection reuse") do
+    let(:base) { URI("https://api.deps.dev") }
+
+    def ok(path) = stub_request(:get, "https://api.deps.dev#{path}").to_return(status: 200, body: "{}", headers: {"Content-Type" => "application/json"})
+
+    it("reuses one connection for sequential requests to a host") do
+      ok("/a")
+      ok("/b")
+      allow(Net::HTTP).to(receive(:new).and_call_original)
+
+      described_class.get_json(base, "/a")
+      described_class.get_json(base, "/b")
+
+      expect(Net::HTTP).to(have_received(:new).once)
+    end
+
+    it("reuses after a 404 (read to the end), but not after an error left mid-response") do
+      stub_request(:get, "https://api.deps.dev/missing").to_return(status: 404)
+      stub_request(:get, "https://api.deps.dev/down").to_return(status: 503)
+      ok("/after")
+      allow(Net::HTTP).to(receive(:new).and_call_original)
+
+      described_class.get_json(base, "/missing")
+      expect { described_class.get_json(base, "/down") }.to(output.to_stderr)
+      described_class.get_json(base, "/after")
+
+      expect(Net::HTTP).to(have_received(:new).twice)
+    end
+  end
+
+  # A rate limit that says when to come back gets one bounded retry.
+  describe("Retry-After") do
+    let(:base) { URI("https://api.deps.dev") }
+
+    before { allow(described_class).to(receive(:sleep)) }
+
+    it("waits the stated seconds and retries once on a 429") do
+      stub_request(:get, "https://api.deps.dev/x")
+        .to_return(status: 429, headers: {"Retry-After" => "2"}).then
+        .to_return(status: 200, body: '{"ok":true}', headers: {"Content-Type" => "application/json"})
+
+      result = nil
+      expect { result = described_class.get_json(base, "/x") }.to(output(/429.*retrying in 2s/).to_stderr)
+
+      expect(result).to(eq("ok" => true))
+      expect(described_class).to(have_received(:sleep).with(2))
+    end
+
+    it("doesn't spend a redirect on the retry") do
+      stub_request(:get, "https://api.deps.dev/x").to_return(status: 429, headers: {"Retry-After" => "1"}).then
+        .to_return(status: 301, headers: {"Location" => "https://api.deps.dev/y"})
+      stub_request(:get, "https://api.deps.dev/y").to_return(status: 301, headers: {"Location" => "https://api.deps.dev/z"})
+      stub_request(:get, "https://api.deps.dev/z").to_return(status: 200, body: '{"ok":true}', headers: {"Content-Type" => "application/json"})
+
+      result = nil
+      expect { result = described_class.get_json(base, "/x") }.to(output.to_stderr)
+      expect(result).to(eq("ok" => true))
+    end
+
+    it("gives up after one retry, and doesn't wait on a missing, dated or overlong Retry-After") do
+      stub_request(:get, "https://api.deps.dev/x").to_return(status: 429, headers: {"Retry-After" => "1"})
+      expect { described_class.get_json(base, "/x") }.to(output.to_stderr)
+      expect(a_request(:get, "https://api.deps.dev/x")).to(have_been_made.twice)
+
+      [{}, {"Retry-After" => "Wed, 21 Oct 2026 07:28:00 GMT"}, {"Retry-After" => "3600"}].each do |headers|
+        WebMock.reset!
+        stub_request(:get, "https://api.deps.dev/x").to_return(status: 429, headers: headers)
+        expect { described_class.get_json(base, "/x") }.to(output.to_stderr)
+        expect(a_request(:get, "https://api.deps.dev/x")).to(have_been_made.once)
+      end
+    end
+  end
 end
