@@ -216,7 +216,10 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
     keys = []
     each_node(source) do |node|
       next unless node.is_a?(Prism::CallNode) && node.name == method_name
-      next unless node.receiver.is_a?(Prism::LocalVariableReadNode) && node.receiver.name == receiver_name
+      # `data.merge(...)`, or `data.to_h.merge(...)` on an Assessment.
+      receiver = node.receiver
+      receiver = receiver.receiver if receiver.is_a?(Prism::CallNode) && receiver.name == :to_h
+      next unless receiver.is_a?(Prism::LocalVariableReadNode) && receiver.name == receiver_name
 
       node.arguments&.arguments&.each do |argument|
         case argument

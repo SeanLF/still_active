@@ -74,6 +74,16 @@ RSpec.describe(StillActive::SbomWorkflow) do
       expect(StillActive::DepsDevClient).to(have_received(:clear_prefetch).ordered)
     end
 
+    it("returns an Assessment per dependency") do
+      allow(StillActive::PythonHelper).to(receive(:supported_python_range).and_return(nil))
+      allow(StillActive::DotnetHelper).to(receive_messages(supported_dotnet_range: nil, supported_dotnetfx_range: nil))
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| {ecosystem:, name:, version_used: version} }
+
+      out = described_class.call(result_with([{ecosystem: :npm, name: "left-pad", version: "1.3.0"}]))
+
+      expect(out.assessed.values).to(all(be_a(StillActive::Assessment)))
+    end
+
     it("runs the lens over each dependency, keyed by ecosystem/name@version") do
       deps = [
         {ecosystem: :npm, name: "express", version: "5.2.1"},
@@ -84,7 +94,7 @@ RSpec.describe(StillActive::SbomWorkflow) do
       out = described_class.call(result_with(deps))
 
       expect(out.assessed.keys).to(eq(["npm/express@5.2.1", "pypi/requests@2.32.5"]))
-      expect(out.assessed["npm/express@5.2.1"]).to(include(ecosystem: :npm, name: "express", version_used: "5.2.1"))
+      expect(out.assessed["npm/express@5.2.1"].to_h).to(include(ecosystem: :npm, name: "express", version_used: "5.2.1"))
       expect(out.failures).to(be_empty)
     end
 
@@ -151,8 +161,8 @@ RSpec.describe(StillActive::SbomWorkflow) do
 
       out = described_class.call(result_with(deps))
 
-      expect(out.assessed["npm/express@5.2.1"]).to(include(production: true))
-      expect(out.assessed["npm/jest@29.7.0"]).to(include(production: false))
+      expect(out.assessed["npm/express@5.2.1"].to_h).to(include(production: true))
+      expect(out.assessed["npm/jest@29.7.0"].to_h).to(include(production: false))
     end
 
     it("omits the production key entirely when the SBOM never marked prod/dev (unknown, not false)") do

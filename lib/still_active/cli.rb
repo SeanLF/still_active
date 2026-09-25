@@ -20,6 +20,7 @@ require_relative "helpers/terminal_helper"
 require_relative "helpers/version_helper"
 require_relative "helpers/vulnerability_helper"
 require_relative "sbom_reader"
+require_relative "assessment"
 require_relative "sbom_workflow"
 require_relative "workflow"
 
@@ -99,7 +100,7 @@ module StillActive
             # Surface the derived verdict so a machine/LLM consumer reads it
             # directly instead of re-deriving it from the raw dates.
             gems: result.transform_values do |data|
-              data.merge(
+              data.to_h.merge(
                 activity_level: ActivityHelper.activity_level(data),
                 status: StatusHelper.gem_status(data)
               )
@@ -161,7 +162,12 @@ module StillActive
       # goes through the gates as unchecked rather than dropping out of them.
       # Reader-level unassessables (a private registry, no version) stay out: those
       # are known limits of what can be assessed, not failures.
-      failed = outcome.failures.to_h { ["#{_1[:ecosystem]}/#{_1[:name]}@#{_1[:version]}", _1.merge(vulnerabilities_checked: false, repository_check: "failed")] }
+      failed = outcome.failures.to_h do |failure|
+        fields = failure.slice(:ecosystem, :name, :purl, :production, :direct, :dependency_path)
+        # Never assessed, so Assessment.from reads its advisories unchecked and
+        # its repository check failed.
+        ["#{failure[:ecosystem]}/#{failure[:name]}@#{failure[:version]}", Assessment.from(fields.merge(version_used: failure[:version]))]
+      end
       check_exit_status(outcome.assessed.merge(failed))
     end
 
@@ -285,7 +291,7 @@ module StillActive
         generated_at: Time.now.utc.iso8601,
         summary: sbom_summary(result, unassessable),
         dependencies: result.transform_values do |data|
-          data.merge(
+          data.to_h.merge(
             activity_level: ActivityHelper.activity_level(data),
             status: StatusHelper.gem_status(data)
           )
@@ -464,7 +470,8 @@ module StillActive
       puts "> **#{BotContext.summary(pr_context)}**\n" if pr_context
       puts MarkdownHelper.markdown_table_header_line
       result.keys.sort.each do |name|
-        gem_data = result[name]
+        # The display emoji ride along in a copy; the assessment itself is final.
+        gem_data = result[name].to_h
         gem_data[:last_activity_warning_emoji] = EmojiHelper.inactive_gem_emoji(gem_data)
         gem_data[:up_to_date_emoji] = EmojiHelper.using_latest_emoji(
           using_last_release: VersionHelper.up_to_date(

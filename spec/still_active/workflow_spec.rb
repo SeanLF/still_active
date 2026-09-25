@@ -27,7 +27,9 @@ RSpec.describe(StillActive::Workflow) do
   end
 
   describe("#call") do
-    subject(:result) { described_class.call }
+    # What the workflow returns is Assessments (see "returns Assessments" below);
+    # these examples match on their fields as hashes.
+    subject(:result) { described_class.call.transform_values(&:to_h) }
 
     context("when configured to use gems") do
       let(:gems) { ["rails", "nokogiri"] }
@@ -79,10 +81,10 @@ RSpec.describe(StillActive::Workflow) do
         health = StillActive::SourceHealth::Report.new(advisory_schema_ok: false, stale_ecosystems: [])
 
         allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil))
-        expect(described_class.call(health: health)["rack"]).to(include(vulnerabilities_checked: false))
+        expect(described_class.call(health: health)["rack"].to_h).to(include(vulnerabilities_checked: false))
 
         allow(StillActive::RubyAdvisoryDb).to(receive_messages(load: :fake_db, advisories_for: []))
-        expect(described_class.call(health: health)["rack"]).to(include(vulnerabilities_checked: true))
+        expect(described_class.call(health: health)["rack"].to_h).to(include(vulnerabilities_checked: true))
       end
 
       it("marks the advisories unchecked without ruby-advisory-db") do
@@ -284,6 +286,18 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    context("when it finishes") do
+      it("returns an Assessment per gem, even for one whose assessment raised") do
+        StillActive.config.gems = [{name: "boom", version: "1.0.0"}]
+        allow(described_class).to(receive(:versions).and_raise(RuntimeError, "boom"))
+
+        assessments = nil
+        expect { assessments = described_class.call }.to(output(/error occurred for boom/).to_stderr)
+        expect(assessments["boom"]).to(be_a(StillActive::Assessment))
+        expect(assessments["boom"]).to(have_attributes(vulnerabilities_checked: false, repository_check: "failed"))
+      end
+    end
+
     context("when prefetching deps.dev version records") do
       before do
         StillActive.config.gems = [{name: "rack", version: "2.0.0"}, {name: "unpinned"}]
@@ -301,11 +315,18 @@ RSpec.describe(StillActive::Workflow) do
         expect(StillActive::DepsDevClient.instance_variable_get(:@prefetched)).to(be_nil)
       end
 
+      # Raised from a stubbed Async rather than inside a real task: async's own
+      # failure logging (console) writes to whatever $stderr was when it first
+      # logged, which under GitHub Actions can be a stream an earlier spec
+      # captured, and that crash would mask what this spec is about.
       it("clears the table when the audit raises") do
-        allow(StillActive::CeilingReconciler).to(receive(:reconcile_ceiling_with_poison).and_raise(RuntimeError, "boom"))
-        allow(described_class).to(receive(:gem_info))
+        allow(described_class).to(receive(:Async)) do
+          StillActive::DepsDevClient.prefetch_versions([[:rubygems, "rack", "2.0.0"]])
+          raise "boom"
+        end
 
-        expect { result }.to(raise_error(RuntimeError, "boom"))
+        expect { described_class.call }.to(raise_error(RuntimeError, "boom"))
+        expect(StillActive::DepsDevClient).to(have_received(:prefetch_versions))
         expect(StillActive::DepsDevClient.instance_variable_get(:@prefetched)).to(be_nil)
       end
     end
@@ -1142,7 +1163,7 @@ RSpec.describe(StillActive::Workflow) do
     it("merges the unreleased_commits count into the gem entry") do
       allow(described_class).to(receive(:unreleased_commits).and_return(17))
       VCR.use_cassette("gems") do
-        expect(described_class.call["rails"]).to(include(unreleased_commits: 17))
+        expect(described_class.call["rails"].to_h).to(include(unreleased_commits: 17))
       end
     end
 

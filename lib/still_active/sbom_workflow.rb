@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "ecosystem_lens"
+require_relative "assessment"
 require_relative "source_health"
 require_relative "ceiling_reconciler"
 require_relative "poison_security_correlator"
@@ -98,7 +99,7 @@ module StillActive
         PoisonSecurityCorrelator.correlate(result)
         # Stable, diffable order regardless of async completion order.
         Outcome.new(
-          assessed: result.sort_by { |key, _| key }.to_h,
+          assessed: result.sort_by { |key, _| key }.to_h.transform_values { Assessment.from(_1) },
           failures: failures.sort_by { |failure| "#{failure[:ecosystem]}/#{failure[:name]}@#{failure[:version]}" }
         )
       end.wait
