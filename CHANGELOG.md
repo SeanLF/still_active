@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-09-24
+
+**Upgrading from 3.1:** a few runs that passed can now fail, each where 3.1 read an unanswered question as "clean". `--fail-if-vulnerable` fails on a dependency whose advisories no source could answer for (`vulnerabilities_checked: false`), and `--fail-if-critical` / `--fail-if-warning` on one whose repository check failed (`repository_check: "failed"`); each names the dependency, a rerun usually clears it, and a suppression accepts it. Statuses that used to read `ok` for a dependency still_active couldn't check (no repository link, Google's go.googlesource.com, a private or deleted repository) now read `unknown`, without failing any gate. JSON gains fields and never loses one; the `--sbom` JSON now names its schema.
+
 ### Added
 
 - **The SBOM audit reads GitLab and Codeberg repositories.** It only asked about github.com repositories before, so a GitLab or Codeberg project in an SBOM never got an archived signal. Both audits now resolve repositories through one shared lookup, and the JSON's new `repository_source` says which service answered (`github`, `ecosyste.ms`, `gitlab`, `codeberg`).

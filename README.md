@@ -130,7 +130,7 @@ Point `--sbom` at a CycloneDX SBOM (from [Syft](https://github.com/anchore/syft)
 | Language-runtime ceiling (SA009) | Ruby | Python |
 | Ruby EOL (SA006), yanked (SA007) | Yes | n/a |
 
-The Go toolchain (`stdlib`) isn't a module deps.dev can serve, so it's read from endoflife.date and OSV instead, and an end-of-life Go release line is reported as deprecated (SA010).
+The Go toolchain (`stdlib`) isn't a module deps.dev can serve, so it's read from endoflife.date and OSV instead, and an end-of-life Go release line is reported as deprecated (SA010). A deprecated Go module (`// Deprecated:` in its latest `go.mod`) is deprecated whichever version is pinned, as `go list -m -u` reports it.
 
 Full rule detail in [`docs/rules.md`](docs/rules.md).
 </details>
@@ -221,7 +221,7 @@ Full semantics, thresholds, and transitive behaviour: [`docs/configuration.md`](
 
 ## Data sources
 
-Release dates and licenses from [RubyGems](https://rubygems.org) / [GitHub Packages](https://docs.github.com/en/packages) / [Artifactory](https://jfrog.com/artifactory/); repo activity from the [GitHub](https://docs.github.com/en/rest) / [GitLab](https://docs.gitlab.com/ee/api/) / [Codeberg](https://forgejo.org/docs/latest/user/api-usage/) API, or [ecosyste.ms](https://ecosyste.ms) tokenless ([CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)); OpenSSF Scorecard and CVSS from [deps.dev](https://deps.dev); advisory severities and fixed-version ranges from [OSV](https://osv.dev), scored with [`cvss-suite`](https://rubygems.org/gems/cvss-suite) when deps.dev has no number (CVSS 4.0); extra advisories from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db); runtime EOL from [endoflife.date](https://endoflife.date).
+Release dates and licenses from [RubyGems](https://rubygems.org) / [GitHub Packages](https://docs.github.com/en/packages) / [Artifactory](https://jfrog.com/artifactory/); repo activity from the [GitHub](https://docs.github.com/en/rest) API and [ecosyste.ms](https://ecosyste.ms) ([CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)), each the other's fallback (GitHub first with a token), and from the [GitLab](https://docs.gitlab.com/ee/api/) / [Codeberg](https://forgejo.org/docs/latest/user/api-usage/) API, on both audits; a repository no service can check reads `unknown`, never "not archived" (`repository_check`); OpenSSF Scorecard and CVSS from [deps.dev](https://deps.dev); advisory severities and fixed-version ranges from [OSV](https://osv.dev), scored with [`cvss-suite`](https://rubygems.org/gems/cvss-suite) when deps.dev has no number (CVSS 4.0); extra advisories from [ruby-advisory-db](https://github.com/rubysec/ruby-advisory-db); runtime EOL from [endoflife.date](https://endoflife.date). Public sources' answers are cached under `~/.cache/still_active/http`, each for as long as it holds (advisories an hour); `--no-cache` skips it.
 
 ## Development
 
