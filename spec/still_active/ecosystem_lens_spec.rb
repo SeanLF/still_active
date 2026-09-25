@@ -311,7 +311,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/[^/]+/packages/[^/]+/versions/9\.9\.9})
         .to_return(status: 200,
           headers: {"Content-Type" => "application/json"},
-          body: {"links" => [{"label" => "SOURCE_REPO", "url" => "https://github.com/owner/archived"}]}.to_json)
+          body: {"advisoryKeys" => [], "links" => [{"label" => "SOURCE_REPO", "url" => "https://github.com/owner/archived"}]}.to_json)
       stub_project_scorecard
       stub_ecosystems_repo(archived: true)
 
@@ -738,6 +738,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect { result = assess("go1.27rc1") }.to(output(/not checked/).to_stderr)
 
       expect(result).to(include(vulnerabilities_checked: false))
+      expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
       expect(a_request(:post, /api\.osv\.dev/)).not_to(have_been_made)
     end
 

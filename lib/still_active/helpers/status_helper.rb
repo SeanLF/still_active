@@ -29,10 +29,10 @@ module StillActive
     # or :unknown.
     def gem_status(gem_data)
       status = lifecycle_status(gem_data)
-      # Advisories a source couldn't answer for are not "none": an otherwise
-      # clean package reads :unknown. Worse verdicts stand, since what they
-      # already found (archived, dormant) is true either way.
-      (status == :ok && gem_data[:vulnerabilities_checked] == false) ? :unknown : status
+      # Advisories a source couldn't answer for are not "none", so a verdict that
+      # claims clean (:ok, and :legacy's "dormant but clean") reads :unknown.
+      # Verdicts that found a problem stand, since it's true either way.
+      ([:ok, :legacy].include?(status) && gem_data[:vulnerabilities_checked] == false) ? :unknown : status
     end
 
     def lifecycle_status(gem_data)

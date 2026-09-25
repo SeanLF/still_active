@@ -214,6 +214,33 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    # Nothing to look advisories up by, or the assessment never got that far: the
+    # entry must not read as checked.
+    context("when there is no version to check advisories for") do
+      before { allow(StillActive::DepsDevClient).to(receive(:project_scorecard).and_return(nil)) }
+
+      it("marks a git gem with no version unchecked") do
+        StillActive.config.gems = [{name: "git_gem", source_type: :git}]
+
+        expect(result["git_gem"]).to(include(vulnerabilities_checked: false))
+      end
+
+      it("marks a rubygems gem unchecked when neither a pin nor the latest version is known") do
+        StillActive.config.gems = [{name: "flaky"}]
+        allow(Gems).to(receive_messages(versions: [], info: nil))
+        expect(result["flaky"]).to(include(vulnerabilities_checked: false))
+      end
+
+      it("marks a gem whose assessment raised unchecked") do
+        StillActive.config.gems = [{name: "boom", version: "1.0.0"}]
+        allow(described_class).to(receive(:versions).and_raise(RuntimeError, "boom"))
+
+        data = nil
+        expect { data = result["boom"] }.to(output(/error occurred for boom/).to_stderr)
+        expect(data).to(include(vulnerabilities_checked: false))
+      end
+    end
+
     context("when a gem is git-sourced") do
       before do
         StillActive.config.gems = [{name: "git_gem", version: "0.5.0", source_type: :git}]

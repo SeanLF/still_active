@@ -39,9 +39,9 @@ module StillActive
 
       path = "/v3alpha/systems/#{encode(system)}/packages/#{encode(gem_name)}/versions/#{encode(version)}"
       body = begin
-        HttpHelper.get_json(BASE_URI, path, strict: true)
+        version_record(path)
       rescue HttpHelper::Unavailable
-        HttpHelper.get_json(BASE_URI, path, strict: true)
+        version_record(path)
       end
       return if body.nil?
 
@@ -187,6 +187,18 @@ module StillActive
     end
 
     private
+
+    # deps.dev sends `advisoryKeys` on every version record, as [] when there are
+    # none (verified 2026-09-24). A record without it is schema drift or a garbled
+    # answer, and reading it as "no advisories" is the silent zero the canary
+    # guards against, so it counts as no answer, per dependency.
+    def version_record(path)
+      body = HttpHelper.get_json(BASE_URI, path, strict: true)
+      return body if body.nil? || (body.is_a?(Hash) && body["advisoryKeys"].is_a?(Array))
+
+      warn("warning: api.deps.dev#{path} returned a version record with no advisoryKeys list; the API may have changed")
+      raise HttpHelper::Unavailable, path
+    end
 
     # "" is how deps.dev renders "no deprecation message"; nil keeps an absent
     # reason from rendering as a present blank.

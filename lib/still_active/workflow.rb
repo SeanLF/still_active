@@ -90,6 +90,9 @@ module StillActive
             $stderr.print("\r\e[K") if on_progress
             warn("error occurred for #{gem[:name]}: #{e.class}\n\t#{e.message}")
           ensure
+            # An assessment that raised part-way never reached the advisory lookup;
+            # its entry must not read as checked.
+            hash[gem[:name]][:vulnerabilities_checked] = false if hash[gem[:name]] && !hash[gem[:name]].key?(:vulnerabilities_checked)
             completed += 1
             on_progress&.call(completed, total)
           end
@@ -374,7 +377,8 @@ module StillActive
     def fetch_deps_dev_info(gem_name:, version:, advisory_db: nil)
       # deps.dev failing to answer leaves the advisories unchecked, unless
       # ruby-advisory-db, the Ruby authority, is loaded and answers for them.
-      checked = true
+      # No version (the latest-version lookup failed too) means nothing was asked.
+      checked = !version.nil?
       info = begin
         DepsDevClient.version_info(gem_name: gem_name, version: version)
       rescue HttpHelper::Unavailable

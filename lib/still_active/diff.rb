@@ -160,12 +160,16 @@ module StillActive
     end
 
     # Categorises a version bump:
+    # - :advisories_unchecked - no source answered for the new version's advisories
     # - :introduced_vulns  - new advisories appeared on the resolved version
     # - :closed_vulns      - all advisories cleared
     # - :older_relative    - libyear-to-latest grew (rare; usually unchanged)
     # - :fresher           - libyear-to-latest shrank
     # - :neutral           - no obvious signal change
     def classify_bump(before, after)
+      # No source answered for the new version, so its zero is not a fix.
+      return :advisories_unchecked if unchecked?(after)
+
       opened = vuln_count(after) - vuln_count(before)
       return :introduced_vulns if opened.positive?
       return :closed_vulns if opened.negative?
@@ -219,6 +223,10 @@ module StillActive
         changes << {kind: :version_yanked}
       end
 
+      if !unchecked?(before) && unchecked?(after) && before["version_used"] == after["version_used"]
+        changes << {kind: :advisories_unchecked}
+      end
+
       changes
     end
 
@@ -229,6 +237,8 @@ module StillActive
         data = a.data
         if vuln_count(data).positive?
           regs << Regression.new(kind: :new_gem_with_vulns, gem: a.name, detail: "#{vuln_count(data)} vulns at introduction")
+        elsif unchecked?(data)
+          regs << Regression.new(kind: :new_gem_unchecked, gem: a.name, detail: "added gem's advisories could not be checked")
         elsif data["archived"]
           regs << Regression.new(kind: :new_gem_archived, gem: a.name, detail: "added gem points at archived repo")
         elsif data["libyear"] && data["libyear"] > NEW_GEM_LIBYEAR_THRESHOLD
@@ -243,6 +253,8 @@ module StillActive
             gem: b.name,
             detail: "#{b.before_version} -> #{b.after_version}"
           )
+        elsif b.kind == :advisories_unchecked
+          regs << Regression.new(kind: :bump_unchecked, gem: b.name, detail: "#{b.before_version} -> #{b.after_version}; advisories could not be checked")
         end
       end
 
@@ -259,6 +271,8 @@ module StillActive
             regs << Regression.new(kind: :scorecard_dropped, gem: sc.name, detail: "#{ch[:from]} -> #{ch[:to]}#{note}")
           when :version_yanked
             regs << Regression.new(kind: :version_yanked, gem: sc.name, detail: "pinned version yanked from rubygems")
+          when :advisories_unchecked
+            regs << Regression.new(kind: :advisories_unchecked, gem: sc.name, detail: "advisories could not be checked")
           when :libyear_worsened
             regs << Regression.new(
               kind: :libyear_worsened,
@@ -289,6 +303,10 @@ module StillActive
         libyear_before: before["libyear"],
         libyear_after: after["libyear"]
       }
+    end
+
+    def unchecked?(data)
+      data["vulnerabilities_checked"] == false
     end
 
     def vuln_count(data)

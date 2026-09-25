@@ -94,7 +94,11 @@ module StillActive
         outcome, payload = perform(http, request, uri, parse)
         case outcome
         when :done
-          return payload
+          # A 404 is how a source says "no record"; a 200 of `null` says nothing.
+          return payload unless payload.nil? && strict
+
+          warn("warning: #{uri.host}#{uri.path} returned an empty (null) body")
+          return unavailable(strict, uri)
         when :not_found
           return
         when :stop

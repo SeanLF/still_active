@@ -1294,6 +1294,25 @@ RSpec.describe(StillActive::CLI) do
       ))
     end
 
+    it("fails --fail-if-vulnerable on a dependency whose assessment raised, since it was never checked") do
+      failure = {ecosystem: :pypi, name: "flask", version: "2.0.0", reason: :assessment_error, error: "Net::ReadTimeout: timed out"}
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({}, failures: [failure])))
+      allow($stdout).to(receive(:puts))
+
+      expect { cli.run(["--sbom=sbom.json", "--fail-if-vulnerable"]) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) }
+        .and(output(%r{pypi/flask: advisories could not be checked}).to_stderr))
+    end
+
+    it("counts unchecked dependencies in the summary") do
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({"pypi/flask@2.0.0" => lens_data.merge(vulnerabilities_checked: false)})))
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+
+      expect { cli.run(["--sbom=sbom.json"]) }.to(output.to_stderr)
+      expect(JSON.parse(captured).dig("summary", "vulnerabilities_unchecked")).to(eq(1))
+    end
+
     it("exits 2 with a friendly error when combining --sbom with --gems (not a backtrace)") do
       allow($stderr).to(receive(:puts))
       expect { cli.run(["--sbom=sbom.json", "--gems=rails"]) }

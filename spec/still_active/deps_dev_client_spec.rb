@@ -119,6 +119,46 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(described_class.version_info(gem_name: nil, version: "1.0.0")).to(be_nil)
     end
 
+    # The advisories ride on this response, so a failure must not read as "no
+    # advisories": after one retry it raises, and the caller marks them unchecked.
+    it("retries once, then raises Unavailable, on a timeout or refused connection") do
+      [-> { stub_request(:get, /api\.deps\.dev/).to_timeout }, -> { stub_request(:get, /api\.deps\.dev/).to_raise(Errno::ECONNREFUSED) }].each do |stub|
+        WebMock.reset!
+        stub.call
+
+        expect { described_class.version_info(gem_name: "nokogiri", version: "1.19.1") }
+          .to(raise_error(StillActive::HttpHelper::Unavailable).and(output.to_stderr))
+        expect(a_request(:get, /api\.deps\.dev/)).to(have_been_made.twice)
+      end
+    end
+
+    it("recovers when the retry answers") do
+      stub_request(:get, /api\.deps\.dev/).to_return(status: 503).then
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"advisoryKeys" => [{"id" => "GHSA-x"}]}.to_json)
+
+      result = nil
+      expect { result = described_class.version_info(gem_name: "nokogiri", version: "1.19.1") }.to(output.to_stderr)
+      expect(result[:advisory_keys]).to(eq(["GHSA-x"]))
+    end
+
+    # deps.dev sends advisoryKeys on every record, [] when empty, so a 200 without
+    # it is drift or a garbled answer, not "no advisories".
+    it("raises Unavailable for a 200 that isn't a version record") do
+      ["{}", "null", "[]", '"x"'].each do |body|
+        WebMock.reset!
+        stub_request(:get, /api\.deps\.dev/).to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: body)
+
+        expect { described_class.version_info(gem_name: "nokogiri", version: "1.19.1") }
+          .to(raise_error(StillActive::HttpHelper::Unavailable).and(output.to_stderr))
+      end
+    end
+
+    it("returns nil for a 404, which is deps.dev answering that it has no record") do
+      stub_request(:get, /api\.deps\.dev/).to_return(status: 404)
+
+      expect(described_class.version_info(gem_name: "private-gem", version: "1.0.0")).to(be_nil)
+    end
+
     describe(".target_frameworks") do
       it("returns the NuGet target framework monikers for a version") do
         stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/nuget/packages/newtonsoft\.json/versions/13\.0\.3:requirements})
@@ -144,7 +184,7 @@ RSpec.describe(StillActive::DepsDevClient) do
 
     it("queries the rubygems system by default") do
       stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/rubygems/packages/nokogiri/versions/1\.19\.1})
-        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: "{}")
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: '{"advisoryKeys":[]}')
 
       described_class.version_info(gem_name: "nokogiri", version: "1.19.1")
       expect(stub).to(have_been_requested)
@@ -152,7 +192,7 @@ RSpec.describe(StillActive::DepsDevClient) do
 
     it("queries the given ecosystem's deps.dev system path") do
       stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/express/versions/5\.2\.1})
-        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: "{}")
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: '{"advisoryKeys":[]}')
 
       described_class.version_info(gem_name: "express", version: "5.2.1", system: :npm)
       expect(stub).to(have_been_requested)
@@ -162,7 +202,7 @@ RSpec.describe(StillActive::DepsDevClient) do
       # The scope slash must stay percent-encoded (%2F) so `core` isn't read as a
       # separate path segment. WebMock/Addressable decodes %40 back to @.
       stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/@babel%2Fcore/versions/7\.0\.0})
-        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: "{}")
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: '{"advisoryKeys":[]}')
 
       described_class.version_info(gem_name: "@babel/core", version: "7.0.0", system: :npm)
       expect(stub).to(have_been_requested)
@@ -276,34 +316,6 @@ RSpec.describe(StillActive::DepsDevClient) do
       )
 
       expect(described_class.latest_release_date(name: "empty", system: :npm)).to(be_nil)
-    end
-
-    # The advisories ride on this response, so a failure must not read as "no
-    # advisories": after one retry it raises, and the caller marks them unchecked.
-    it("retries once, then raises Unavailable, on a timeout or refused connection") do
-      [-> { stub_request(:get, /api\.deps\.dev/).to_timeout }, -> { stub_request(:get, /api\.deps\.dev/).to_raise(Errno::ECONNREFUSED) }].each do |stub|
-        WebMock.reset!
-        stub.call
-
-        expect { described_class.version_info(gem_name: "nokogiri", version: "1.19.1") }
-          .to(raise_error(StillActive::HttpHelper::Unavailable).and(output.to_stderr))
-        expect(a_request(:get, /api\.deps\.dev/)).to(have_been_made.twice)
-      end
-    end
-
-    it("recovers when the retry answers") do
-      stub_request(:get, /api\.deps\.dev/).to_return(status: 503).then
-        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"advisoryKeys" => [{"id" => "GHSA-x"}]}.to_json)
-
-      result = nil
-      expect { result = described_class.version_info(gem_name: "nokogiri", version: "1.19.1") }.to(output.to_stderr)
-      expect(result[:advisory_keys]).to(eq(["GHSA-x"]))
-    end
-
-    it("returns nil for a 404, which is deps.dev answering that it has no record") do
-      stub_request(:get, /api\.deps\.dev/).to_return(status: 404)
-
-      expect(described_class.version_info(gem_name: "private-gem", version: "1.0.0")).to(be_nil)
     end
   end
 

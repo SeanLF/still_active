@@ -151,7 +151,12 @@ module StillActive
       unassessable = sbom.unassessable + outcome.failures
       render_sbom_output(outcome.assessed, unassessable, path)
       warn_unassessable(unassessable)
-      check_exit_status(outcome.assessed)
+      # A dependency whose assessment raised was never checked for advisories, so it
+      # goes through the gates as unchecked rather than dropping out of them.
+      # Reader-level unassessables (a private registry, no version) stay out: those
+      # are known limits of what can be assessed, not failures.
+      failed = outcome.failures.to_h { ["#{_1[:ecosystem]}/#{_1[:name]}@#{_1[:version]}", _1.merge(vulnerabilities_checked: false)] }
+      check_exit_status(outcome.assessed.merge(failed))
     end
 
     # --direct-only used to be silently ignored on the SBOM path: the flag parsed,
