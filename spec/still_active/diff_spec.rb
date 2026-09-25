@@ -40,14 +40,21 @@ RSpec.describe(StillActive::Diff) do
   describe("unreadable repositories") do
     def doc(gems) = {"schema_version" => 1, "gems" => gems}
 
-    it("reads a gem whose repository became unreadable, or an added one, as a regression an activity suppression can accept") do
+    it("reads a gem no longer checked, or an added one whose check failed, as a regression an activity suppression can accept") do
       diff = described_class.call(
-        baseline: doc("foo" => {"version_used" => "1.0", "archived" => false}),
-        current: doc("foo" => {"version_used" => "1.0", "repository_unavailable" => true}, "bar" => {"version_used" => "1.0", "repository_unavailable" => true})
+        baseline: doc("foo" => {"version_used" => "1.0", "archived" => false}, "baz" => {"version_used" => "1.0", "repository_check" => "answered"}),
+        current: doc(
+          "foo" => {"version_used" => "1.0", "repository_check" => "unknowable"},
+          "baz" => {"version_used" => "1.0", "repository_check" => "failed"},
+          "bar" => {"version_used" => "1.0", "repository_check" => "failed"},
+          "go_x" => {"version_used" => "1.0", "repository_check" => "unknowable"}
+        )
       )
 
-      expect(diff.regressions.map(&:kind)).to(include(:repository_unavailable, :new_gem_repository_unavailable))
-      expect(described_class.suppressible_signal(:repository_unavailable)).to(eq(:activity))
+      kinds = diff.regressions.map { [_1.kind, _1.gem] }
+      expect(kinds).to(include([:repository_unchecked, "foo"], [:repository_unchecked, "baz"], [:new_gem_repository_check_failed, "bar"]))
+      expect(kinds.map(&:last)).not_to(include("go_x"))
+      expect(described_class.suppressible_signal(:repository_unchecked)).to(eq(:activity))
     end
   end
 

@@ -152,8 +152,8 @@ module StillActive
           "- #{name} — version yanked from rubygems"
         when :advisories_unchecked
           "- #{name} — advisories could not be checked"
-        when :repository_unavailable
-          "- #{name} — repository couldn't be read (may be archived)"
+        when :repository_unchecked
+          "- #{name} — repository no longer checked (#{MarkdownEscape.inline(ch[:check])}; may be archived)"
         when :libyear_worsened
           "- #{name} — libyear #{MarkdownEscape.inline(ch[:from])} → #{MarkdownEscape.inline(ch[:to])} (+#{ch[:delta]}y; same pinned version)"
         end

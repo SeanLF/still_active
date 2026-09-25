@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "activity_helper"
+require_relative "repository_check"
 
 module StillActive
   module EmojiHelper
@@ -8,7 +9,7 @@ module StillActive
 
     def inactive_gem_emoji(result_hash)
       case ActivityHelper.activity_level(result_hash)
-      when :ok then result_hash[:repository_unavailable] ? StillActive.config.unsure_emoji : ""
+      when :ok then RepositoryCheck.unanswered?(result_hash) ? StillActive.config.unsure_emoji : ""
       when :stale then StillActive.config.warning_emoji
       when :archived, :critical then StillActive.config.critical_warning_emoji
       when :unknown then StillActive.config.unsure_emoji

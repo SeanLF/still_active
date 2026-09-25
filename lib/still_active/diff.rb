@@ -24,8 +24,8 @@ module StillActive
     SUPPRESSIBLE_REGRESSION_SIGNALS = {
       new_gem_archived: :activity,
       archived: :activity,
-      new_gem_repository_unavailable: :activity,
-      repository_unavailable: :activity,
+      new_gem_repository_check_failed: :activity,
+      repository_unchecked: :activity,
       new_gem_stale: :libyear,
       libyear_worsened: :libyear
     }.freeze
@@ -229,9 +229,11 @@ module StillActive
         changes << {kind: :advisories_unchecked}
       end
 
-      # An archived repo would be a regression; one that can't be read might be.
-      if !before["repository_unavailable"] && after["repository_unavailable"]
-        changes << {kind: :repository_unavailable}
+      # An archived repo would be a regression; one no longer checked might be one
+      # (a check that failed, or a repository that has gone private or away). A
+      # baseline from before the field existed was answered.
+      if before.fetch("repository_check", "answered") == "answered" && after.fetch("repository_check", "answered") != "answered"
+        changes << {kind: :repository_unchecked, check: after["repository_check"]}
       end
 
       changes
@@ -246,8 +248,8 @@ module StillActive
           regs << Regression.new(kind: :new_gem_with_vulns, gem: a.name, detail: "#{vuln_count(data)} vulns at introduction")
         elsif unchecked?(data)
           regs << Regression.new(kind: :new_gem_unchecked, gem: a.name, detail: "added gem's advisories could not be checked")
-        elsif data["repository_unavailable"]
-          regs << Regression.new(kind: :new_gem_repository_unavailable, gem: a.name, detail: "added gem's repository couldn't be read, so it may be archived")
+        elsif data["repository_check"] == "failed"
+          regs << Regression.new(kind: :new_gem_repository_check_failed, gem: a.name, detail: "added gem's repository check failed, so it may be archived")
         elsif data["archived"]
           regs << Regression.new(kind: :new_gem_archived, gem: a.name, detail: "added gem points at archived repo")
         elsif data["libyear"] && data["libyear"] > NEW_GEM_LIBYEAR_THRESHOLD
@@ -282,8 +284,8 @@ module StillActive
             regs << Regression.new(kind: :version_yanked, gem: sc.name, detail: "pinned version yanked from rubygems")
           when :advisories_unchecked
             regs << Regression.new(kind: :advisories_unchecked, gem: sc.name, detail: "advisories could not be checked")
-          when :repository_unavailable
-            regs << Regression.new(kind: :repository_unavailable, gem: sc.name, detail: "repository couldn't be read, so it may be archived")
+          when :repository_unchecked
+            regs << Regression.new(kind: :repository_unchecked, gem: sc.name, detail: "repository no longer checked (#{ch[:check]}), so it may be archived")
           when :libyear_worsened
             regs << Regression.new(
               kind: :libyear_worsened,

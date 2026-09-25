@@ -367,22 +367,21 @@ RSpec.describe(StillActive::EcosystemLens) do
       result = nil
       expect { result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1") }.to(output(/archived status unknown/).to_stderr)
 
-      expect(result).to(include(repository_unavailable: true, archived: nil))
+      expect(result).to(include(repository_check: "failed", archived: nil))
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
     end
 
     # Anonymous GitHub 404s a private repository too, so neither service knowing
-    # it is unknown, not "not archived".
-    it("marks a repository neither ecosyste.ms nor GitHub knows as unavailable") do
+    # it is unknown, not "not archived"; and a rerun won't change that.
+    it("reads a repository neither ecosyste.ms nor GitHub knows as unknowable") do
       stub_version(source_repo: "https://github.com/gone/gone")
       stub_package(default_published_at: "2026-06-01T00:00:00Z")
       stub_project_scorecard
       stub_request(:get, %r{repos\.ecosyste\.ms/}).to_return(status: 404)
       stub_request(:get, "https://api.github.com/repos/gone/gone").to_return(status: 404)
 
-      result = nil
-      expect { result = described_class.assess(ecosystem: :npm, name: "gone", version: "1.0.0") }.to(output.to_stderr)
-      expect(result).to(include(repository_unavailable: true))
+      result = described_class.assess(ecosystem: :npm, name: "gone", version: "1.0.0")
+      expect(result).to(include(repository_check: "unknowable"))
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
     end
 

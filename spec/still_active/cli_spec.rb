@@ -29,7 +29,8 @@ RSpec.describe(StillActive::CLI) do
       latest_version: "1.0.0",
       latest_pre_release_version: nil,
       scorecard_score: nil,
-      vulnerability_count: nil
+      vulnerability_count: nil,
+      repository_check: "answered"
     }
   end
 
@@ -353,7 +354,7 @@ RSpec.describe(StillActive::CLI) do
           "rack" => {
             source_type: :rubygems,
             direct: false,
-            repository_unavailable: true,
+            repository_check: "failed",
             dependency_path: ["rails", "actionpack", "rack"],
             last_commit_date: recent_date,
             # up_to_date as null (unknown), the other half of its boolean|null type;
@@ -639,16 +640,24 @@ RSpec.describe(StillActive::CLI) do
     # It may be archived, which both activity gates catch.
     it("fails --fail-if-critical, naming the gem, when its repository couldn't be read") do
       StillActive.config.fail_if_critical = true
-      data = gem_data(last_commit_date: nil).merge(latest_version_release_date: Time.now, repository_unavailable: true)
+      data = gem_data(last_commit_date: nil).merge(latest_version_release_date: Time.now, repository_check: "failed")
       expect { cli.send(:check_exit_status, {"g" => data}) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) }
-        .and(output(/g: its repository couldn't be read.*--fail-if-critical/).to_stderr))
+        .and(output(/g: no service could check its repository.*--fail-if-critical/).to_stderr))
+    end
+
+    # No service can say, and a rerun won't change that: unknown, but not a failure.
+    it("passes the activity gates on an unknowable repository") do
+      StillActive.config.fail_if_critical = true
+      StillActive.config.fail_if_warning = true
+      data = gem_data(last_commit_date: nil).merge(latest_version_release_date: Time.now, repository_check: "unknowable")
+      expect { cli.send(:check_exit_status, {"g" => data}) }.not_to(raise_error)
     end
 
     it("lets an activity suppression accept an unreadable repository") do
       StillActive.config.fail_if_warning = true
       suppress([{"gem" => "g", "signal" => "activity", "reason" => "vendored"}])
-      data = gem_data(last_commit_date: nil).merge(latest_version_release_date: Time.now, repository_unavailable: true)
+      data = gem_data(last_commit_date: nil).merge(latest_version_release_date: Time.now, repository_check: "failed")
       expect { cli.send(:check_exit_status, {"g" => data}) }.not_to(raise_error)
     end
 
@@ -1199,6 +1208,7 @@ RSpec.describe(StillActive::CLI) do
         latest_version_release_date: recent_date,
         last_commit_date: recent_date,
         archived: false,
+        repository_check: "answered",
         vulnerability_count: vulnerable ? 1 : 0,
         vulnerabilities: vulnerable ? [{id: "CVE-2026-0001", severity: "high"}] : []
       }
@@ -1346,7 +1356,7 @@ RSpec.describe(StillActive::CLI) do
 
       expect { cli.run(["--sbom=sbom.json", "--fail-if-critical"]) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) }
-        .and(output(%r{pypi/flask: its repository couldn't be read}).to_stderr))
+        .and(output(%r{pypi/flask: no service could check its repository}).to_stderr))
     end
 
     it("counts unchecked dependencies in the summary") do

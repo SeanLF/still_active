@@ -99,8 +99,8 @@ module StillActive
             # An assessment that raised part-way never reached the advisory lookup;
             # its entry must not read as checked.
             hash[gem[:name]][:vulnerabilities_checked] = false if hash[gem[:name]] && !hash[gem[:name]].key?(:vulnerabilities_checked)
-            # Likewise its repository: every completed path sets :archived, even to nil.
-            hash[gem[:name]][:repository_unavailable] = true if hash[gem[:name]] && !hash[gem[:name]].key?(:archived)
+            # Likewise its repository: every completed path sets :repository_check.
+            hash[gem[:name]][:repository_check] = "failed" if hash[gem[:name]] && !hash[gem[:name]].key?(:repository_check)
             completed += 1
             on_progress&.call(completed, total)
           end
@@ -591,9 +591,7 @@ module StillActive
     end
 
     def repository_availability(signals)
-      return {repository_unavailable: true} if signals[:unavailable]
-
-      signals[:source] ? {repository_source: signals[:source]} : {}
+      {repository_check: signals[:check], **(signals[:source] ? {repository_source: signals[:source]} : {})}
     end
 
     # GitHub's compare endpoint, and only with a token: it's a per-gem call, and

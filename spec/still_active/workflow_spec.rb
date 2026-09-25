@@ -248,7 +248,7 @@ RSpec.describe(StillActive::Workflow) do
 
         data = nil
         expect { data = result["boom"] }.to(output(/error occurred for boom/).to_stderr)
-        expect(data).to(include(vulnerabilities_checked: false, repository_unavailable: true))
+        expect(data).to(include(vulnerabilities_checked: false, repository_check: "failed"))
       end
     end
 
@@ -270,7 +270,7 @@ RSpec.describe(StillActive::Workflow) do
         data = nil
         expect { data = result["rack"] }.to(output(/archived status unknown/).to_stderr)
 
-        expect(data).to(include(repository_unavailable: true, archived: nil))
+        expect(data).to(include(repository_check: "failed", archived: nil))
       end
 
       it("treats a rubygems.org gem as public, and a private registry's as not") do
@@ -1039,8 +1039,8 @@ RSpec.describe(StillActive::Workflow) do
     end
 
     it("records which service answered") do
-      expect(described_class.send(:repository_availability, {archived: false, source: "ecosyste.ms"})).to(eq(repository_source: "ecosyste.ms"))
-      expect(described_class.send(:repository_availability, {unavailable: true})).to(eq(repository_unavailable: true))
+      expect(described_class.send(:repository_availability, {archived: false, source: "ecosyste.ms", check: "answered"})).to(eq(repository_check: "answered", repository_source: "ecosyste.ms"))
+      expect(described_class.send(:repository_availability, {check: "failed"})).to(eq(repository_check: "failed"))
     end
   end
 

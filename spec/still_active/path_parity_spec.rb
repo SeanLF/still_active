@@ -57,7 +57,7 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
       poison_security_relevant
       poison_severity
       repository_source
-      repository_unavailable
+      repository_check
       repository_url
       scorecard_maintained
       scorecard_score

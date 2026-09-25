@@ -12,18 +12,20 @@ module StillActive
   # report what their service said; which services to ask, in what order, and
   # when to stop, is decided here once.
   #
-  # Returns one of:
-  #   {archived:, last_commit_date:, source:}  a service answered; source names it
-  #   {}                                       nothing to ask about (no repository,
-  #                                            or a host no service covers)
-  #   {unavailable: true}                      no service could say, so archived is
-  #                                            unknown, not false
+  # Returns a hash whose :check says what came of it, always one of:
+  #   "answered"    a service said; :archived, :last_commit_date and :source
+  #                 (which service) come with it
+  #   "failed"      a service couldn't answer (a rate limit, an error, a refused
+  #                 token) and none other said; a rerun may help, so the activity
+  #                 gates fail closed on it
+  #   "unknowable"  no service can say: the host has no archived state we can
+  #                 read, there's no repository to ask about, or every service
+  #                 asked didn't know it (ecosyste.ms hasn't crawled it, the forge
+  #                 404s a private or deleted repository). A rerun won't change
+  #                 it, so it reads unknown without failing the gates.
   #
-  # "Don't know" is never an answer: ecosyste.ms's 404 for a repository it hasn't
-  # crawled, an answer without the archived state, and a forge's own 404 all move
-  # on to the next service. A forge 404s a private repository to anyone who can't
-  # see it (every anonymous request), so its 404 can't tell "doesn't exist" from
-  # "can't see"; and a repository that really is gone isn't healthy either.
+  # "Don't know" is never an answer: a 404 or an answer without the archived
+  # state moves on to the next service.
   #
   # A GitHub repository is asked of GitHub and of ecosyste.ms, which mirrors the
   # same two fields: GitHub first with a token (freshest, 5000/hr), ecosyste.ms
@@ -39,27 +41,53 @@ module StillActive
     Service = Data.define(:label, :ask)
 
     def for(host:, owner:, name:, public:)
-      return {} if host.nil? || owner.nil? || name.nil?
+      services = (host && owner && name) ? chain(host.downcase, public) : []
+      return {check: "unknowable"} if services.empty?
 
-      services = chain(host.downcase, public)
-      return {} if services.empty?
-
+      failed = false
       services.each do |service|
         signals = service.ask.call(owner, name)
         next unless signals.key?(:archived)
 
-        return signals.merge(source: service.label)
+        return signals.merge(source: service.label, check: "answered")
       rescue RepoAccessDenied
+        failed = true
         break
       rescue RepoSignalsUnavailable
-        next
+        failed = true
       end
 
-      warn("warning: #{owner}/#{name}: no repository source answered; archived status unknown")
-      {unavailable: true}
+      if failed
+        warn("warning: #{owner}/#{name}: no repository source could answer; archived status unknown")
+        {check: "failed"}
+      else
+        {check: "unknowable"}
+      end
+    end
+
+    # For a deps.dev project id (host/owner/name, host/group/.../name on
+    # GitLab). gopkg.in is a redirector with a fixed mapping onto GitHub
+    # (gopkg.in/pkg.v3 is github.com/go-pkg/pkg, gopkg.in/user/pkg.v3 is
+    # github.com/user/pkg), so it is asked about as that GitHub repository.
+    def for_project(project_id, public:)
+      host, *path = project_id.to_s.split("/")
+      host, path = gopkg_in(path) if host&.downcase == "gopkg.in"
+      return {check: "unknowable"} if host.nil? || path.size < 2
+
+      self.for(host: host, owner: path[0..-2].join("/"), name: path.last, public: public)
     end
 
     private
+
+    GOPKG_VERSIONED = /\A(?<name>.+)\.v\d+(?:-unstable)?\z/
+
+    def gopkg_in(path)
+      match = path.last&.match(GOPKG_VERSIONED)
+      return [nil, []] unless match
+
+      owner = (path.size == 1) ? "go-#{match[:name]}" : path.first
+      ["github.com", [owner, match[:name]]]
+    end
 
     def chain(host, public)
       case host

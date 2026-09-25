@@ -34,23 +34,23 @@ RSpec.describe("--sbom JSON Schema conformance") do # rubocop:disable RSpec/Desc
         latest_version: "5.2.1", latest_version_release_date: "2026-01-01T00:00:00Z", libyear: 0.8,
         up_to_date: false, license: "MIT", deprecated: false, deprecation_reason: nil,
         repository_url: "https://github.com/expressjs/express", repository_source: "ecosyste.ms", last_commit_date: recent, archived: false,
-        scorecard_score: 8.5, scorecard_maintained: 10, vulnerability_count: 1, vulnerabilities_checked: true,
+        scorecard_score: 8.5, scorecard_maintained: 10, vulnerability_count: 1, vulnerabilities_checked: true, repository_check: "answered",
         vulnerabilities: [{id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "osv", osv_severity: "HIGH", osv_cvss_score: 7.5, cvss_version: "3.1", cvss_vector: "CVSS:3.1/AV:N", fixed_versions: ["5.2.0"]}]
       },
       "pypi/oldlib@1.0.0" => {
         ecosystem: :pypi, name: "oldlib", version_used: "1.0.0", purl: "pkg:pypi/oldlib@1.0.0",
-        direct: false, dependency_path: ["app", "oldlib"], vulnerability_count: 0, vulnerabilities_checked: false, vulnerabilities: [],
+        direct: false, dependency_path: ["app", "oldlib"], vulnerability_count: 0, vulnerabilities_checked: false, repository_check: "unknowable", vulnerabilities: [],
         latest_version_release_date: "2019-01-01T00:00:00Z", deprecated: true, deprecation_reason: "use newlib",
         poison: true, poison_severity: :critical, poison_security_relevant: true, poison_below_fix: true,
         constraints: [{dependency: "urllib3", requirement: "< 2.0", dep_latest: "2.5.0", majors_behind: 1, kind: :ceiling, capped_dep_vulnerable: true, capped_below_fix: true, below_fix_advisory: "CVE-2024-9", below_fix_fixed_in: "1.26.19"}]
       },
       "pypi/ceiling@2.0.0" => {
-        ecosystem: :pypi, name: "ceiling", version_used: "2.0.0", purl: "pkg:pypi/ceiling@2.0.0", vulnerability_count: 0, vulnerabilities_checked: true, vulnerabilities: [],
+        ecosystem: :pypi, name: "ceiling", version_used: "2.0.0", purl: "pkg:pypi/ceiling@2.0.0", vulnerability_count: 0, vulnerabilities_checked: true, repository_check: "answered", vulnerabilities: [],
         language_ceiling: {runtime: "Python", requirement: "< 3.9", eol_forced: true, severity: :critical, ceiling_version: "3.8", ceiling_eol_date: Time.new(2024, 10, 7, 0, 0, 0, "+00:00"), oldest_supported: "3.10", latest_stable: "3.14.0", fixed_by_upgrade: false, upgrade_blocked: true}
       },
       "npm/ghost@9.9.9" => {
-        ecosystem: :npm, name: "ghost", version_used: "9.9.9", purl: "pkg:npm/ghost@9.9.9", version_unresolved: true, repository_unavailable: true,
-        vulnerability_count: 0, vulnerabilities_checked: true, vulnerabilities: []
+        ecosystem: :npm, name: "ghost", version_used: "9.9.9", purl: "pkg:npm/ghost@9.9.9", version_unresolved: true,
+        vulnerability_count: 0, vulnerabilities_checked: true, repository_check: "answered", vulnerabilities: []
       }
     }
   end
