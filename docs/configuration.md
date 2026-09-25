@@ -52,3 +52,16 @@ These are **leads, not recommendations**: same-category does not mean drop-in re
 Adds an `unreleased_commits` count to JSON output: commits on the default branch since the latest release's tag. It catches what release-recency can't, a gem with a recent release but a pile of merged-but-unreleased fixes on top, or one that looks stale but is genuinely *done*.
 
 It is **opt-in and GitHub-only** (one extra API call per GitHub-hosted gem), the count is **informational and never gates a run**, and non-GitHub sources report `null`. Read it as a lead: it is inflated for monorepos and release-branch projects (e.g. `rails` reads thousands of commits ahead of its latest stable tag).
+
+## The on-disk cache
+
+Answers from public sources are cached under `$XDG_CACHE_HOME/still_active/http` (`~/.cache/still_active/http` by default), so a rerun, or the baseline and current audits in one CI job, don't ask for the same thing twice. Each kind of answer is kept only as long as it can be trusted to hold:
+
+| data | kept for |
+| --- | --- |
+| which advisories affect a version (deps.dev version records, OSV queries) | 1 hour |
+| a package's latest version (deps.dev packages, rubygems.org versions) | 6 hours |
+| advisory details, scorecards, repository state, runtime EOL dates | 1 day |
+| one published version's metadata (PyPI, declared dependencies, NuGet targets) | 1 week |
+
+So a newly published advisory can surface up to an hour late. `--no-cache` skips the cache entirely. Nothing sent with credentials is cached (private registries, GitHub, GitLab, Codeberg), and neither are failures or 404s. Entries older than a week are deleted as the cache is used.

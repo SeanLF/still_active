@@ -21,6 +21,7 @@ module StillActive
       :fail_if_poison,
       :fail_if_language_ceiling,
       :fail_if_warning,
+      :http_cache,
       :futurist_emoji,
       :gems,
       :fail_if_outdated,
@@ -59,6 +60,7 @@ module StillActive
       @ecosystems_email = nil
 
       @parallelism = 10
+      @http_cache = true
 
       @output_format = :auto
       @sarif_path = nil

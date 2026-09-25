@@ -26,6 +26,7 @@ Usage: still_active [options]
         --artifactory-host=HOST      Artifactory host allowed to receive the global token (e.g. my-org.jfrog.io)
         --ecosystems-email=EMAIL     Contact email to join the ecosyste.ms polite pool (higher rate limit)
         --simultaneous-requests=QTY  Number of simultaneous requests made
+        --no-cache                   Skip the on-disk cache of public sources' answers (advisories are kept at most an hour)
         --safe-range-end=YEARS       maximum years since last release considered safe, no warning (default 1.5)
         --warning-range-end=YEARS    maximum years since last release that triggers a warning, beyond this is critical (default 3)
         --fail-if-critical           Exit 1 if any gem has critical activity warning

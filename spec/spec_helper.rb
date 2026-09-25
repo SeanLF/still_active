@@ -47,6 +47,10 @@ RSpec.configure do |config|
     StillActive.reset
     # Pooled connections hold WebMock's fake sockets; a spec must not inherit one.
     StillActive::HttpHelper.reset_connections!
+    # The on-disk cache would carry answers between examples and write to the
+    # real ~/.cache. Stubbed rather than switched off in config, since specs call
+    # StillActive.reset, which turns it back on; http_cache_spec calls the original.
+    allow(StillActive::HttpCache).to(receive(:ttl).and_return(nil))
 
     ["GITHUB_TOKEN", "GH_TOKEN", "GITLAB_TOKEN"].each { |var| ENV.delete(var) }
     allow(Open3).to(receive(:capture3).and_call_original)

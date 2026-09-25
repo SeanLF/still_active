@@ -21,6 +21,7 @@ module StillActive
         add_output_options(opts)
         add_token_options(opts)
         add_parallelism_options(opts)
+        add_cache_option(opts)
         add_range_options(opts)
         add_exit_options(opts)
         add_emoji_options(opts)
@@ -117,6 +118,12 @@ module StillActive
       end
       opts.on("--artifactory-host=HOST", String, "Artifactory host that may receive the global token (e.g. my-org.jfrog.io)") do |value|
         StillActive.config { |config| config.artifactory_host = value }
+      end
+    end
+
+    def add_cache_option(opts)
+      opts.on("--no-cache", "Skip the on-disk cache of public sources' answers (advisories are kept at most an hour)") do
+        StillActive.config { |config| config.http_cache = false }
       end
     end
 
