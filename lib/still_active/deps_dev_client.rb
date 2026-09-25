@@ -21,7 +21,7 @@ module StillActive
     # canary comes back empty (schema drift) or unreachable (can't confirm). The
     # caller warns loudly rather than presenting a possibly-understated "all clear".
     def advisory_schema_ok?
-      info = version_info(gem_name: ADVISORY_CANARY[:name], version: ADVISORY_CANARY[:version], system: ADVISORY_CANARY[:system])
+      info = version_info(gem_name: ADVISORY_CANARY[:name], version: ADVISORY_CANARY[:version], system: ADVISORY_CANARY[:system], cache: false)
       !(info.nil? || info[:advisory_keys].empty?)
     rescue HttpHelper::Unavailable
       false
@@ -34,14 +34,14 @@ module StillActive
     # version). This response carries the advisories, so a failure to answer is
     # NOT nil: it is retried once, then raises HttpHelper::Unavailable, and the
     # caller reports the advisories unchecked rather than clean.
-    def version_info(gem_name:, version:, system: :rubygems)
+    def version_info(gem_name:, version:, system: :rubygems, cache: true)
       return if gem_name.nil? || version.nil?
 
       path = "/v3alpha/systems/#{encode(system)}/packages/#{encode(gem_name)}/versions/#{encode(version)}"
       body = begin
-        version_record(path)
+        version_record(path, cache: cache)
       rescue HttpHelper::Unavailable
-        version_record(path)
+        version_record(path, cache: cache)
       end
       return if body.nil?
 
@@ -108,10 +108,11 @@ module StillActive
     # HttpHelper::Unavailable when deps.dev can't answer, after one retry.
     def newest_publish_date(name:, system:)
       path = "/v3alpha/systems/#{encode(system)}/packages/#{encode(name)}"
+      # A canary: it has to see deps.dev as it is now, so never from the cache.
       body = begin
-        HttpHelper.get_json(BASE_URI, path, strict: true)
+        HttpHelper.get_json(BASE_URI, path, strict: true, cache: false)
       rescue HttpHelper::Unavailable
-        HttpHelper.get_json(BASE_URI, path, strict: true)
+        HttpHelper.get_json(BASE_URI, path, strict: true, cache: false)
       end
       Array(body.is_a?(Hash) ? body["versions"] : nil).filter_map { _1["publishedAt"] if _1.is_a?(Hash) && _1["publishedAt"].is_a?(String) }.max
     end
@@ -207,12 +208,16 @@ module StillActive
     # none (verified 2026-09-24). A record without it is schema drift or a garbled
     # answer, and reading it as "no advisories" is the silent zero the canary
     # guards against, so it counts as no answer, per dependency.
-    def version_record(path)
-      body = HttpHelper.get_json(BASE_URI, path, strict: true)
-      return body if body.nil? || (body.is_a?(Hash) && body["advisoryKeys"].is_a?(Array))
+    def version_record(path, cache: true)
+      body = HttpHelper.get_json(BASE_URI, path, strict: true, cache: cache, cache_if: method(:version_record?))
+      return body if body.nil? || version_record?(body)
 
       warn("warning: api.deps.dev#{path} returned a version record with no advisoryKeys list; the API may have changed")
       raise HttpHelper::Unavailable, path
+    end
+
+    def version_record?(body)
+      body.is_a?(Hash) && body["advisoryKeys"].is_a?(Array)
     end
 
     # "" is how deps.dev renders "no deprecation message"; nil keeps an absent

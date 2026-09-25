@@ -46,18 +46,6 @@ RSpec.describe(StillActive::HttpCache) do
     expect(stub).to(have_been_requested.twice)
   end
 
-  it("keys a POST on its body") do
-    stub_request(:post, "https://api.osv.dev/v1/query").with(body: "a").to_return(json({"vulns" => [{"id" => "A"}]}))
-    stub_request(:post, "https://api.osv.dev/v1/query").with(body: "b").to_return(json({}))
-    osv = URI("https://api.osv.dev")
-
-    2.times do
-      expect(StillActive::HttpHelper.post_json(osv, "/v1/query", body: "a")).to(eq("vulns" => [{"id" => "A"}]))
-      expect(StillActive::HttpHelper.post_json(osv, "/v1/query", body: "b")).to(eq({}))
-    end
-    expect(a_request(:post, "https://api.osv.dev/v1/query")).to(have_been_made.twice)
-  end
-
   it("doesn't cache a failure or a 404, a credentialed request, an unlisted host, or with --no-cache") do
     stub_request(:get, "https://api.deps.dev/v3alpha/advisories/down").to_return(status: 503)
     stub_request(:get, "https://api.deps.dev/v3alpha/advisories/none").to_return(status: 404)
@@ -93,5 +81,54 @@ RSpec.describe(StillActive::HttpCache) do
 
     2.times { expect(StillActive::HttpHelper.get_json(deps_dev, path, strict: true)).to(eq("advisoryKeys" => [])) }
     expect(stub).to(have_been_requested.once)
+  end
+
+  # OSV's version query is the arbiter that drops deps.dev findings, so it must
+  # never be older than the record it judges: a cached query could drop an
+  # advisory published after it was cached.
+  it("never caches OSV's version query") do
+    stub = stub_request(:post, "https://api.osv.dev/v1/query").to_return(json({}))
+
+    2.times { StillActive::HttpHelper.post_json(URI("https://api.osv.dev"), "/v1/query", body: "{}") }
+
+    expect(stub).to(have_been_requested.twice)
+  end
+
+  # The canaries check deps.dev as it is now; from the cache they'd check nothing.
+  it("lets the canaries bypass the cache") do
+    stub = stub_request(:get, %r{/packages/django/versions/3\.0\.0\z}).to_return(json({"advisoryKeys" => [{"id" => "A"}]}))
+    package = stub_request(:get, %r{/packages/next\z}).to_return(json({"versions" => []}))
+
+    2.times do
+      StillActive::DepsDevClient.advisory_schema_ok?
+      StillActive::DepsDevClient.newest_publish_date(name: "next", system: :npm)
+    end
+
+    expect(stub).to(have_been_requested.twice)
+    expect(package).to(have_been_requested.twice)
+  end
+
+  # A version record is only cached once it has the shape we read, so the retry
+  # after a garbled answer asks again rather than rereading it.
+  it("doesn't cache a version record without advisoryKeys") do
+    stub = stub_request(:get, %r{/versions/1\.0\.0\z}).to_return(json({"code" => 13})).then.to_return(json({"advisoryKeys" => []}))
+
+    result = nil
+    expect { result = StillActive::DepsDevClient.version_info(gem_name: "x", version: "1.0.0", system: :npm) }.to(output.to_stderr)
+
+    expect(result[:advisory_keys]).to(eq([]))
+    expect(stub).to(have_been_requested.twice)
+  end
+
+  it("reads an entry stamped in the future as a miss") do
+    stub = stub_request(:get, "https://api.deps.dev/v3alpha/advisories/GHSA-x").to_return(json({"title" => "t"}))
+    StillActive::HttpHelper.get_json(deps_dev, "/v3alpha/advisories/GHSA-x")
+    Dir.glob(File.join(described_class.directory, "*", "*.json")).each do |path|
+      File.write(path, JSON.generate(JSON.parse(File.read(path)).merge("stored_at" => Time.now.to_f + 3600)))
+    end
+
+    StillActive::HttpHelper.get_json(deps_dev, "/v3alpha/advisories/GHSA-x")
+
+    expect(stub).to(have_been_requested.twice)
   end
 end

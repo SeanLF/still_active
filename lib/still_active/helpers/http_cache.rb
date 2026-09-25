@@ -13,6 +13,11 @@ module StillActive
   # for a week, since it doesn't change. Nothing credentialed is cached: those
   # hosts aren't listed, and a request with an Authorization header is skipped
   # whatever its host. Failures and 404s aren't cached, only answers.
+  #
+  # OSV's version query is deliberately absent. It is the arbiter that drops a
+  # deps.dev finding the version isn't affected by, so it must never be older
+  # than the deps.dev record it judges; cached separately, it could be, and would
+  # drop an advisory published after it was cached.
   module HttpCache
     extend self
 
@@ -25,9 +30,9 @@ module StillActive
       ["api.deps.dev", %r{\A/v3alpha/systems/[^/]+/packages/[^/]+/versions/[^/]+:requirements\z}, WEEK],
       ["api.deps.dev", %r{\A/v3alpha/systems/[^/]+/packages/[^/]+/versions/}, HOUR], # carries advisoryKeys
       ["api.deps.dev", %r{\A/v3alpha/systems/[^/]+/packages/[^/]+\z}, 6 * HOUR], # latest version
-      ["api.deps.dev", %r{\A/v3alpha/(advisories|projects)/}, DAY],
-      ["api.osv.dev", %r{\A/v1/query\z}, HOUR], # which advisories affect a version
-      ["api.osv.dev", %r{\A/v1/vulns/}, DAY],
+      ["api.deps.dev", %r{\A/v3alpha/advisories/}, 6 * HOUR], # CVSS, which the severity gates read
+      ["api.deps.dev", %r{\A/v3alpha/projects/}, DAY],
+      ["api.osv.dev", %r{\A/v1/vulns/}, 6 * HOUR], # severity and fixed versions
       ["rubygems.org", %r{\A/api/v1/versions/}, 6 * HOUR],
       ["rubygems.org", %r{\A/api/v1/gems/}, DAY],
       ["pypi.org", %r{\A/pypi/[^/]+/[^/]+/json\z}, WEEK], # one published version
@@ -53,7 +58,10 @@ module StillActive
       return :miss unless File.exist?(path)
 
       entry = JSON.parse(File.read(path))
-      return :miss if Time.now.to_f - entry.fetch("stored_at") > ttl
+      age = Time.now.to_f - entry.fetch("stored_at")
+      # A future stamp (clock skew, a cache restored from another machine) would
+      # otherwise never expire.
+      return :miss if age.negative? || age > ttl
 
       entry.fetch("body")
     rescue JSON::ParserError, KeyError, TypeError, SystemCallError
@@ -72,8 +80,8 @@ module StillActive
       File.delete(temp) if temp && File.exist?(temp)
     end
 
-    def key(method, uri, body = nil)
-      Digest::SHA256.hexdigest([method, uri.to_s, body.to_s].join("\n"))
+    def key(method, uri)
+      Digest::SHA256.hexdigest("#{method}\n#{uri}")
     end
 
     def directory
@@ -93,7 +101,7 @@ module StillActive
 
       @swept = true
       cutoff = Time.now - MAX_AGE
-      Dir.glob(File.join(directory, "*", "*.json")).each { File.delete(_1) if File.mtime(_1) < cutoff }
+      Dir.glob(File.join(directory, "*", "*.{json,tmp}")).each { File.delete(_1) if File.mtime(_1) < cutoff }
     rescue SystemCallError
       nil
     end

@@ -59,9 +59,9 @@ Answers from public sources are cached under `$XDG_CACHE_HOME/still_active/http`
 
 | data | kept for |
 | --- | --- |
-| which advisories affect a version (deps.dev version records, OSV queries) | 1 hour |
-| a package's latest version (deps.dev packages, rubygems.org versions) | 6 hours |
-| advisory details, scorecards, repository state, runtime EOL dates | 1 day |
+| which advisories affect a version (deps.dev version records) | 1 hour |
+| a package's latest version (deps.dev packages, rubygems.org versions), advisory details and scores | 6 hours |
+| scorecards, repository state, runtime EOL dates | 1 day |
 | one published version's metadata (PyPI, declared dependencies, NuGet targets) | 1 week |
 
-So a newly published advisory can surface up to an hour late. `--no-cache` skips the cache entirely. Nothing sent with credentials is cached (private registries, GitHub, GitLab, Codeberg), and neither are failures or 404s. Entries older than a week are deleted as the cache is used.
+So a newly published advisory can surface up to an hour late, and a rescored one up to six hours late. `--no-cache` skips the cache entirely. Some answers are never cached: OSV's check of which advisories really affect a version (it can drop a finding, so it must be as fresh as the finding), the source-health canaries (they check deps.dev as it is now), and a version record that came back malformed. Nothing sent with credentials is cached (private registries, GitHub, GitLab, Codeberg), and neither are failures or 404s. Entries older than a week are deleted as the cache is used.
