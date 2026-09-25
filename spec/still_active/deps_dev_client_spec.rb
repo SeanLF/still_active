@@ -319,6 +319,32 @@ RSpec.describe(StillActive::DepsDevClient) do
     end
   end
 
+  # The index-freshness question: when did deps.dev last ingest anything for this
+  # package, prereleases and pseudo-versions included.
+  describe(".newest_publish_date") do
+    let(:url) { %r{api\.deps\.dev/v3alpha/systems/go/packages/cloud\.google\.com%2Fgo%2Fstorage\z} }
+
+    def body(versions) = {"versions" => versions}.to_json
+
+    it("returns the newest publishedAt across every version") do
+      stub_request(:get, url).to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: body([
+        {"versionKey" => {"version" => "v1.50.0"}, "publishedAt" => "2026-09-01T00:00:00Z"},
+        {"versionKey" => {"version" => "v1.50.1-0.20260920000000-abcdef"}, "publishedAt" => "2026-09-20T00:00:00Z"},
+        {"versionKey" => {"version" => "v1.0.0"}}
+      ]))
+
+      expect(described_class.newest_publish_date(name: "cloud.google.com/go/storage", system: :go)).to(eq("2026-09-20T00:00:00Z"))
+    end
+
+    it("retries once, then raises Unavailable, when deps.dev can't answer") do
+      stub_request(:get, url).to_return(status: 503)
+
+      expect { described_class.newest_publish_date(name: "cloud.google.com/go/storage", system: :go) }
+        .to(raise_error(StillActive::HttpHelper::Unavailable).and(output.to_stderr))
+      expect(a_request(:get, url)).to(have_been_made.twice)
+    end
+  end
+
   describe(".advisory_detail") do
     it("returns advisory details for a known advisory") do
       body = {

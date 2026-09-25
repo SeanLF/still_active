@@ -1216,7 +1216,7 @@ RSpec.describe(StillActive::CLI) do
       captured = nil
       allow($stdout).to(receive(:puts)) { |arg| captured = arg }
 
-      expect { cli.run(["--sbom=sbom.json"]) }.to(output(/advisory check failed.*treated as unchecked/).to_stderr)
+      expect { cli.run(["--sbom=sbom.json"]) }.to(output(/advisory check failed.*count as unchecked/).to_stderr)
       expect(StillActive::SourceHealth).to(have_received(:check).with(ecosystems: [:pypi]))
       expect(StillActive::SbomWorkflow).to(have_received(:call).with(anything, health: degraded))
       expect(JSON.parse(captured)["source_health"]).to(include("status" => "degraded", "deps_dev_advisories" => "failed"))
