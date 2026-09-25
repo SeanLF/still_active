@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/SeanLF/still_active/main/docs/still_active.sbom.schema.json",
+  "title": "still_active --sbom --json output",
+  "description": "Versioned machine schema for `still_active --sbom=PATH --json`. Fields shared with the Gemfile audit reference still_active.schema.json, so the two can't drift. Stable within a major version; additive fields do not bump schema_version. See docs/schema.md for prose.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "generated_at",
+    "summary",
+    "dependencies",
+    "unassessable",
+    "source_health"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "tool": {
+      "$ref": "still_active.schema.json#/properties/tool"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/dependency"
+      }
+    },
+    "unassessable": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unassessable"
+      }
+    },
+    "source_health": {
+      "$ref": "still_active.schema.json#/properties/source_health"
+    }
+  },
+  "$defs": {
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_assessed",
+        "unassessable_count",
+        "status",
+        "status_counts",
+        "vulnerabilities_unchecked"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total_assessed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unassessable_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/status"
+        },
+        "status_counts": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "still_active.schema.json#/$defs/gem/properties/status"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "vulnerabilities_unchecked": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "required": [
+        "ecosystem",
+        "name",
+        "version_used",
+        "activity_level",
+        "status",
+        "vulnerabilities_checked"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "activity_level": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/activity_level"
+        },
+        "archived": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/archived"
+        },
+        "constraints": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/constraints"
+        },
+        "dependency_path": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/dependency_path"
+        },
+        "deprecated": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/deprecated"
+        },
+        "deprecation_reason": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/deprecation_reason"
+        },
+        "direct": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/direct"
+        },
+        "ecosystem": {
+          "type": "string",
+          "description": "The package's ecosystem: rubygems, npm, pypi, cargo, go, maven or nuget."
+        },
+        "language_ceiling": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/language_ceiling"
+        },
+        "last_commit_date": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/last_commit_date"
+        },
+        "latest_version": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/latest_version"
+        },
+        "latest_version_release_date": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/latest_version_release_date"
+        },
+        "libyear": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/libyear"
+        },
+        "license": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/license"
+        },
+        "name": {
+          "type": "string",
+          "description": "The package name as its ecosystem writes it (npm @scope/name, maven group:artifact, a Go module path)."
+        },
+        "poison": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/poison"
+        },
+        "poison_below_fix": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/poison_below_fix"
+        },
+        "poison_security_relevant": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/poison_security_relevant"
+        },
+        "poison_severity": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/poison_severity"
+        },
+        "production": {
+          "type": "boolean",
+          "description": "Whether the SBOM marked the package as a production dependency. Absent when the SBOM never marks prod or dev."
+        },
+        "purl": {
+          "type": "string",
+          "description": "The input SBOM's package URL, verbatim."
+        },
+        "repository_url": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/repository_url"
+        },
+        "scorecard_maintained": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/scorecard_maintained"
+        },
+        "scorecard_score": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/scorecard_score"
+        },
+        "status": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/status"
+        },
+        "up_to_date": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/up_to_date"
+        },
+        "version_unresolved": {
+          "type": "boolean",
+          "description": "deps.dev (or, for the Go toolchain, endoflife.date) doesn't know this version though it knows the package. Present only when true."
+        },
+        "version_used": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/version_used"
+        },
+        "version_used_release_date": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/version_used_release_date"
+        },
+        "vulnerabilities": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/vulnerabilities"
+        },
+        "vulnerabilities_checked": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/vulnerabilities_checked"
+        },
+        "vulnerability_count": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/vulnerability_count"
+        }
+      }
+    },
+    "unassessable": {
+      "type": "object",
+      "required": [
+        "name",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ecosystem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "no_purl",
+            "no_version",
+            "private_registry",
+            "unsupported_ecosystem",
+            "malformed_purl",
+            "assessment_error"
+          ]
+        },
+        "repository_url": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "purl": {
+          "type": "string"
+        },
+        "production": {
+          "type": "boolean"
+        },
+        "direct": {
+          "type": "boolean"
+        },
+        "dependency_path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

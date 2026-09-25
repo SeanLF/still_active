@@ -559,7 +559,8 @@
           "enum": [
             "deps.dev",
             "ruby-advisory-db",
-            "merged"
+            "merged",
+            "osv"
           ]
         },
         "osv_severity": {

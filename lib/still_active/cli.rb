@@ -27,6 +27,7 @@ module StillActive
     # The committed JSON Schema for the --json output. Emitted as `$schema` so
     # the output is self-describing and a consumer can validate it.
     SCHEMA_URL = "https://raw.githubusercontent.com/SeanLF/still_active/main/docs/still_active.schema.json"
+    SBOM_SCHEMA_URL = "https://raw.githubusercontent.com/SeanLF/still_active/main/docs/still_active.sbom.schema.json"
 
     def run(args)
       # Apply the committed .still_active.yml first so CLI flags (parsed next)
@@ -278,6 +279,7 @@ module StillActive
     # would be a false claim to point at that contract. schema_version stays 1.
     def emit_sbom_json(result, unassessable, health)
       output = {
+        "$schema": SBOM_SCHEMA_URL,
         schema_version: 1,
         tool: {name: "still_active", version: StillActive::VERSION},
         generated_at: Time.now.utc.iso8601,
