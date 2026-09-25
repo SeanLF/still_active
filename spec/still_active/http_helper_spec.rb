@@ -289,7 +289,7 @@ RSpec.describe(StillActive::HttpHelper) do
       expect(Net::HTTP).to(have_received(:new).once)
     end
 
-    it("doesn't reuse a connection a 404, an error or a redirect left mid-response") do
+    it("reuses after a 404 (read to the end), but not after an error left mid-response") do
       stub_request(:get, "https://api.deps.dev/missing").to_return(status: 404)
       stub_request(:get, "https://api.deps.dev/down").to_return(status: 503)
       ok("/after")
@@ -299,7 +299,7 @@ RSpec.describe(StillActive::HttpHelper) do
       expect { described_class.get_json(base, "/down") }.to(output.to_stderr)
       described_class.get_json(base, "/after")
 
-      expect(Net::HTTP).to(have_received(:new).exactly(3).times)
+      expect(Net::HTTP).to(have_received(:new).twice)
     end
   end
 
@@ -319,6 +319,17 @@ RSpec.describe(StillActive::HttpHelper) do
 
       expect(result).to(eq("ok" => true))
       expect(described_class).to(have_received(:sleep).with(2))
+    end
+
+    it("doesn't spend a redirect on the retry") do
+      stub_request(:get, "https://api.deps.dev/x").to_return(status: 429, headers: {"Retry-After" => "1"}).then
+        .to_return(status: 301, headers: {"Location" => "https://api.deps.dev/y"})
+      stub_request(:get, "https://api.deps.dev/y").to_return(status: 301, headers: {"Location" => "https://api.deps.dev/z"})
+      stub_request(:get, "https://api.deps.dev/z").to_return(status: 200, body: '{"ok":true}', headers: {"Content-Type" => "application/json"})
+
+      result = nil
+      expect { result = described_class.get_json(base, "/x") }.to(output.to_stderr)
+      expect(result).to(eq("ok" => true))
     end
 
     it("gives up after one retry, and doesn't wait on a missing, dated or overlong Retry-After") do

@@ -95,7 +95,9 @@ module StillActive
     # POST share the redirect/auth/cap logic.
     def request_json(uri, headers, parse: JSON_PARSER, strict: false)
       retried = false
-      MAX_REDIRECTS.times do
+      # The Retry-After retry repeats a pass rather than spending one of these.
+      passes = 0
+      while (passes += 1) <= MAX_REDIRECTS
         request = yield(uri)
         headers.each { |key, value| request[key] = value }
 
@@ -109,6 +111,7 @@ module StillActive
           warn("warning: #{uri.host}#{uri.path} returned HTTP #{payload[:code]}, retrying in #{payload[:seconds]}s as it asked")
           sleep(payload[:seconds])
           retried = true
+          passes -= 1
           next
         when :done
           # A 404 is how a source says "no record"; a 200 of `null` says nothing.
@@ -171,14 +174,23 @@ module StillActive
     #   [:not_found, nil]      a 404, which is an answer, not a failure
     #   [:stop, nil]           any other non-success (warns), or body over cap
     #   [:done, parsed]        a 2xx with the parsed body (JSON or text)
-    # Redirect and non-success bodies are never read: returning from the block
-    # unwinds through Net::HTTP, which closes the connection without draining
-    # the body, so a huge error/redirect body can't OOM us either.
+    # Redirect and error bodies are never read: returning from the block unwinds
+    # through Net::HTTP without draining the body, so a huge one can't OOM us, and
+    # with_connection closes that connection. A success or a 404 is read to the end
+    # and the block finishes normally, so Net::HTTP does its end-of-request
+    # bookkeeping: it honours Connection: close and records the time for its idle
+    # check, which is what makes the connection safe to pool. Returning from inside
+    # skipped both, and a POST on a connection the server had closed then failed.
     def perform(http, request, uri, parse)
+      body = nil
       http.request(request) do |response|
         return [:redirect, response] if response.is_a?(Net::HTTPRedirection)
 
-        return [:not_found, nil] if response.is_a?(Net::HTTPNotFound)
+        if response.is_a?(Net::HTTPNotFound)
+          return [:stop, nil] if read_capped_body(response, uri).nil?
+
+          next
+        end
 
         if (seconds = retry_after(response))
           return [:retry_after, {code: response.code, seconds: seconds}]
@@ -191,9 +203,8 @@ module StillActive
 
         body = read_capped_body(response, uri)
         return [:stop, nil] if body.nil?
-
-        return [:done, parse.call(body)]
       end
+      body.nil? ? [:not_found, nil] : [:done, parse.call(body)]
     end
 
     # The seconds a 429 or 503 asks us to wait, when it gives a number of them and
@@ -208,19 +219,18 @@ module StillActive
       value.to_i if value.to_i <= MAX_RETRY_AFTER_SECONDS
     end
 
-    # One started connection per host, reused across requests. Only a response
-    # whose body was read to the end goes back: perform returns from inside
-    # Net::HTTP's block on a redirect, 404, error or oversized body without
-    # reading it, and a connection with unread bytes can't carry another
-    # request. Net::HTTP itself reopens a pooled connection the server closed
-    # while idle, for GETs.
+    # One started connection per host, reused across requests. Only a success or a
+    # 404, read to the end with Net::HTTP's request finished normally, goes back
+    # (see perform); anything else may have unread bytes and is closed. On reuse,
+    # Net::HTTP reconnects a connection the server closed or that sat idle past
+    # its keep-alive timeout.
     def with_connection(uri)
       http = pool[[uri.host, uri.port]].pop || open_connection(uri)
       outcome = nil
       begin
         outcome = yield(http)
       ensure
-        if outcome&.first == :done && pool[[uri.host, uri.port]].size < MAX_IDLE_PER_HOST
+        if [:done, :not_found].include?(outcome&.first) && pool[[uri.host, uri.port]].size < MAX_IDLE_PER_HOST
           pool[[uri.host, uri.port]] << http
         else
           close(http)
