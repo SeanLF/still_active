@@ -57,7 +57,7 @@
         "status",
         "status_counts",
         "vulnerabilities_unchecked",
-        "repositories_unavailable"
+        "repository_checks"
       ],
       "additionalProperties": false,
       "properties": {
@@ -86,9 +86,8 @@
           "type": "integer",
           "minimum": 0
         },
-        "repositories_unavailable": {
-          "type": "integer",
-          "minimum": 0
+        "repository_checks": {
+          "$ref": "still_active.schema.json#/$defs/summary/properties/repository_checks"
         }
       }
     },
@@ -100,7 +99,8 @@
         "version_used",
         "activity_level",
         "status",
-        "vulnerabilities_checked"
+        "vulnerabilities_checked",
+        "repository_check"
       ],
       "additionalProperties": false,
       "properties": {
@@ -171,8 +171,11 @@
           "type": "string",
           "description": "The input SBOM's package URL, verbatim."
         },
-        "repository_unavailable": {
-          "$ref": "still_active.schema.json#/$defs/gem/properties/repository_unavailable"
+        "repository_check": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/repository_check"
+        },
+        "repository_source": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/repository_source"
         },
         "repository_url": {
           "$ref": "still_active.schema.json#/$defs/gem/properties/repository_url"

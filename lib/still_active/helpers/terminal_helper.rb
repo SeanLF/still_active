@@ -8,6 +8,7 @@ require_relative "summary_helper"
 require_relative "libyear_helper"
 require_relative "version_helper"
 require_relative "vulnerability_helper"
+require_relative "repository_check"
 
 module StillActive
   module TerminalHelper
@@ -91,7 +92,7 @@ module StillActive
       case ActivityHelper.activity_level(data)
       when :archived then AnsiHelper.red("archived")
       # Recent releases, but the repository couldn't be read: it may be archived.
-      when :ok then data[:repository_unavailable] ? AnsiHelper.yellow("?") : AnsiHelper.green("ok")
+      when :ok then RepositoryCheck.unanswered?(data) ? AnsiHelper.yellow("?") : AnsiHelper.green("ok")
       when :stale then AnsiHelper.yellow("stale")
       when :critical then AnsiHelper.red("critical")
       when :unknown then AnsiHelper.dim("-")
@@ -357,7 +358,9 @@ module StillActive
       parts << activity
       parts << "#{summary[:vulnerabilities]} vulnerabilities"
       parts.last << " (#{summary[:vulnerabilities_unchecked]} unchecked)" if summary[:vulnerabilities_unchecked] > 0
-      parts << "#{summary[:repositories_unavailable]} #{(summary[:repositories_unavailable] == 1) ? "repository" : "repositories"} unreadable" if summary[:repositories_unavailable] > 0
+      checks = summary[:repository_checks]
+      unchecked = checks[:failed] + checks[:unknowable]
+      parts << "#{unchecked} #{(unchecked == 1) ? "repository" : "repositories"} unchecked#{" (#{checks[:failed]} failed)" if checks[:failed] > 0}" if unchecked > 0
       poison_tiers = result.each_value.select { |data| data[:poison] }.map { |data| data[:poison_severity] }
       poison_part = tier_summary_part(poison_tiers, "#{poison_tiers.size} poison-#{(poison_tiers.size == 1) ? "pill" : "pills"}")
       parts << poison_part if poison_part

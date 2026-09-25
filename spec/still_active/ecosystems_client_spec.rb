@@ -30,6 +30,11 @@ RSpec.describe(StillActive::EcosystemsClient) do
       expect(described_class.repo_signals(owner: owner, name: name)).not_to(have_key(:archived))
     end
 
+    it("leaves archived out, as unknown, when ecosyste.ms sends it as null") do
+      stub_repo({"archived" => nil, "pushed_at" => nil})
+      expect(described_class.repo_signals(owner: owner, name: name)).not_to(have_key(:archived))
+    end
+
     it("raises RepoSignalsUnavailable on an unexpected non-object JSON body") do
       stub_request(:get, repo_url)
         .to_return(status: 200, body: [1, 2].to_json, headers: {"Content-Type" => "application/json"})

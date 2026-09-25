@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "errors"
+require_relative "repository_signals"
 require_relative "deps_dev_client"
 require_relative "osv_client"
 require_relative "ecosystems_client"
@@ -67,7 +68,9 @@ module StillActive
       info, default, vulnerabilities, vulnerabilities_checked, project_id, version_unresolved =
         signals.values_at(:info, :default, :vulnerabilities, :vulnerabilities_checked, :project_id, :version_unresolved)
       scorecard = DepsDevClient.project_scorecard(project_id: project_id)
-      repo = repo_signals(project_id)
+      # The Go toolchain is the language: there's no package repository to check,
+      # and its lifecycle comes from endoflife.date instead.
+      repo = GoToolchain.toolchain?(ecosystem, name) ? {check: "not_applicable"} : repo_signals(project_id)
 
       used_release_date = info&.dig(:published_at)
       latest_release_date = default&.dig(:published_at)
@@ -116,8 +119,10 @@ module StillActive
         vulnerabilities: vulnerabilities
       }
       gem_data[:version_unresolved] = true if version_unresolved
-      # The repository couldn't be read, so a blank archived flag isn't "not archived".
-      gem_data[:repository_unavailable] = true if repo[:unavailable]
+      # Whether a service said if the repository is archived; a blank archived
+      # flag isn't "not archived" unless this is "answered".
+      gem_data[:repository_check] = repo[:check]
+      gem_data[:repository_source] = repo[:source] if repo[:source]
       attach_constraints(gem_data, ecosystem: ecosystem, name: name, version: version, cache: constraint_cache)
       attach_language_ceiling(gem_data, ecosystem: ecosystem, name: name, version: version, latest_version: default&.dig(:version), runtime_ranges: runtime_ranges)
       gem_data
@@ -320,26 +325,11 @@ module StillActive
       nil
     end
 
-    # archived + last-commit for a flat github.com/owner/repo project, or {} for
-    # anything else. deps.dev indexes github.com and gitlab.com only, but gitlab
-    # subgroups nest arbitrarily and ecosyste.ms's repo crawler is GitHub-centric,
-    # so a gitlab (or nested, or unresolved) project keeps archived unknown rather
-    # than risk a bogus owner/name lookup.
+    # archived + last-activity date, which service answered, and what came of the
+    # check, for the project deps.dev linked. Every dependency here came through
+    # deps.dev, so from a public registry.
     def repo_signals(project_id)
-      host, owner, name, *rest = project_id.to_s.split("/")
-      return {} unless host == "github.com" && owner && name && rest.empty?
-
-      repo_provider.repo_signals(owner: owner, name: name) || {}
-    rescue RepoSignalsUnavailable
-      warn("warning: #{owner}/#{name}: no repository source answered; archived status unknown")
-      {unavailable: true}
-    end
-
-    # Mirrors Workflow#provider_for(:github): the live GitHub API when a token is
-    # configured (freshest), else ecosyste.ms (5000 anonymous req/hr vs GitHub's
-    # 60), so an untokened cross-ecosystem run still resolves a large SBOM.
-    def repo_provider
-      StillActive.config.github_oauth_token ? GithubClient : EcosystemsClient
+      RepositorySignals.for_project(project_id, public: true)
     end
 
     # Is the pinned version at or ahead of latest stable? nil when latest is unknown.

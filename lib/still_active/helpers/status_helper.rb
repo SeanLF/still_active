@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "activity_helper"
+require_relative "repository_check"
 
 module StillActive
   # Collapses a gem's several maintenance signals into one categorical verdict,
@@ -33,7 +34,7 @@ module StillActive
       # no source could read isn't "not archived", so a verdict that claims clean
       # (:ok, and :legacy's "dormant but clean") reads :unknown. Verdicts that
       # found a problem stand, since it's true either way.
-      unanswered = gem_data[:vulnerabilities_checked] == false || gem_data[:repository_unavailable] == true
+      unanswered = gem_data[:vulnerabilities_checked] == false || RepositoryCheck.unanswered?(gem_data)
       ([:ok, :legacy].include?(status) && unanswered) ? :unknown : status
     end
 

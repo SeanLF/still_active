@@ -46,7 +46,7 @@ module StillActive
       # Only assert archived when the field is actually present. A missing field
       # must read as unknown, not be invented as false -- otherwise a partial
       # crawl could silently mask the most actionable verdict (gem is archived).
-      signals[:archived] = body["archived"] == true if body.key?("archived")
+      signals[:archived] = body["archived"] if [true, false].include?(body["archived"])
       signals
     rescue HttpHelper::Unavailable => e
       raise RepoSignalsUnavailable, e.message

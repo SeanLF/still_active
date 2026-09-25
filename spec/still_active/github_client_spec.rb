@@ -46,44 +46,31 @@ RSpec.describe(StillActive::GithubClient) do
       expect(described_class.repo_signals(owner: owner, name: name)).to(eq({}))
     end
 
-    it("asks ecosyste.ms when GitHub can't answer, and raises when neither can") do
-      allow(client).to(receive(:repository).and_raise(Octokit::InternalServerError))
-      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).with(owner: owner, name: name).and_return(archived: true))
-
-      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq(archived: true)) }
-        .to(output(/repo signals failed.*asking ecosyste\.ms/).to_stderr)
-
-      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_raise(StillActive::RepoSignalsUnavailable))
-      expect { described_class.repo_signals(owner: owner, name: name) }
-        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
-    end
-
-    # ecosyste.ms 404s a repo it hasn't crawled, and every private one: after
-    # GitHub failed, that's nobody answering, not "not archived".
-    it("reads a fallback that doesn't know the repo, or its archived state, as unavailable") do
-      allow(client).to(receive(:repository).and_raise(Octokit::InternalServerError))
-      [{}, {last_commit_date: Time.now}].each do |answer|
-        allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_return(answer))
+    # What to ask next is RepositorySignals' call; the client only reports.
+    it("raises RepoSignalsUnavailable when GitHub can't answer, including a secondary rate limit") do
+      [Octokit::InternalServerError, Octokit::AbuseDetected].each do |error|
+        allow(client).to(receive(:repository).and_raise(error))
         expect { described_class.repo_signals(owner: owner, name: name) }
-          .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
+          .to(raise_error(StillActive::RepoSignalsUnavailable) { expect(_1).not_to(be_a(StillActive::RepoAccessDenied)) }.and(output.to_stderr))
       end
     end
 
-    # A private repo's name must not go to a third party: no fallback for a
-    # dependency that didn't come from a public registry, nor on a 401/403.
-    it("doesn't ask ecosyste.ms about a repo that may be private") do
-      allow(StillActive::EcosystemsClient).to(receive(:repo_signals))
+    # Permanent: a rerun won't change a malformed name, a repository GitHub has
+    # blocked (DMCA, terms of service), or one withheld for legal reasons, so
+    # they're "don't know" like a 404, not a failure that fails the gates.
+    it("returns {} for a name Octokit won't accept, or a repository GitHub blocks") do
+      [Octokit::InvalidRepository, Octokit::RepositoryUnavailable, Octokit::UnavailableForLegalReasons].each do |error|
+        allow(client).to(receive(:repository).and_raise(error))
+        expect(described_class.repo_signals(owner: "foo", name: "bar")).to(eq({}))
+      end
+    end
 
-      allow(client).to(receive(:repository).and_raise(Octokit::InternalServerError))
-      expect { described_class.repo_signals(owner: owner, name: name, public: false) }
-        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
-
+    it("raises RepoAccessDenied when GitHub refuses the token") do
       [Octokit::Unauthorized, Octokit::Forbidden].each do |error|
         allow(client).to(receive(:repository).and_raise(error))
         expect { described_class.repo_signals(owner: owner, name: name) }
-          .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
+          .to(raise_error(StillActive::RepoAccessDenied).and(output.to_stderr))
       end
-      expect(StillActive::EcosystemsClient).not_to(have_received(:repo_signals))
     end
 
     it("warns and leaves the date nil on an unparseable pushed_at") do
@@ -133,17 +120,16 @@ RSpec.describe(StillActive::GithubClient) do
 
     # A rate-limited run once read an archived repo as healthy: the limit left
     # archived blank, and a blank archived isn't "archived".
-    it("doesn't wait out a far reset; asks ecosyste.ms instead") do
+    it("doesn't wait out a far reset; raises RepoSignalsUnavailable") do
       allow(client).to(receive(:repository).and_raise(too_many(retry_after: 9999)))
-      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_return(archived: true))
 
-      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq(archived: true)) }.to(output(/rate limited/).to_stderr)
+      expect { described_class.repo_signals(owner: owner, name: name) }
+        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output(/rate limited/).to_stderr))
       expect(described_class).not_to(have_received(:sleep))
     end
 
-    it("retries at most once on a persistent rate limit, then asks ecosyste.ms") do
+    it("retries at most once on a persistent rate limit, then raises RepoSignalsUnavailable") do
       allow(client).to(receive(:repository).and_raise(too_many(retry_after: 1)))
-      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_raise(StillActive::RepoSignalsUnavailable))
 
       expect { described_class.repo_signals(owner: owner, name: name) }
         .to(raise_error(StillActive::RepoSignalsUnavailable).and(output(/waiting 1s/).to_stderr))

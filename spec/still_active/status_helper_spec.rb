@@ -26,13 +26,16 @@ RSpec.describe(StillActive::StatusHelper) do
     # A rate-limited run once read an archived repo as :ok: its blank archived flag
     # passed for "not archived".
     it("is :unknown, not :ok or :legacy, when the repository couldn't be read") do
-      expect(described_class.gem_status({latest_version_release_date: recent, repository_unavailable: true})).to(eq(:unknown))
-      expect(described_class.gem_status({latest_version_release_date: ancient, repository_unavailable: true})).to(eq(:unknown))
-      expect(described_class.gem_status({latest_version_release_date: recent, repository_unavailable: true, vulnerability_count: 1})).to(eq(:vulnerable))
+      ["failed", "unknowable"].each do |check|
+        expect(described_class.gem_status({latest_version_release_date: recent, repository_check: check})).to(eq(:unknown))
+        expect(described_class.gem_status({latest_version_release_date: ancient, repository_check: check})).to(eq(:unknown))
+        expect(described_class.gem_status({latest_version_release_date: recent, repository_check: check, vulnerability_count: 1})).to(eq(:vulnerable))
+      end
+      expect(described_class.gem_status({latest_version_release_date: recent, repository_check: "not_applicable"})).to(eq(:ok))
     end
 
     it("is :unknown, not :ok, for a healthy gem whose advisories went unchecked") do
-      data = {latest_version_release_date: recent, vulnerability_count: 0, vulnerabilities_checked: false}
+      data = {latest_version_release_date: recent, vulnerability_count: 0, vulnerabilities_checked: false, repository_check: "answered"}
       expect(described_class.gem_status(data)).to(eq(:unknown))
       expect(described_class.gem_status(data.merge(vulnerabilities_checked: true))).to(eq(:ok))
     end
@@ -74,12 +77,12 @@ RSpec.describe(StillActive::StatusHelper) do
     end
 
     it("is :legacy for a clean, long-dormant gem (years old, no vulns) -- 'done', not critical") do
-      data = {latest_version_release_date: ancient, vulnerability_count: 0}
+      data = {latest_version_release_date: ancient, vulnerability_count: 0, repository_check: "answered"}
       expect(described_class.gem_status(data)).to(eq(:legacy))
     end
 
     it("is :ok for a recently released, unflagged gem") do
-      data = {latest_version_release_date: recent, vulnerability_count: 0}
+      data = {latest_version_release_date: recent, vulnerability_count: 0, repository_check: "answered"}
       expect(described_class.gem_status(data)).to(eq(:ok))
     end
 
@@ -88,7 +91,7 @@ RSpec.describe(StillActive::StatusHelper) do
     end
 
     it("does not let an unmeasured vulnerability count read as vulnerable") do
-      data = {latest_version_release_date: recent} # vulnerability_count absent
+      data = {latest_version_release_date: recent, repository_check: "answered"} # vulnerability_count absent
       expect(described_class.gem_status(data)).to(eq(:ok))
     end
   end
@@ -132,7 +135,7 @@ RSpec.describe(StillActive::StatusHelper) do
     it("ignores :unknown gems when a known status is present") do
       result = {
         "a" => {}, # unknown
-        "b" => {latest_version_release_date: recent, vulnerability_count: 0} # ok
+        "b" => {latest_version_release_date: recent, vulnerability_count: 0, repository_check: "answered"} # ok
       }
       expect(described_class.project_status(result)).to(eq(:ok))
     end
@@ -143,7 +146,7 @@ RSpec.describe(StillActive::StatusHelper) do
     # package is dormant AND the maintainer has said to stop using it, which is
     # exactly what :legacy ("done, low risk") must not swallow.
     it("is not :legacy, even when the package is long-dormant and clean") do
-      dormant = {last_commit_date: Time.now - (7 * 365 * 24 * 60 * 60), latest_version_release_date: Time.now - (7 * 365 * 24 * 60 * 60), vulnerability_count: 0}
+      dormant = {last_commit_date: Time.now - (7 * 365 * 24 * 60 * 60), latest_version_release_date: Time.now - (7 * 365 * 24 * 60 * 60), vulnerability_count: 0, repository_check: "answered"}
 
       expect(described_class.gem_status(dormant)).to(eq(:legacy))
       expect(described_class.gem_status(dormant.merge(deprecated: true))).to(eq(:deprecated))

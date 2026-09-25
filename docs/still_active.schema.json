@@ -189,9 +189,33 @@
         "ruby_eol": {
           "type": "boolean"
         },
-        "repositories_unavailable": {
-          "type": "integer",
-          "minimum": 0
+        "repository_checks": {
+          "type": "object",
+          "required": [
+            "answered",
+            "failed",
+            "unknowable",
+            "not_applicable"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "answered": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unknowable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_applicable": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       }
     },
@@ -318,9 +342,25 @@
             "critical"
           ]
         },
-        "repository_unavailable": {
-          "type": "boolean",
-          "description": "Present, and true, when no source could read the repository (a rate limit, an error), so archived is unknown rather than false."
+        "repository_check": {
+          "type": "string",
+          "enum": [
+            "answered",
+            "failed",
+            "unknowable",
+            "not_applicable"
+          ],
+          "description": "What came of asking whether the repository is archived: answered; failed (a service couldn't answer, a rerun may help, the activity gates fail closed); unknowable (no service can say: no repository, a host with no archived state, or every service asked didn't know it); not_applicable (the Go toolchain). Anything but answered/not_applicable reads status unknown."
+        },
+        "repository_source": {
+          "type": "string",
+          "enum": [
+            "github",
+            "ecosyste.ms",
+            "gitlab",
+            "codeberg"
+          ],
+          "description": "Which service answered for archived and last_commit_date. Absent when none was asked or none answered."
         },
         "repository_url": {
           "type": [

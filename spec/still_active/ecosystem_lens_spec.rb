@@ -287,17 +287,18 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
     end
 
-    it("does not look up repo signals for a non-github deps.dev project (gitlab archived unknown)") do
+    # The SBOM path used to read only github.com repositories; a GitLab project
+    # got no archived signal at all.
+    it("reads a GitLab project's archived state from GitLab, and says so") do
       stub_version(source_repo: "https://gitlab.com/group/proj")
       stub_package(default_published_at: "2026-06-01T00:00:00Z")
       stub_project_scorecard
-      eco = stub_ecosystems_repo(archived: true)
+      stub_request(:get, "https://gitlab.com/api/v4/projects/group%2Fproj")
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {archived: true, last_activity_at: "2026-01-01T00:00:00Z"}.to_json)
 
       result = described_class.assess(ecosystem: :pypi, name: "proj", version: "1.0.0")
 
-      expect(eco).not_to(have_been_requested)
-      expect(result[:archived]).to(be_nil)
-      expect(result[:repository_url]).to(eq("https://gitlab.com/group/proj"))
+      expect(result).to(include(archived: true, repository_source: "gitlab", repository_url: "https://gitlab.com/group/proj"))
     end
 
     it("recovers archived from the package's default version when the locked version isn't indexed") do
@@ -339,16 +340,17 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:vulnerable))
     end
 
-    it("does not split a nested gitlab project path into a bogus owner/name repo lookup") do
+    it("looks a nested GitLab project up by its full path, not a bogus owner/name") do
       stub_version(source_repo: "https://gitlab.com/group/subgroup/proj")
       stub_package(default_published_at: "2026-06-01T00:00:00Z")
       stub_project_scorecard
-      eco = stub_ecosystems_repo(archived: true)
+      gitlab = stub_request(:get, "https://gitlab.com/api/v4/projects/group%2Fsubgroup%2Fproj")
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {archived: false}.to_json)
 
       result = described_class.assess(ecosystem: :pypi, name: "proj", version: "1.0.0")
 
-      expect(eco).not_to(have_been_requested)
-      expect(result[:archived]).to(be_nil)
+      expect(gitlab).to(have_been_requested)
+      expect(result).to(include(archived: false, repository_source: "gitlab"))
     end
   end
 
@@ -360,21 +362,43 @@ RSpec.describe(StillActive::EcosystemLens) do
       stub_package(default_published_at: "2026-06-01T00:00:00Z")
       stub_project_scorecard
       stub_request(:get, %r{repos\.ecosyste\.ms/}).to_return(status: 503)
+      stub_request(:get, "https://api.github.com/repos/expressjs/express").to_return(status: 503)
 
       result = nil
       expect { result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1") }.to(output(/archived status unknown/).to_stderr)
 
-      expect(result).to(include(repository_unavailable: true, archived: nil))
+      expect(result).to(include(repository_check: "failed", archived: nil))
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
     end
 
-    it("doesn't mark a repository the source says doesn't exist") do
+    # Anonymous GitHub 404s a private repository too, so neither service knowing
+    # it is unknown, not "not archived"; and a rerun won't change that.
+    it("reads a repository neither ecosyste.ms nor GitHub knows as unknowable") do
       stub_version(source_repo: "https://github.com/gone/gone")
       stub_package(default_published_at: "2026-06-01T00:00:00Z")
       stub_project_scorecard
       stub_request(:get, %r{repos\.ecosyste\.ms/}).to_return(status: 404)
+      stub_request(:get, "https://api.github.com/repos/gone/gone").to_return(status: 404)
 
-      expect(described_class.assess(ecosystem: :npm, name: "gone", version: "1.0.0")).not_to(have_key(:repository_unavailable))
+      result = described_class.assess(ecosystem: :npm, name: "gone", version: "1.0.0")
+      expect(result).to(include(repository_check: "unknowable"))
+      expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
+    end
+
+    # Without a token, ecosyste.ms is asked first; one it hasn't crawled used to
+    # read as "not archived". GitHub answers for a public repo without a token.
+    it("asks GitHub when ecosyste.ms hasn't crawled the repository") do
+      stub_version(source_repo: "https://github.com/owner/uncrawled")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_request(:get, %r{repos\.ecosyste\.ms/}).to_return(status: 404)
+      stub_request(:get, "https://api.github.com/repos/owner/uncrawled")
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {archived: true, pushed_at: "2025-01-01T00:00:00Z"}.to_json)
+
+      result = described_class.assess(ecosystem: :npm, name: "uncrawled", version: "1.0.0")
+
+      expect(result).to(include(archived: true, repository_source: "github"))
+      expect(StillActive::StatusHelper.gem_status(result)).not_to(eq(:ok))
     end
   end
 

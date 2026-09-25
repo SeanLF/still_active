@@ -248,7 +248,7 @@ RSpec.describe(StillActive::Workflow) do
 
         data = nil
         expect { data = result["boom"] }.to(output(/error occurred for boom/).to_stderr)
-        expect(data).to(include(vulnerabilities_checked: false, repository_unavailable: true))
+        expect(data).to(include(vulnerabilities_checked: false, repository_check: "failed"))
       end
     end
 
@@ -270,16 +270,14 @@ RSpec.describe(StillActive::Workflow) do
         data = nil
         expect { data = result["rack"] }.to(output(/archived status unknown/).to_stderr)
 
-        expect(data).to(include(repository_unavailable: true, archived: nil))
+        expect(data).to(include(repository_check: "failed", archived: nil))
       end
 
-      it("lets GitHub fall back to ecosyste.ms for a public-registry gem, but not for a private source") do
-        allow(StillActive::GithubClient).to(receive(:repo_signals).and_call_original)
-        StillActive.config.github_oauth_token = "t"
-        allow(StillActive.config).to(receive(:github_client).and_return(instance_double(Octokit::Client, repository: nil).tap { allow(_1).to(receive(:repository).and_raise(Octokit::BadGateway)) }))
+      it("treats a rubygems.org gem as public, and a private registry's as not") do
+        allow(StillActive::RepositorySignals).to(receive(:for).and_call_original)
 
         expect { result }.to(output.to_stderr)
-        expect(StillActive::GithubClient).to(have_received(:repo_signals).with(owner: "rack", name: "rack", public: true))
+        expect(StillActive::RepositorySignals).to(have_received(:for).with(host: "github.com", owner: "rack", name: "rack", public: true))
 
         expect(described_class.send(:public_source?, "https://rubygems.pkg.github.com/acme")).to(be(false))
         expect(described_class.send(:public_source?, nil)).to(be(true))
@@ -1027,20 +1025,22 @@ RSpec.describe(StillActive::Workflow) do
     end
   end
 
-  describe("#provider_for (GitHub repo-signal source selection)") do
-    it("uses the live GitHub client when a token is configured") do
-      StillActive.config.github_oauth_token = "ghp_test_token"
-      expect(described_class.send(:provider_for, :github)).to(be(StillActive::GithubClient))
+  # Which services to ask is RepositorySignals' decision; the workflow says
+  # which forge the gem's repository is on, and whether its source is public.
+  describe("#repo_signals") do
+    it("asks RepositorySignals for the forge's host, and passes whether the source is public") do
+      allow(StillActive::RepositorySignals).to(receive(:for).and_return({archived: false, source: "gitlab"}))
+
+      described_class.send(:repo_signals, source: :gitlab, repository_owner: "o", repository_name: "n", public: true)
+      described_class.send(:repo_signals, source: :forgejo, repository_owner: "o", repository_name: "n")
+
+      expect(StillActive::RepositorySignals).to(have_received(:for).with(host: "gitlab.com", owner: "o", name: "n", public: true))
+      expect(StillActive::RepositorySignals).to(have_received(:for).with(host: "codeberg.org", owner: "o", name: "n", public: false))
     end
 
-    it("falls back to ecosyste.ms when no GitHub token is available (avoids the 60 req/hr cap)") do
-      allow(StillActive.config).to(receive(:github_oauth_token).and_return(nil))
-      expect(described_class.send(:provider_for, :github)).to(be(StillActive::EcosystemsClient))
-    end
-
-    it("still uses the GitLab client for gitlab sources regardless of GitHub token") do
-      allow(StillActive.config).to(receive(:github_oauth_token).and_return(nil))
-      expect(described_class.send(:provider_for, :gitlab)).to(be(StillActive::GitlabClient))
+    it("records which service answered") do
+      expect(described_class.send(:repository_availability, {archived: false, source: "ecosyste.ms", check: "answered"})).to(eq(repository_check: "answered", repository_source: "ecosyste.ms"))
+      expect(described_class.send(:repository_availability, {check: "failed"})).to(eq(repository_check: "failed"))
     end
   end
 

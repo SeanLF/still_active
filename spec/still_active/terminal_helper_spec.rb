@@ -18,6 +18,7 @@ RSpec.describe(StillActive::TerminalHelper) do
         scorecard_score: 5.7,
         vulnerability_count: 0,
         repository_url: "https://github.com/rails/rails",
+        repository_check: "answered",
         ruby_gems_url: "https://rubygems.org/gems/rails",
         license: "MIT"
       },
@@ -37,6 +38,7 @@ RSpec.describe(StillActive::TerminalHelper) do
           {id: "GHSA-3", cvss3_score: 3.0}
         ],
         repository_url: "https://github.com/example/stale",
+        repository_check: "answered",
         ruby_gems_url: "https://rubygems.org/gems/stale_gem",
         libyear: 2.5,
         license: "GPL-3.0"
@@ -97,9 +99,10 @@ RSpec.describe(StillActive::TerminalHelper) do
     end
 
     it("shows ? rather than ok when a gem's repository couldn't be read, and counts it") do
-      data = {latest_version_release_date: Time.now, repository_unavailable: true}
+      data = {latest_version_release_date: Time.now, repository_check: "failed"}
       expect(described_class.send(:format_activity, data).gsub(/\e\[\d+m/, "")).to(eq("?"))
-      expect(described_class.send(:summary_line, {"g" => data})).to(include("1 repository unreadable"))
+      expect(described_class.send(:summary_line, {"g" => data})).to(include("1 repository unchecked (1 failed)"))
+      expect(described_class.send(:summary_line, {"g" => data.merge(repository_check: "unknowable")})).to(end_with("1 repository unchecked"))
     end
 
     it("shows ? rather than 0 when a gem's advisories went unchecked, and counts it in the summary") do

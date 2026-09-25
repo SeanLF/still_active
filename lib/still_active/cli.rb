@@ -12,6 +12,7 @@ require_relative "helpers/dependency_helper"
 require_relative "helpers/diff_markdown_helper"
 require_relative "helpers/emoji_helper"
 require_relative "helpers/markdown_helper"
+require_relative "helpers/repository_check"
 require_relative "helpers/sarif_helper"
 require_relative "helpers/status_helper"
 require_relative "helpers/summary_helper"
@@ -160,7 +161,7 @@ module StillActive
       # goes through the gates as unchecked rather than dropping out of them.
       # Reader-level unassessables (a private registry, no version) stay out: those
       # are known limits of what can be assessed, not failures.
-      failed = outcome.failures.to_h { ["#{_1[:ecosystem]}/#{_1[:name]}@#{_1[:version]}", _1.merge(vulnerabilities_checked: false, repository_unavailable: true)] }
+      failed = outcome.failures.to_h { ["#{_1[:ecosystem]}/#{_1[:name]}@#{_1[:version]}", _1.merge(vulnerabilities_checked: false, repository_check: "failed")] }
       check_exit_status(outcome.assessed.merge(failed))
     end
 
@@ -305,7 +306,7 @@ module StillActive
         status: StatusHelper.project_status(result),
         status_counts: statuses.tally,
         vulnerabilities_unchecked: result.count { |_key, data| data[:vulnerabilities_checked] == false },
-        repositories_unavailable: result.count { |_key, data| data[:repository_unavailable] }
+        repository_checks: RepositoryCheck.tally(result.values)
       }
     end
 
@@ -551,13 +552,13 @@ module StillActive
       return unless config.fail_if_warning || config.fail_if_critical
 
       result.each do |name, data|
-        next unless data[:repository_unavailable]
+        next unless RepositoryCheck.failed?(data)
 
         gem = DependencyHelper.identity(name, data)
         next if config.ignored_gems.include?(gem) || config.suppressions.suppressed?(gem: gem, signal: :activity)
 
         gate = config.fail_if_critical ? "--fail-if-critical" : "--fail-if-warning"
-        warn("warning: #{gem}: its repository couldn't be read, so whether it's archived is unknown; failing #{gate} rather than reading it as active (rerun, or suppress its activity signal)")
+        warn("warning: #{gem}: no service could check its repository, so whether it's archived is unknown; failing #{gate} rather than reading it as active (rerun, or suppress its activity signal)")
       end
     end
 
@@ -615,9 +616,10 @@ module StillActive
       return false unless config.fail_if_warning || config.fail_if_critical
       return false if suppressions.suppressed?(gem: name, signal: :activity)
 
-      # A repository no source could read may be archived, which both gates
-      # catch, so it fails closed rather than passing on its release dates.
-      return true if data[:repository_unavailable]
+      # A repository check that failed may have hidden an archived repository,
+      # which both gates catch, so it fails closed. One no service can make
+      # ("unknowable") reads unknown but passes: a rerun would never change it.
+      return true if RepositoryCheck.failed?(data)
 
       level = ActivityHelper.activity_level(data)
       (config.fail_if_warning && [:stale, :critical, :archived].include?(level)) ||

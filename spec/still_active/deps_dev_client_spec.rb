@@ -710,6 +710,14 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(project_id("https://www.github.com/rails/rails")).to(eq("github.com/rails/rails"))
     end
 
+    # A fragment or query in the link would otherwise end up in the repository
+    # name, which Octokit rejects outright.
+    it("drops a fragment or query from the repository link") do
+      expect(project_id("git+https://github.com/foo/bar.git#main")).to(eq("github.com/foo/bar"))
+      expect(project_id("https://github.com/foo/bar#readme")).to(eq("github.com/foo/bar"))
+      expect(project_id("https://github.com/foo/bar?tab=x")).to(eq("github.com/foo/bar"))
+    end
+
     it("strips a trailing slash and .git suffix") do
       expect(project_id("https://github.com/rails/rails/")).to(eq("github.com/rails/rails"))
       expect(project_id("https://github.com/rails/rails.git")).to(eq("github.com/rails/rails"))
