@@ -101,7 +101,7 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `cvss3_score` | float \| nil | CVSS v3 base score (0.0–10.0). |
 | `cvss3_vector` | string \| nil | CVSS v3 vector string. (Always `nil` for `ruby-advisory-db`-only advisories — bundler-audit exposes no vector.) |
 | `cvss2_score` | float \| nil | CVSS v2 fallback for older advisories. |
-| `source` | string | Which source reported the advisory: `"deps.dev"`, `"ruby-advisory-db"`, or `"merged"` (both). `ruby-advisory-db` entries appear only when `bundler-audit` is installed with a current advisory checkout. |
+| `source` | string | Which source reported the advisory: `"deps.dev"`, `"ruby-advisory-db"`, `"merged"` (both), or `"osv"` (the Go toolchain, whose advisories come from OSV directly). `ruby-advisory-db` entries appear only when `bundler-audit` is installed with a current advisory checkout. |
 | `osv_severity` | string \| nil | OSV/GHSA qualitative label (`HIGH`, etc.), used when deps.dev can't score a CVSS-4-only advisory. |
 | `osv_cvss_score` | float \| nil | CVSS base score from OSV enrichment. |
 | `cvss_version` | string \| nil | CVSS version of the scored vector (e.g. `3.1`, `4.0`). |
@@ -127,14 +127,14 @@ A cross-ecosystem audit emits a **different document** from the Gemfile audit, a
 
 | | native (`--gemfile` / `--gems`) | cross-ecosystem (`--sbom`) |
 | --- | --- | --- |
-| `$schema` | present, points at this schema | **absent** |
+| `$schema` | `still_active.schema.json` | `still_active.sbom.schema.json` |
 | dependency map | `gems`, keyed by bare gem name | `dependencies`, keyed `ecosystem/name@version` |
 | coverage gaps | n/a | `unassessable` array |
 | `ruby` / `pr_context` | present when known | absent |
 
-**Check for `gems` versus `dependencies`, not `schema_version`.** Both documents carry `schema_version: 1`, because the versioning policy below governs both, but only the native one claims this schema. The SBOM output deliberately omits `$schema`: pointing at a contract it does not match would be a false claim.
+**Check for `gems` versus `dependencies`, or `$schema`, not `schema_version`.** Both documents carry `schema_version: 1`, because the versioning policy below governs both.
 
-The SBOM output is **not** covered by the JSON Schema file. It is documented here and versioned by the same policy, and that difference is deliberate rather than an omission: composite keys and an `unassessable` list do not fit the native `gem` definition.
+The SBOM output has its own JSON Schema, [`still_active.sbom.schema.json`](still_active.sbom.schema.json). Every field it shares with the Gemfile audit is a `$ref` into this document's schema, so the two can't drift apart; only the SBOM-specific parts (composite keys, the `unassessable` list, the fields below) are defined there.
 
 ### Envelope
 
@@ -164,7 +164,7 @@ Fields specific to this path:
 | `dependency_path` | array | Present only for a transitive package, head-first, naming the declared dependency that pulls it in as `ecosystem/name`. |
 | `version_unresolved` | bool | The pinned version could not be resolved while the package could. The cross-ecosystem analogue of `version_yanked`. |
 
-Each `unassessable` entry carries `ecosystem`, `name` and a `reason` (an unsupported ecosystem, a missing version or PURL, a private registry, a malformed PURL, or a failed lookup), plus `version` and `production` when known.
+Each `unassessable` entry carries `ecosystem`, `name` and a `reason` (an unsupported ecosystem, a missing version or PURL, a private registry, a malformed PURL, or a failed lookup), plus `version` when known. An entry whose lookup failed (`assessment_error`) also carries the `error`, and the `purl`, `production`, `direct` and `dependency_path` the dependency had.
 
 ## The supported integration surface
 

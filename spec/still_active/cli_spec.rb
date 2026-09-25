@@ -1228,8 +1228,8 @@ RSpec.describe(StillActive::CLI) do
       cli.run(["--sbom=sbom.json"])
       payload = JSON.parse(captured)
       expect(payload).to(include("schema_version" => 1))
-      # A different shape from the Ruby audit: no $schema contract, no `gems` block.
-      expect(payload).not_to(include("$schema"))
+      # A different shape from the Ruby audit: its own schema, no `gems` block.
+      expect(payload["$schema"]).to(end_with("still_active.sbom.schema.json"))
       expect(payload).not_to(include("gems"))
       expect(payload.dig("tool", "name")).to(eq("still_active"))
       # Keyed "ecosystem/name@version" so same-name packages can't collide.

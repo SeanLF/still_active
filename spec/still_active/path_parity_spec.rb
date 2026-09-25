@@ -304,6 +304,14 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
     )
   end
 
+  it("the published SBOM schema defines exactly the shared fields plus the SBOM-only ones") do
+    schema = JSON.parse(File.read(File.join(root, "docs/still_active.sbom.schema.json")))
+    defined = schema.dig("$defs", "dependency", "properties").keys.map(&:to_sym)
+    expected = shared_fields + sbom_only_fields.keys
+
+    expect(defined).to(match_array(expected), "schema-only: #{(defined - expected).join(", ")}; registry-only: #{(expected - defined).join(", ")}")
+  end
+
   it("the SBOM path emits exactly the shared fields plus its declared SBOM-only fields") do
     expected = (shared_fields + sbom_only_fields.keys).sort
 
