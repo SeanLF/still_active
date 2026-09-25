@@ -3,6 +3,7 @@
 require "net/http"
 require "openssl"
 require "json"
+require_relative "http_cache"
 
 module StillActive
   module HttpHelper
@@ -51,12 +52,17 @@ module StillActive
       @pool = nil
     end
 
-    def get_json(base_uri, path, headers: {}, params: {}, strict: false)
+    # `cache: false` skips the disk cache (a canary has to see the source as it is
+    # now); `cache_if` decides whether an answer is sound enough to keep, so a
+    # garbled one isn't reread for its whole TTL.
+    def get_json(base_uri, path, headers: {}, params: {}, strict: false, cache: true, cache_if: nil)
       uri = base_uri.dup
       uri.path = path
       uri.query = URI.encode_www_form(params) unless params.empty?
 
-      request_json(uri, headers, strict: strict) { |target| Net::HTTP::Get.new(target) }
+      cached(HttpCache.key("GET", uri), uri, headers, enabled: cache, cache_if: cache_if) do
+        request_json(uri, headers, strict: strict) { |target| Net::HTTP::Get.new(target) }
+      end
     end
 
     # As get_json, but for endpoints that answer in plain text (the RubyGems
@@ -69,6 +75,8 @@ module StillActive
       request_json(uri, headers, parse: IDENTITY) { |target| Net::HTTP::Get.new(target) }
     end
 
+    # Never cached: the POSTs this tool makes (OSV's version query, deps.dev's
+    # batch, Artifactory's AQL) each have to be fresh, or aren't public.
     def post_json(base_uri, path, body:, headers: {}, strict: false)
       uri = base_uri.dup
       uri.path = path
@@ -81,6 +89,18 @@ module StillActive
     end
 
     private
+
+    # A cached answer when there's a fresh one; otherwise asks, and caches a
+    # non-nil answer. nil is a 404 or a failure, neither of which is kept.
+    def cached(key, uri, headers, enabled:, cache_if: nil)
+      ttl = enabled && HttpCache.ttl(uri, headers)
+      return yield unless ttl
+
+      hit = HttpCache.read(key, ttl)
+      return hit unless hit == :miss
+
+      yield.tap { |body| HttpCache.write(key, body) if !body.nil? && (cache_if.nil? || cache_if.call(body)) }
+    end
 
     # Two URIs share an origin when scheme, host, and port all match. URI fills
     # in the default port (443 for https), so the bare and explicit forms of the
