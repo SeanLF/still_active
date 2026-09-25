@@ -12,6 +12,7 @@ module StillActive
 
     BUMP_KIND_LABELS = {
       closed_vulns: "closed vulns",
+      advisories_unchecked: "advisories UNCHECKED",
       introduced_vulns: "INTRODUCED vulns",
       fresher: "fresher",
       older_relative: "older relative to latest",
@@ -149,6 +150,8 @@ module StillActive
           "- #{name} — scorecard #{MarkdownEscape.inline(ch[:from])} → #{MarkdownEscape.inline(ch[:to])}#{note}"
         when :version_yanked
           "- #{name} — version yanked from rubygems"
+        when :advisories_unchecked
+          "- #{name} — advisories could not be checked"
         when :libyear_worsened
           "- #{name} — libyear #{MarkdownEscape.inline(ch[:from])} → #{MarkdownEscape.inline(ch[:to])} (+#{ch[:delta]}y; same pinned version)"
         end

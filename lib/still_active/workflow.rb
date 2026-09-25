@@ -90,6 +90,9 @@ module StillActive
             $stderr.print("\r\e[K") if on_progress
             warn("error occurred for #{gem[:name]}: #{e.class}\n\t#{e.message}")
           ensure
+            # An assessment that raised part-way never reached the advisory lookup;
+            # its entry must not read as checked.
+            hash[gem[:name]][:vulnerabilities_checked] = false if hash[gem[:name]] && !hash[gem[:name]].key?(:vulnerabilities_checked)
             completed += 1
             on_progress&.call(completed, total)
           end
@@ -286,7 +289,8 @@ module StillActive
     def gem_info_non_rubygems(gem_name:, gem_version:, result_object:, source_uri: nil, advisory_db: nil)
       repo_info = repository_info_for_non_rubygems(gem_name: gem_name, source_uri: source_uri)
       source, owner, name = repo_info.values_at(:source, :owner, :name)
-      deps_dev = gem_version ? fetch_deps_dev_info(gem_name: gem_name, version: gem_version, advisory_db: advisory_db) : {}
+      # With no version there is nothing to look advisories up by.
+      deps_dev = gem_version ? fetch_deps_dev_info(gem_name: gem_name, version: gem_version, advisory_db: advisory_db) : {vulnerabilities_checked: false}
 
       # Fall back to repo-derived project_id for scorecard when deps.dev doesn't
       # have the version. Use ||= so a maintained score already found via the
@@ -371,7 +375,16 @@ module StillActive
     end
 
     def fetch_deps_dev_info(gem_name:, version:, advisory_db: nil)
-      info = DepsDevClient.version_info(gem_name: gem_name, version: version)
+      # deps.dev failing to answer leaves the advisories unchecked, unless
+      # ruby-advisory-db, the Ruby authority, is loaded and answers for them.
+      # No version (the latest-version lookup failed too) means nothing was asked.
+      checked = !version.nil?
+      info = begin
+        DepsDevClient.version_info(gem_name: gem_name, version: version)
+      rescue HttpHelper::Unavailable
+        checked = !advisory_db.nil?
+        nil
+      end
       scorecard = DepsDevClient.project_scorecard(project_id: info&.dig(:project_id))
       advisory_keys = info&.dig(:advisory_keys) || []
       # The keys ARE the evidence the version is vulnerable; the detail fetch only
@@ -397,6 +410,7 @@ module StillActive
         deprecated: info&.dig(:deprecated) == true,
         deprecation_reason: info&.dig(:deprecation_reason),
         vulnerability_count: vulnerabilities.length,
+        vulnerabilities_checked: checked,
         vulnerabilities: vulnerabilities
       }
     end

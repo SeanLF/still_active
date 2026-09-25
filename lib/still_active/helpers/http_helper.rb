@@ -30,16 +30,21 @@ module StillActive
     # gem with thousands of versions while bounding worst-case memory.
     MAX_BODY_BYTES = 16 * 1024 * 1024
     JSON_PARSER = ->(body) { JSON.parse(body) }
+    # Raised in strict mode when the source couldn't answer: a transport error, a
+    # non-404 error status, a refused redirect, an oversized or garbled body. A 404
+    # is an answer ("no such record") and still returns nil. A caller that must not
+    # read a failure as "nothing there", like an advisory lookup, asks for strict.
+    Unavailable = Class.new(StandardError)
     IDENTITY = ->(body) { body }
 
     extend self
 
-    def get_json(base_uri, path, headers: {}, params: {})
+    def get_json(base_uri, path, headers: {}, params: {}, strict: false)
       uri = base_uri.dup
       uri.path = path
       uri.query = URI.encode_www_form(params) unless params.empty?
 
-      request_json(uri, headers) { |target| Net::HTTP::Get.new(target) }
+      request_json(uri, headers, strict: strict) { |target| Net::HTTP::Get.new(target) }
     end
 
     # As get_json, but for endpoints that answer in plain text (the RubyGems
@@ -52,11 +57,11 @@ module StillActive
       request_json(uri, headers, parse: IDENTITY) { |target| Net::HTTP::Get.new(target) }
     end
 
-    def post_json(base_uri, path, body:, headers: {})
+    def post_json(base_uri, path, body:, headers: {}, strict: false)
       uri = base_uri.dup
       uri.path = path
 
-      request_json(uri, headers) do |target|
+      request_json(uri, headers, strict: strict) do |target|
         request = Net::HTTP::Post.new(target)
         request.body = body
         request
@@ -76,7 +81,7 @@ module StillActive
     # and returns the parsed body (or nil), where `parse` decides JSON vs text.
     # The block is yielded each URI and returns the request object, so GET and
     # POST share the redirect/auth/cap logic.
-    def request_json(uri, headers, parse: JSON_PARSER)
+    def request_json(uri, headers, parse: JSON_PARSER, strict: false)
       MAX_REDIRECTS.times do
         http = Net::HTTP.new(uri.host, uri.port)
         http.use_ssl = true
@@ -89,27 +94,33 @@ module StillActive
         outcome, payload = perform(http, request, uri, parse)
         case outcome
         when :done
-          return payload
-        when :stop
+          # A 404 is how a source says "no record"; a 200 of `null` says nothing.
+          return payload unless payload.nil? && strict
+
+          warn("warning: #{uri.host}#{uri.path} returned an empty (null) body")
+          return unavailable(strict, uri)
+        when :not_found
           return
+        when :stop
+          return unavailable(strict, uri)
         when :redirect
           location = payload["Location"]
           if location.nil? || location.empty?
             warn("warning: #{uri.host}#{uri.path} returned HTTP #{payload.code} with no Location header")
-            return
+            return unavailable(strict, uri)
           end
 
           redirect_uri = uri + location
           unless TRUSTED_HOSTS.include?(redirect_uri.host)
             warn("warning: #{uri.host}#{uri.path} redirected to untrusted host #{redirect_uri.host}, skipping")
-            return
+            return unavailable(strict, uri)
           end
           # We dial every request over TLS (use_ssl = true). A redirect that
           # downgrades to http is either a misconfiguration or a downgrade
           # attempt; refuse it rather than silently dialing http-over-TLS.
           unless redirect_uri.scheme == "https"
             warn("warning: #{uri.host}#{uri.path} redirected to non-https #{redirect_uri.scheme} target, skipping")
-            return
+            return unavailable(strict, uri)
           end
           warn("warning: #{uri.host}#{uri.path} redirected to #{redirect_uri.host}#{redirect_uri.path} (stale metadata?)")
           # Auth is scoped to an origin (scheme + host + port), not just a host:
@@ -120,22 +131,28 @@ module StillActive
       end
 
       warn("warning: #{uri.host}#{uri.path} too many redirects")
-      nil
+      unavailable(strict, uri)
     rescue *TRANSPORT_ERRORS => e
       warn("warning: #{uri.host}#{uri.path} failed: #{e.class} (#{e.message})")
-      nil
+      unavailable(strict, uri)
     rescue JSON::ParserError => e
       warn("warning: #{uri.host}#{uri.path} returned invalid JSON: #{e.message}")
-      nil
+      unavailable(strict, uri)
     rescue URI::InvalidURIError => e
       warn("warning: #{uri.host}#{uri.path} returned an invalid redirect Location: #{e.message}")
-      nil
+      unavailable(strict, uri)
+    end
+
+    # Every failure has already warned; strict callers also get told.
+    def unavailable(strict, uri)
+      raise Unavailable, "#{uri.host}#{uri.path}" if strict
     end
 
     # Issues the request in streaming form so the body is read against a size
     # cap rather than buffered whole. Returns one of:
     #   [:redirect, response]  a 3xx, for the caller to follow
-    #   [:stop, nil]           non-success (warns unless 404), or body over cap
+    #   [:not_found, nil]      a 404, which is an answer, not a failure
+    #   [:stop, nil]           any other non-success (warns), or body over cap
     #   [:done, parsed]        a 2xx with the parsed body (JSON or text)
     # Redirect and non-success bodies are never read: returning from the block
     # unwinds through Net::HTTP, which closes the connection without draining
@@ -144,8 +161,10 @@ module StillActive
       http.request(request) do |response|
         return [:redirect, response] if response.is_a?(Net::HTTPRedirection)
 
+        return [:not_found, nil] if response.is_a?(Net::HTTPNotFound)
+
         unless response.is_a?(Net::HTTPSuccess)
-          warn("warning: #{uri.host}#{uri.path} returned HTTP #{response.code}") unless response.is_a?(Net::HTTPNotFound)
+          warn("warning: #{uri.host}#{uri.path} returned HTTP #{response.code}")
           return [:stop, nil]
         end
 

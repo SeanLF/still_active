@@ -46,6 +46,7 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `outdated` | integer | Gems not on the latest version (`up_to_date == false`). |
 | `vulnerable_gems` | integer | Gems with at least one advisory. |
 | `vulnerabilities` | integer | Total advisories across all gems. |
+| `vulnerabilities_unchecked` | integer | Gems whose advisories no source could answer for (`vulnerabilities_checked: false`). |
 | `status` | string | The single worst per-gem `status` (see below), floored at `"vulnerable"` when Ruby is EOL. `"unknown"` only when nothing better is known. The project-level posture in one word. |
 | `ruby_eol` | bool \| absent | `true` if the project's Ruby has reached EOL. Absent when Ruby info isn't detectable. |
 
@@ -70,6 +71,7 @@ A digest so a consumer reads the headline posture without iterating every gem. C
 | `scorecard_maintained` | float \| nil | OpenSSF Scorecard `Maintained` sub-check 0.0–10.0 (recent commit and issue activity) from deps.dev. `nil` when the project has no scorecard, distinct from `0.0` ("measured: unmaintained"). |
 | `status` | string | Single categorical **lifecycle** verdict folding the signals together. Worst-first: `"dead"` (dormant, archived **or deprecated**, and carrying an unpatched advisory -- no one is fixing it, migrate) > `"vulnerable"` (a fixable advisory on an actively-released gem) > `"deprecated"` (the maintainer has said to stop using it; never reported as `"legacy"`, since a deprecation contradicts "done and low risk") > `"archived"` (repo archived) > `"stale"` (drifting, in the warning window) > `"legacy"` (long-dormant but **clean** -- feature-complete, low risk; the "done gem") > `"ok"` (actively maintained) > `"unknown"` (no data, never silently `"ok"`). A display/threshold convenience; the individual fields remain authoritative. |
 | `vulnerability_count` | integer | Number of advisories affecting `version_used`. |
+| `vulnerabilities_checked` | bool \| absent | `false` when no advisory source could answer for this version (a failed lookup, or no version to look up), so `vulnerability_count: 0` means "not looked at", not "clean". A `404` from deps.dev is an answer, so a private gem stays `true`. `false` turns an otherwise-`"ok"` status into `"unknown"`, and fails `--fail-if-vulnerable`. |
 | `vulnerabilities` | array | One entry per advisory (see below). |
 | `alternatives` | array \| absent | Present only with `--alternatives` on an archived/critical **direct** gem: up to three maintained Ruby Toolbox leads to verify. Direct-only by design (you can't swap a gem you didn't choose). |
 | `ruby_gems_url` | string \| absent | Present for rubygems-sourced gems. |
@@ -140,13 +142,13 @@ The SBOM output is **not** covered by the JSON Schema file. It is documented her
 | `schema_version` | integer | `1`. Same policy as the native output. |
 | `tool` | object | `{ name, version }`. |
 | `generated_at` | string | ISO-8601 timestamp. |
-| `summary` | object | `total_assessed`, `unassessable_count`, `status` (worst per-dependency verdict), `status_counts` (a tally per status). |
+| `summary` | object | `total_assessed`, `unassessable_count`, `status` (worst per-dependency verdict), `status_counts` (a tally per status), `vulnerabilities_unchecked` (dependencies whose advisories no source could answer for). |
 | `dependencies` | object | Keyed `ecosystem/name@version`, so a package appearing at two versions in a merged SBOM does not collide. |
 | `unassessable` | array | Components that could not be assessed. Never silently dropped. |
 
 ### Per dependency
 
-Most fields carry the same meaning as the native `gem` object above, so they are not repeated here: `activity_level`, `archived`, `deprecated`, `deprecation_reason`, `last_commit_date`, `latest_version`, `latest_version_release_date`, `libyear`, `license`, `repository_url`, `scorecard_maintained`, `scorecard_score`, `status`, `up_to_date`, `version_used`, `version_used_release_date`, `vulnerabilities`, `vulnerability_count`.
+Most fields carry the same meaning as the native `gem` object above, so they are not repeated here: `activity_level`, `archived`, `deprecated`, `deprecation_reason`, `last_commit_date`, `latest_version`, `latest_version_release_date`, `libyear`, `license`, `repository_url`, `scorecard_maintained`, `scorecard_score`, `status`, `up_to_date`, `version_used`, `version_used_release_date`, `vulnerabilities`, `vulnerabilities_checked`, `vulnerability_count`.
 
 Fields specific to this path:
 

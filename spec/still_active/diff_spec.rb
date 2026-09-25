@@ -7,6 +7,35 @@ RSpec.describe(StillActive::Diff) do
   let(:baseline) { JSON.parse(File.read(File.expand_path("../fixtures/diff/baseline.json", __dir__))) }
   let(:current) { JSON.parse(File.read(File.expand_path("../fixtures/diff/current.json", __dir__))) }
 
+  # A zero no source answered for is not a fix, and a gem that newly can't be
+  # checked is a regression, not a quiet pass.
+  describe("unchecked advisories") do
+    def doc(gems) = {"schema_version" => 1, "gems" => gems}
+
+    def gem_entry(version, count: 0, checked: true)
+      {"version_used" => version, "vulnerability_count" => count, "vulnerabilities" => Array.new(count) { |i| {"id" => "CVE-#{i}"} }, "vulnerabilities_checked" => checked}
+    end
+
+    it("reads a bump to an unchecked version as unchecked, not closed, and as a regression") do
+      diff = described_class.call(baseline: doc("foo" => gem_entry("1.0", count: 2)), current: doc("foo" => gem_entry("1.1", checked: false)))
+
+      expect(diff.bumped.first.kind).to(eq(:advisories_unchecked))
+      expect(diff.regressions.map(&:kind)).to(include(:bump_unchecked))
+    end
+
+    it("reads an added unchecked gem as a regression") do
+      diff = described_class.call(baseline: doc({}), current: doc("bar" => gem_entry("1.0", checked: false)))
+
+      expect(diff.regressions.map(&:kind)).to(include(:new_gem_unchecked))
+    end
+
+    it("reads the same version going unchecked as a regression") do
+      diff = described_class.call(baseline: doc("foo" => gem_entry("1.0")), current: doc("foo" => gem_entry("1.0", checked: false)))
+
+      expect(diff.regressions.map(&:kind)).to(include(:advisories_unchecked))
+    end
+  end
+
   describe(".suppressible_signal") do
     it("maps archived regressions to the activity signal") do
       expect(described_class.suppressible_signal(:new_gem_archived)).to(eq(:activity))

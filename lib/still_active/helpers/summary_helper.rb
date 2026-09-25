@@ -16,7 +16,7 @@ module StillActive
 
     def summarize(result, ruby_info: nil)
       activity = ACTIVITY_LEVELS.to_h { |level| [level, 0] }
-      archived = up_to_date = outdated = vulnerable_gems = vulnerabilities = direct = 0
+      archived = up_to_date = outdated = vulnerable_gems = vulnerabilities = unchecked = direct = 0
 
       result.each_value do |data|
         activity[ActivityHelper.activity_level(data)] += 1
@@ -24,6 +24,7 @@ module StillActive
         archived += 1 if data[:archived]
         up_to_date += 1 if data[:up_to_date] == true
         outdated += 1 if data[:up_to_date] == false
+        unchecked += 1 if data[:vulnerabilities_checked] == false
         count = data[:vulnerability_count].to_i
         next unless count.positive?
 
@@ -41,6 +42,7 @@ module StillActive
         outdated: outdated,
         vulnerable_gems: vulnerable_gems,
         vulnerabilities: vulnerabilities,
+        vulnerabilities_unchecked: unchecked,
         # The single worst per-gem verdict (plus EOL Ruby), so a consumer reads
         # one project-level posture without scanning every gem's status.
         status: StatusHelper.project_status(result, ruby_info: ruby_info)

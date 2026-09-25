@@ -23,17 +23,26 @@ module StillActive
     def advisory_schema_ok?
       info = version_info(gem_name: ADVISORY_CANARY[:name], version: ADVISORY_CANARY[:version], system: ADVISORY_CANARY[:system])
       !(info.nil? || info[:advisory_keys].empty?)
+    rescue HttpHelper::Unavailable
+      false
     end
 
     # `system` is the deps.dev package system, lowercased: rubygems, npm, pypi,
     # cargo, go, maven, nuget. It matches the ecosystem symbol SbomReader emits,
-    # so a cross-ecosystem caller threads it straight through. An unknown system
-    # 404s and degrades to nil (HttpHelper swallows 404), never raising.
+    # so a cross-ecosystem caller threads it straight through. nil when deps.dev
+    # has no record (a 404: an unknown system, a private package, a yanked
+    # version). This response carries the advisories, so a failure to answer is
+    # NOT nil: it is retried once, then raises HttpHelper::Unavailable, and the
+    # caller reports the advisories unchecked rather than clean.
     def version_info(gem_name:, version:, system: :rubygems)
       return if gem_name.nil? || version.nil?
 
       path = "/v3alpha/systems/#{encode(system)}/packages/#{encode(gem_name)}/versions/#{encode(version)}"
-      body = HttpHelper.get_json(BASE_URI, path)
+      body = begin
+        version_record(path)
+      rescue HttpHelper::Unavailable
+        version_record(path)
+      end
       return if body.nil?
 
       {
@@ -178,6 +187,18 @@ module StillActive
     end
 
     private
+
+    # deps.dev sends `advisoryKeys` on every version record, as [] when there are
+    # none (verified 2026-09-24). A record without it is schema drift or a garbled
+    # answer, and reading it as "no advisories" is the silent zero the canary
+    # guards against, so it counts as no answer, per dependency.
+    def version_record(path)
+      body = HttpHelper.get_json(BASE_URI, path, strict: true)
+      return body if body.nil? || (body.is_a?(Hash) && body["advisoryKeys"].is_a?(Array))
+
+      warn("warning: api.deps.dev#{path} returned a version record with no advisoryKeys list; the API may have changed")
+      raise HttpHelper::Unavailable, path
+    end
 
     # "" is how deps.dev renders "no deprecation message"; nil keeps an absent
     # reason from rendering as a present blank.
