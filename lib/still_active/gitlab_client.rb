@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "time"
+require_relative "errors"
 require_relative "helpers/http_helper"
 
 module StillActive
@@ -17,10 +18,13 @@ module StillActive
       return {} if owner.nil? || name.nil?
 
       path = "/api/v4/projects/#{encode_project(owner, name)}"
-      body = HttpHelper.get_json(BASE_URI, path, headers: auth_headers)
+      # {} for a 404 (an answer); RepoSignalsUnavailable when GitLab couldn't answer.
+      body = HttpHelper.get_json(BASE_URI, path, headers: auth_headers, strict: true)
       return {} if body.nil?
 
       {archived: body["archived"] == true, last_commit_date: parse_time(body["last_activity_at"], owner, name)}
+    rescue HttpHelper::Unavailable => e
+      raise RepoSignalsUnavailable, e.message
     end
 
     private

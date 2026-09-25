@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "errors"
 require_relative "deps_dev_client"
 require_relative "osv_client"
 require_relative "ecosystems_client"
@@ -115,6 +116,8 @@ module StillActive
         vulnerabilities: vulnerabilities
       }
       gem_data[:version_unresolved] = true if version_unresolved
+      # The repository couldn't be read, so a blank archived flag isn't "not archived".
+      gem_data[:repository_unavailable] = true if repo[:unavailable]
       attach_constraints(gem_data, ecosystem: ecosystem, name: name, version: version, cache: constraint_cache)
       attach_language_ceiling(gem_data, ecosystem: ecosystem, name: name, version: version, latest_version: default&.dig(:version), runtime_ranges: runtime_ranges)
       gem_data
@@ -327,6 +330,9 @@ module StillActive
       return {} unless host == "github.com" && owner && name && rest.empty?
 
       repo_provider.repo_signals(owner: owner, name: name) || {}
+    rescue RepoSignalsUnavailable
+      warn("warning: #{owner}/#{name}: no repository source answered; archived status unknown")
+      {unavailable: true}
     end
 
     # Mirrors Workflow#provider_for(:github): the live GitHub API when a token is

@@ -4,6 +4,7 @@ require_relative "artifactory_client"
 require_relative "compact_index_client"
 require_relative "source_credentials"
 require_relative "ceiling_reconciler"
+require_relative "errors"
 require_relative "deps_dev_client"
 require_relative "osv_client"
 require_relative "poison_security_correlator"
@@ -90,9 +91,6 @@ module StillActive
               constraint_cache: constraint_cache,
               ruby_range: ruby_range
             )
-          rescue Octokit::TooManyRequests
-            $stderr.print("\r\e[K") if on_progress
-            warn("rate limited checking #{gem[:name]}: set GITHUB_TOKEN to increase your limit")
           rescue => e
             $stderr.print("\r\e[K") if on_progress
             warn("error occurred for #{gem[:name]}: #{e.class}\n\t#{e.message}")
@@ -100,6 +98,8 @@ module StillActive
             # An assessment that raised part-way never reached the advisory lookup;
             # its entry must not read as checked.
             hash[gem[:name]][:vulnerabilities_checked] = false if hash[gem[:name]] && !hash[gem[:name]].key?(:vulnerabilities_checked)
+            # Likewise its repository: every completed path sets :archived, even to nil.
+            hash[gem[:name]][:repository_unavailable] = true if hash[gem[:name]] && !hash[gem[:name]].key?(:archived)
             completed += 1
             on_progress&.call(completed, total)
           end
@@ -165,7 +165,8 @@ module StillActive
       signals = repo_signals(
         source: repo_info[:source],
         repository_owner: repo_info[:owner],
-        repository_name: repo_info[:name]
+        repository_name: repo_info[:name],
+        public: public_source?(source_uri)
       )
       commit_date = signals[:last_commit_date]
       archived = signals[:archived]
@@ -189,6 +190,7 @@ module StillActive
         repository_url: repo_info[:url],
         last_commit_date: commit_date,
         archived: archived,
+        **repository_availability(signals),
         **deps_dev
       })
 
@@ -319,6 +321,7 @@ module StillActive
         repository_url: repo_info[:url],
         last_commit_date: signals[:last_commit_date],
         archived: signals[:archived],
+        **repository_availability(signals),
         **deps_dev
       })
     end
@@ -593,8 +596,31 @@ module StillActive
     # One provider call yields both archived and the last-activity date (the
     # repo object carries both), so a gem's repo signals cost a single request
     # instead of two. Returns {} for an unhandled host.
-    def repo_signals(source:, repository_owner:, repository_name:)
-      provider_for(source)&.repo_signals(owner: repository_owner, name: repository_name) || {}
+    # {unavailable: true} when the provider couldn't answer, so the gem is marked
+    # rather than its blank archived flag read as "not archived".
+    # `public:` says the gem came from a public registry, which lets GitHub fall
+    # back to ecosyste.ms without sending a private repo's name to a third party.
+    def repo_signals(source:, repository_owner:, repository_name:, public: false)
+      provider = provider_for(source)
+      return {} if provider.nil?
+
+      if provider == GithubClient
+        provider.repo_signals(owner: repository_owner, name: repository_name, public: public)
+      else
+        provider.repo_signals(owner: repository_owner, name: repository_name)
+      end || {}
+    rescue RepoSignalsUnavailable
+      warn("warning: #{repository_owner}/#{repository_name}: no repository source answered; archived status unknown")
+      {unavailable: true}
+    end
+
+    # rubygems.org, as opposed to a private registry the lockfile names.
+    def public_source?(source_uri)
+      !(github_packages_uri?(source_uri) || ArtifactoryClient.artifactory_uri?(source_uri) || unqueryable_private_source?(source_uri))
+    end
+
+    def repository_availability(signals)
+      signals[:unavailable] ? {repository_unavailable: true} : {}
     end
 
     def unreleased_commits(source:, repository_owner:, repository_name:, version:)

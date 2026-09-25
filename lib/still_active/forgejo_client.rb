@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "time"
+require_relative "errors"
 require_relative "helpers/http_helper"
 
 module StillActive
@@ -21,10 +22,13 @@ module StillActive
     def repo_signals(owner:, name:, host: DEFAULT_HOST)
       return {} if owner.nil? || name.nil?
 
-      body = HttpHelper.get_json(base_uri(host), "/api/v1/repos/#{owner}/#{name}", headers: auth_headers)
+      # {} for a 404 (an answer); RepoSignalsUnavailable when Forgejo couldn't answer.
+      body = HttpHelper.get_json(base_uri(host), "/api/v1/repos/#{owner}/#{name}", headers: auth_headers, strict: true)
       return {} if body.nil?
 
       {archived: body["archived"] == true, last_commit_date: parse_time(body["updated_at"], owner, name)}
+    rescue HttpHelper::Unavailable => e
+      raise RepoSignalsUnavailable, e.message
     end
 
     private

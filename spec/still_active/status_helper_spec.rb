@@ -23,6 +23,14 @@ RSpec.describe(StillActive::StatusHelper) do
       expect(described_class.gem_status(data)).to(eq(:unknown))
     end
 
+    # A rate-limited run once read an archived repo as :ok: its blank archived flag
+    # passed for "not archived".
+    it("is :unknown, not :ok or :legacy, when the repository couldn't be read") do
+      expect(described_class.gem_status({latest_version_release_date: recent, repository_unavailable: true})).to(eq(:unknown))
+      expect(described_class.gem_status({latest_version_release_date: ancient, repository_unavailable: true})).to(eq(:unknown))
+      expect(described_class.gem_status({latest_version_release_date: recent, repository_unavailable: true, vulnerability_count: 1})).to(eq(:vulnerable))
+    end
+
     it("is :unknown, not :ok, for a healthy gem whose advisories went unchecked") do
       data = {latest_version_release_date: recent, vulnerability_count: 0, vulnerabilities_checked: false}
       expect(described_class.gem_status(data)).to(eq(:unknown))

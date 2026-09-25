@@ -393,7 +393,7 @@ RSpec.describe(StillActive::DepsDevClient) do
         WebMock.reset_executed_requests!
         stub_request(:post, batch_url).to_return(batch_response([entry("NPM", "a", "1.0.0", {"advisoryKeys" => []})], canary: bad_canary))
 
-        described_class.prefetch_versions([[:npm, "a", "1.0.0"]])
+        expect { described_class.prefetch_versions([[:npm, "a", "1.0.0"]]) }.to(output(/canary without advisories/).to_stderr)
 
         expect(described_class.version_info(gem_name: "a", version: "1.0.0", system: :npm)[:advisory_keys]).to(eq(["GHSA-live"]))
         expect(get).to(have_been_requested.once)
@@ -498,7 +498,7 @@ RSpec.describe(StillActive::DepsDevClient) do
       it("writes nothing from a batch whose canary failed") do
         stub_request(:post, batch_url).to_return(batch_response([entry("NPM", "a", "1.0.0", {"advisoryKeys" => []})], canary: nil))
         get = stub_get("a")
-        described_class.prefetch_versions([[:npm, "a", "1.0.0"]])
+        expect { described_class.prefetch_versions([[:npm, "a", "1.0.0"]]) }.to(output(/canary without advisories/).to_stderr)
         described_class.clear_prefetch
 
         described_class.version_info(gem_name: "a", version: "1.0.0", system: :npm)

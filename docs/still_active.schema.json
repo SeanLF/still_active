@@ -188,6 +188,10 @@
         },
         "ruby_eol": {
           "type": "boolean"
+        },
+        "repositories_unavailable": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -200,17 +204,33 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "source_type": {
+        "activity_level": {
           "type": "string",
           "enum": [
-            "rubygems",
-            "git",
-            "path",
+            "ok",
+            "stale",
+            "critical",
+            "archived",
             "unknown"
           ]
         },
-        "direct": {
-          "type": "boolean"
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "archived": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/constraint"
+          }
         },
         "dependency_path": {
           "type": "array",
@@ -218,19 +238,24 @@
             "type": "string"
           }
         },
-        "version_used": {
+        "deprecated": {
+          "type": "boolean",
+          "description": "The maintainer has declared this package deprecated in its registry. A stated fact, not inferred from release dates."
+        },
+        "deprecation_reason": {
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "description": "The message the maintainer left with the deprecation, often naming the replacement. null when none was given."
         },
-        "latest_version": {
-          "type": [
-            "string",
-            "null"
-          ]
+        "direct": {
+          "type": "boolean"
         },
-        "latest_version_release_date": {
+        "language_ceiling": {
+          "$ref": "#/$defs/language_ceiling"
+        },
+        "last_commit_date": {
           "type": [
             "string",
             "null"
@@ -250,32 +275,80 @@
           ],
           "format": "date-time"
         },
-        "repository_url": {
+        "latest_version": {
           "type": [
             "string",
             "null"
           ]
         },
-        "last_commit_date": {
+        "latest_version_release_date": {
           "type": [
             "string",
             "null"
           ],
           "format": "date-time"
         },
-        "archived": {
+        "libyear": {
           "type": [
-            "boolean",
+            "number",
             "null"
           ]
         },
-        "activity_level": {
+        "license": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "poison": {
+          "type": "boolean"
+        },
+        "poison_below_fix": {
+          "type": "boolean",
+          "description": "True when a cap holds a vulnerable dependency below its security fix (the strongest poison case)."
+        },
+        "poison_security_relevant": {
+          "type": "boolean"
+        },
+        "poison_severity": {
           "type": "string",
           "enum": [
-            "ok",
-            "stale",
-            "critical",
-            "archived",
+            "note",
+            "warning",
+            "critical"
+          ]
+        },
+        "repository_unavailable": {
+          "type": "boolean",
+          "description": "Present, and true, when no source could read the repository (a rate limit, an error), so archived is unknown rather than false."
+        },
+        "repository_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ruby_gems_url": {
+          "type": "string"
+        },
+        "scorecard_maintained": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "scorecard_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "rubygems",
+            "git",
+            "path",
             "unknown"
           ]
         },
@@ -298,43 +371,15 @@
             "null"
           ]
         },
-        "scorecard_score": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "scorecard_maintained": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "vulnerability_count": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "vulnerabilities_checked": {
-          "type": "boolean"
-        },
-        "vulnerabilities": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/vulnerability"
-          }
-        },
-        "alternatives": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "ruby_gems_url": {
-          "type": "string"
-        },
         "up_to_date": {
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "version_used": {
+          "type": [
+            "string",
             "null"
           ]
         },
@@ -348,55 +393,18 @@
         "version_yanked": {
           "type": "boolean"
         },
-        "license": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "libyear": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "poison": {
-          "type": "boolean"
-        },
-        "poison_severity": {
-          "type": "string",
-          "enum": [
-            "note",
-            "warning",
-            "critical"
-          ]
-        },
-        "poison_security_relevant": {
-          "type": "boolean"
-        },
-        "poison_below_fix": {
-          "type": "boolean",
-          "description": "True when a cap holds a vulnerable dependency below its security fix (the strongest poison case)."
-        },
-        "constraints": {
+        "vulnerabilities": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/constraint"
+            "$ref": "#/$defs/vulnerability"
           }
         },
-        "language_ceiling": {
-          "$ref": "#/$defs/language_ceiling"
+        "vulnerabilities_checked": {
+          "type": "boolean"
         },
-        "deprecated": {
-          "type": "boolean",
-          "description": "The maintainer has declared this package deprecated in its registry. A stated fact, not inferred from release dates."
-        },
-        "deprecation_reason": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "The message the maintainer left with the deprecation, often naming the replacement. null when none was given."
+        "vulnerability_count": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },

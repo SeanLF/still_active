@@ -96,6 +96,12 @@ RSpec.describe(StillActive::TerminalHelper) do
       expect(output).to(include("2.5 libyears behind"))
     end
 
+    it("shows ? rather than ok when a gem's repository couldn't be read, and counts it") do
+      data = {latest_version_release_date: Time.now, repository_unavailable: true}
+      expect(described_class.send(:format_activity, data).gsub(/\e\[\d+m/, "")).to(eq("?"))
+      expect(described_class.send(:summary_line, {"g" => data})).to(include("1 repository unreadable"))
+    end
+
     it("shows ? rather than 0 when a gem's advisories went unchecked, and counts it in the summary") do
       unchecked = {vulnerability_count: 0, vulnerabilities: [], vulnerabilities_checked: false}
       expect(described_class.send(:format_vulns, unchecked).gsub(/\e\[\d+m/, "")).to(eq("?"))

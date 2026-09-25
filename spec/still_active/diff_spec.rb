@@ -36,6 +36,21 @@ RSpec.describe(StillActive::Diff) do
     end
   end
 
+  # An archived repo is a regression; one that can't be read may be one.
+  describe("unreadable repositories") do
+    def doc(gems) = {"schema_version" => 1, "gems" => gems}
+
+    it("reads a gem whose repository became unreadable, or an added one, as a regression an activity suppression can accept") do
+      diff = described_class.call(
+        baseline: doc("foo" => {"version_used" => "1.0", "archived" => false}),
+        current: doc("foo" => {"version_used" => "1.0", "repository_unavailable" => true}, "bar" => {"version_used" => "1.0", "repository_unavailable" => true})
+      )
+
+      expect(diff.regressions.map(&:kind)).to(include(:repository_unavailable, :new_gem_repository_unavailable))
+      expect(described_class.suppressible_signal(:repository_unavailable)).to(eq(:activity))
+    end
+  end
+
   describe(".suppressible_signal") do
     it("maps archived regressions to the activity signal") do
       expect(described_class.suppressible_signal(:new_gem_archived)).to(eq(:activity))

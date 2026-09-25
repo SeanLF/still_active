@@ -66,6 +66,10 @@ RSpec.describe(StillActive::MarkdownHelper) do
       expect(line).to(include("✅"))
     end
 
+    it("shows the unsure emoji, not a blank, for activity when the repository couldn't be read") do
+      expect(StillActive::EmojiHelper.inactive_gem_emoji({latest_version_release_date: Time.now, repository_unavailable: true})).to(eq(StillActive.config.unsure_emoji))
+    end
+
     it("shows the unsure emoji, not success, when the advisories went unchecked") do
       cell = described_class.send(:format_vulns, {vulnerability_count: 0, vulnerabilities: [], vulnerabilities_checked: false})
       expect(cell).to(eq(StillActive.config.unsure_emoji))

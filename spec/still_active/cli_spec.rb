@@ -352,6 +352,7 @@ RSpec.describe(StillActive::CLI) do
           "rack" => {
             source_type: :rubygems,
             direct: false,
+            repository_unavailable: true,
             dependency_path: ["rails", "actionpack", "rack"],
             last_commit_date: recent_date,
             # up_to_date as null (unknown), the other half of its boolean|null type;
@@ -634,6 +635,22 @@ RSpec.describe(StillActive::CLI) do
 
     # Unchecked is not clean: the gate fails closed, as it does on an unscored
     # advisory, and says which gem so the failure isn't a mystery.
+    # It may be archived, which both activity gates catch.
+    it("fails --fail-if-critical, naming the gem, when its repository couldn't be read") do
+      StillActive.config.fail_if_critical = true
+      data = gem_data(last_commit_date: nil).merge(latest_version_release_date: Time.now, repository_unavailable: true)
+      expect { cli.send(:check_exit_status, {"g" => data}) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) }
+        .and(output(/g: its repository couldn't be read.*--fail-if-critical/).to_stderr))
+    end
+
+    it("lets an activity suppression accept an unreadable repository") do
+      StillActive.config.fail_if_warning = true
+      suppress([{"gem" => "g", "signal" => "activity", "reason" => "vendored"}])
+      data = gem_data(last_commit_date: nil).merge(latest_version_release_date: Time.now, repository_unavailable: true)
+      expect { cli.send(:check_exit_status, {"g" => data}) }.not_to(raise_error)
+    end
+
     it("fails --fail-if-vulnerable, naming the gem, when its advisories went unchecked") do
       StillActive.config.fail_if_vulnerable = "high"
       data = gem_data(last_commit_date: Time.now).merge(vulnerability_count: 0, vulnerabilities: [], vulnerabilities_checked: false)
@@ -1319,6 +1336,16 @@ RSpec.describe(StillActive::CLI) do
       expect { cli.run(["--sbom=sbom.json", "--fail-if-vulnerable"]) }
         .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) }
         .and(output(%r{pypi/flask: advisories could not be checked}).to_stderr))
+    end
+
+    it("fails --fail-if-critical on a dependency whose assessment raised, since its repository was never read") do
+      failure = {ecosystem: :pypi, name: "flask", version: "2.0.0", reason: :assessment_error, error: "Net::ReadTimeout: timed out"}
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({}, failures: [failure])))
+      allow($stdout).to(receive(:puts))
+
+      expect { cli.run(["--sbom=sbom.json", "--fail-if-critical"]) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) }
+        .and(output(%r{pypi/flask: its repository couldn't be read}).to_stderr))
     end
 
     it("counts unchecked dependencies in the summary") do

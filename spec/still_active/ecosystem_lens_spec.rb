@@ -354,6 +354,30 @@ RSpec.describe(StillActive::EcosystemLens) do
 
   # A failed advisory lookup is "unchecked", never "clean"; a 404 is deps.dev
   # answering that it has no record, which is not a failure.
+  describe(".assess repository coverage") do
+    it("marks the repository unavailable when no source can read it, and the status unknown") do
+      stub_version(source_repo: "https://github.com/expressjs/express")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_request(:get, %r{repos\.ecosyste\.ms/}).to_return(status: 503)
+
+      result = nil
+      expect { result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1") }.to(output(/archived status unknown/).to_stderr)
+
+      expect(result).to(include(repository_unavailable: true, archived: nil))
+      expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
+    end
+
+    it("doesn't mark a repository the source says doesn't exist") do
+      stub_version(source_repo: "https://github.com/gone/gone")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_request(:get, %r{repos\.ecosyste\.ms/}).to_return(status: 404)
+
+      expect(described_class.assess(ecosystem: :npm, name: "gone", version: "1.0.0")).not_to(have_key(:repository_unavailable))
+    end
+  end
+
   describe(".assess advisory coverage") do
     it("marks the advisories unchecked, and the status unknown, when deps.dev can't answer the version") do
       stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/[^/]+/packages/.+/versions/.+}).to_return(status: 503)

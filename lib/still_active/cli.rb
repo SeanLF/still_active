@@ -160,7 +160,7 @@ module StillActive
       # goes through the gates as unchecked rather than dropping out of them.
       # Reader-level unassessables (a private registry, no version) stay out: those
       # are known limits of what can be assessed, not failures.
-      failed = outcome.failures.to_h { ["#{_1[:ecosystem]}/#{_1[:name]}@#{_1[:version]}", _1.merge(vulnerabilities_checked: false)] }
+      failed = outcome.failures.to_h { ["#{_1[:ecosystem]}/#{_1[:name]}@#{_1[:version]}", _1.merge(vulnerabilities_checked: false, repository_unavailable: true)] }
       check_exit_status(outcome.assessed.merge(failed))
     end
 
@@ -304,7 +304,8 @@ module StillActive
         # project-level posture without scanning every dependency.
         status: StatusHelper.project_status(result),
         status_counts: statuses.tally,
-        vulnerabilities_unchecked: result.count { |_key, data| data[:vulnerabilities_checked] == false }
+        vulnerabilities_unchecked: result.count { |_key, data| data[:vulnerabilities_checked] == false },
+        repositories_unavailable: result.count { |_key, data| data[:repository_unavailable] }
       }
     end
 
@@ -497,6 +498,7 @@ module StillActive
 
       warn_unknown_severity_gate(result, config)
       warn_unchecked_gate(result, config)
+      warn_unreadable_repository_gate(result, config)
       # Match the gate on the dependency's identity (bare gem name natively,
       # "ecosystem/name" for an SBOM dep), not the composite SBOM hash key, so an
       # --ignore/.still_active.yml entry actually covers a cross-ecosystem finding.
@@ -540,6 +542,22 @@ module StillActive
         next if config.ignored_gems.include?(gem)
 
         warn("warning: #{gem}: advisories could not be checked (no source answered for this version, or its source failed the health check above); failing --fail-if-vulnerable rather than reading it as clean (rerun, or --ignore it)")
+      end
+    end
+
+    # The activity gates fail closed on a repository no source could read, so say
+    # which, and why, as warn_unchecked_gate does for advisories.
+    def warn_unreadable_repository_gate(result, config)
+      return unless config.fail_if_warning || config.fail_if_critical
+
+      result.each do |name, data|
+        next unless data[:repository_unavailable]
+
+        gem = DependencyHelper.identity(name, data)
+        next if config.ignored_gems.include?(gem) || config.suppressions.suppressed?(gem: gem, signal: :activity)
+
+        gate = config.fail_if_critical ? "--fail-if-critical" : "--fail-if-warning"
+        warn("warning: #{gem}: its repository couldn't be read, so whether it's archived is unknown; failing #{gate} rather than reading it as active (rerun, or suppress its activity signal)")
       end
     end
 
@@ -596,6 +614,10 @@ module StillActive
     def failed_activity?(name, data, config, suppressions)
       return false unless config.fail_if_warning || config.fail_if_critical
       return false if suppressions.suppressed?(gem: name, signal: :activity)
+
+      # A repository no source could read may be archived, which both gates
+      # catch, so it fails closed rather than passing on its release dates.
+      return true if data[:repository_unavailable]
 
       level = ActivityHelper.activity_level(data)
       (config.fail_if_warning && [:stale, :critical, :archived].include?(level)) ||
