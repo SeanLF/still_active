@@ -62,6 +62,9 @@ module StillActive
         # every fiber sees one consistent value (token -> live GitHub, incl. private
         # repos; only a genuinely absent token falls back to ecosyste.ms).
         StillActive.config.github_oauth_token
+        # Every pinned gem's deps.dev version record in one batch request, rather
+        # than one GET each. The same names the per-gem lookups already send.
+        DepsDevClient.prefetch_versions(StillActive.config.gems.filter_map { [:rubygems, _1[:name], _1[:version]] if _1[:version] })
         barrier = Async::Barrier.new
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result_object = {}
@@ -118,6 +121,8 @@ module StillActive
         result_object.sort_by { |name, _| name }.to_h
       end
       task.wait
+    ensure
+      DepsDevClient.clear_prefetch
     end
 
     def ruby_freshness

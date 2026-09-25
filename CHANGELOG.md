@@ -9,6 +9,7 @@
 
 ### Changed
 
+- **A third fewer requests to deps.dev.** Every dependency's version record now comes from one batch request before the audit starts, instead of one request each: on a 300-component SBOM, 705 deps.dev requests became 475. Anything the batch doesn't answer cleanly is looked up one at a time as before, so it can't change a result. It doesn't make the run faster; it's less load on a free API.
 - **About 30% faster on an SBOM, from reusing connections.** Every request used to open its own TLS connection; HttpHelper now keeps one open per host and reuses it. On a 300-component, four-ecosystem SBOM, connections to deps.dev went from 705 to 12 and the run from about 24s to 17s, with identical output. A rate limit that says when to come back (a 429 or 503 with `Retry-After` of 10 seconds or less) now gets one retry after that wait instead of failing the lookup.
 
 ### Changed

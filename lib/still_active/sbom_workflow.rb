@@ -45,6 +45,9 @@ module StillActive
           dotnet: safe_support_window(".NET") { DotnetHelper.supported_dotnet_range },
           dotnetfx: safe_support_window(".NET Framework") { DotnetHelper.supported_dotnetfx_range }
         }
+        # Every version record in one batch request, rather than one GET each; the
+        # Go toolchain's come from OSV and endoflife.date instead.
+        DepsDevClient.prefetch_versions(dependencies.filter_map { [_1[:ecosystem], _1[:name], _1[:version]] unless GoToolchain.toolchain?(_1[:ecosystem], _1[:name]) })
         barrier = Async::Barrier.new
         semaphore = Async::Semaphore.new(StillActive.config.parallelism, parent: barrier)
         result = {}
@@ -99,6 +102,8 @@ module StillActive
           failures: failures.sort_by { |failure| "#{failure[:ecosystem]}/#{failure[:name]}@#{failure[:version]}" }
         )
       end.wait
+    ensure
+      DepsDevClient.clear_prefetch
     end
 
     private

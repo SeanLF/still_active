@@ -2,6 +2,7 @@
 
 require_relative "helpers/http_helper"
 require_relative "helpers/version_helper"
+require_relative "helpers/http_cache"
 
 module StillActive
   module DepsDevClient
@@ -37,8 +38,9 @@ module StillActive
     def version_info(gem_name:, version:, system: :rubygems, cache: true)
       return if gem_name.nil? || version.nil?
 
-      path = "/v3alpha/systems/#{encode(system)}/packages/#{encode(gem_name)}/versions/#{encode(version)}"
-      body = begin
+      path = version_path(system, gem_name, version)
+      # A caller that skips the cache (a canary) skips the prefetched table too.
+      body = (cache && @prefetched&.[](path)) || begin
         version_record(path, cache: cache)
       rescue HttpHelper::Unavailable
         version_record(path, cache: cache)
@@ -68,6 +70,30 @@ module StillActive
         deprecated: body["isDeprecated"] == true,
         deprecation_reason: presence(body["deprecatedReason"])
       }
+    end
+
+    # The most versions one versionbatch request takes (deps.dev rejects more).
+    BATCH_LIMIT = 5000
+
+    # Fetches the version records for [system, name, version] keys in batches of
+    # BATCH_LIMIT, before a fan-out, so version_info answers from memory instead of
+    # a GET per version. Only a well-formed record is kept. A key the batch left
+    # out, a malformed record, or a failed batch is simply not prefetched, and
+    # version_info fetches it itself as before: the batch saves requests but never
+    # decides an answer, so a partial failure can't pass for "no record". Each
+    # record also goes into the disk cache under its GET's key. Run-scoped: pair
+    # with clear_prefetch.
+    def prefetch_versions(keys)
+      @prefetched = {}
+      keys.uniq.each_slice(BATCH_LIMIT) { prefetch_batch(_1) }
+    rescue => e
+      # An optimisation must never abort the audit: whatever didn't prefetch is
+      # fetched per version as before.
+      warn("warning: deps.dev batch prefetch failed: #{e.class} (#{e.message}); looking versions up one at a time")
+    end
+
+    def clear_prefetch
+      @prefetched = nil
     end
 
     # The package's default version and its release date: { version:,
@@ -203,6 +229,34 @@ module StillActive
     end
 
     private
+
+    def version_path(system, name, version)
+      "/v3alpha/systems/#{encode(system)}/packages/#{encode(name)}/versions/#{encode(version)}"
+    end
+
+    def prefetch_batch(keys)
+      requests = keys.map { |system, name, version| {versionKey: {system: system.to_s.upcase, name: name, version: version}} }
+      page_token = nil
+      loop do
+        body = HttpHelper.post_json(BASE_URI, "/v3alpha/versionbatch", body: JSON.generate({requests: requests, pageToken: page_token}.compact))
+        return unless body.is_a?(Hash)
+
+        Array(body["responses"]).each { prefetch_entry(_1) }
+        page_token = body["nextPageToken"]
+        break if page_token.nil? || page_token.to_s.empty?
+      end
+    end
+
+    def prefetch_entry(response)
+      key = response.is_a?(Hash) && response.dig("request", "versionKey")
+      record = response.is_a?(Hash) && response["version"]
+      return unless key.is_a?(Hash) && record.is_a?(Hash) && record["advisoryKeys"].is_a?(Array)
+
+      path = version_path(key["system"].to_s.downcase, key["name"], key["version"])
+      @prefetched[path] = record
+      uri = BASE_URI.dup.tap { _1.path = path }
+      HttpCache.write(HttpCache.key("GET", uri), record) if HttpCache.ttl(uri, {})
+    end
 
     # deps.dev sends `advisoryKeys` on every version record, as [] when there are
     # none (verified 2026-09-24). A record without it is schema drift or a garbled

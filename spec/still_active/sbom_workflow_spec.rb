@@ -57,6 +57,23 @@ RSpec.describe(StillActive::SbomWorkflow) do
       expect(out.assessed["go/stdlib@1.27.1"][:vulnerabilities_checked]).to(be(true))
     end
 
+    it("prefetches every dependency's deps.dev version record before the fan-out, and clears it after") do
+      allow(StillActive::PythonHelper).to(receive(:supported_python_range).and_return(nil))
+      allow(StillActive::DotnetHelper).to(receive_messages(supported_dotnet_range: nil, supported_dotnetfx_range: nil))
+      allow(StillActive::EcosystemLens).to(receive(:assess)) { |ecosystem:, name:, version:, **_| {ecosystem:, name:, version_used: version} }
+      allow(StillActive::DepsDevClient).to(receive(:prefetch_versions))
+      allow(StillActive::DepsDevClient).to(receive(:clear_prefetch))
+
+      described_class.call(result_with([
+        {ecosystem: :npm, name: "left-pad", version: "1.3.0"},
+        {ecosystem: :go, name: "stdlib", version: "1.27.1"}
+      ]))
+
+      expect(StillActive::DepsDevClient).to(have_received(:prefetch_versions).with([[:npm, "left-pad", "1.3.0"]]).ordered)
+      expect(StillActive::EcosystemLens).to(have_received(:assess).twice.ordered)
+      expect(StillActive::DepsDevClient).to(have_received(:clear_prefetch).ordered)
+    end
+
     it("runs the lens over each dependency, keyed by ecosystem/name@version") do
       deps = [
         {ecosystem: :npm, name: "express", version: "5.2.1"},

@@ -67,6 +67,9 @@ RSpec.configure do |config|
     # default, so advisories are kept and specs that aren't about confirmation see the
     # unfiltered list; the ones that are register their own stub_request.
     stub_request(:post, "https://api.osv.dev/v1/query").to_return(status: 404)
+    # The deps.dev version prefetch batches before every fan-out; an empty answer
+    # leaves each version to the per-version lookup the spec already stubs.
+    stub_request(:post, "https://api.deps.dev/v3alpha/versionbatch").to_return(status: 200, body: "{}", headers: {"Content-Type" => "application/json"})
 
     # The run-level source check (a canary per ecosystem, before every audit) reads
     # healthy unless a spec is about it; source_health_spec calls the original.

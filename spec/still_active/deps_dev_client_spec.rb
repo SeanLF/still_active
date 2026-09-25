@@ -345,6 +345,82 @@ RSpec.describe(StillActive::DepsDevClient) do
     end
   end
 
+  # One versionbatch request before the fan-out instead of a GET per version.
+  # Only a positive, well-formed record is taken from it; anything else falls back
+  # to the per-version GET, so the batch can save requests but never change an answer.
+  describe(".prefetch_versions") do
+    after { described_class.clear_prefetch }
+
+    let(:batch_url) { "https://api.deps.dev/v3alpha/versionbatch" }
+
+    def batch_response(entries, page_token: nil)
+      {status: 200, headers: {"Content-Type" => "application/json"},
+       body: {"responses" => entries, "nextPageToken" => page_token}.compact.to_json}
+    end
+
+    def entry(system, name, version, record)
+      {"request" => {"versionKey" => {"system" => system, "name" => name, "version" => version}}}.merge(record ? {"version" => record} : {})
+    end
+
+    it("serves version_info from one batch request") do
+      stub_request(:post, batch_url)
+        .with(body: {requests: [{versionKey: {system: "NPM", name: "express", version: "5.1.0"}}]}.to_json)
+        .to_return(batch_response([entry("NPM", "express", "5.1.0", {"advisoryKeys" => [{"id" => "GHSA-x"}]})]))
+
+      described_class.prefetch_versions([[:npm, "express", "5.1.0"]])
+
+      expect(described_class.version_info(gem_name: "express", version: "5.1.0", system: :npm)[:advisory_keys]).to(eq(["GHSA-x"]))
+      expect(a_request(:get, /api\.deps\.dev/)).not_to(have_been_made)
+    end
+
+    it("falls back to the per-version GET for a missing or malformed record, or a failed batch") do
+      stub_request(:post, batch_url).to_return(batch_response([
+        entry("NPM", "gone", "1.0.0", nil),
+        entry("NPM", "odd", "1.0.0", {"no" => "advisoryKeys"})
+      ]))
+      get = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/(gone|odd)/versions/1\.0\.0})
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"advisoryKeys" => []}.to_json)
+
+      described_class.prefetch_versions([[:npm, "gone", "1.0.0"], [:npm, "odd", "1.0.0"]])
+      described_class.version_info(gem_name: "gone", version: "1.0.0", system: :npm)
+      described_class.version_info(gem_name: "odd", version: "1.0.0", system: :npm)
+      expect(get).to(have_been_requested.twice)
+
+      described_class.clear_prefetch
+      stub_request(:post, batch_url).to_return(status: 503)
+      expect { described_class.prefetch_versions([[:npm, "gone", "1.0.0"]]) }.to(output.to_stderr)
+      described_class.version_info(gem_name: "gone", version: "1.0.0", system: :npm)
+      expect(get).to(have_been_requested.times(3))
+    end
+
+    it("follows the batch's page token") do
+      stub_request(:post, batch_url).with { |req| !JSON.parse(req.body).key?("pageToken") }
+        .to_return(batch_response([entry("NPM", "a", "1.0.0", {"advisoryKeys" => []})], page_token: "p2"))
+      stub_request(:post, batch_url).with { |req| JSON.parse(req.body)["pageToken"] == "p2" }
+        .to_return(batch_response([entry("NPM", "b", "1.0.0", {"advisoryKeys" => [{"id" => "GHSA-b"}]})]))
+
+      described_class.prefetch_versions([[:npm, "a", "1.0.0"], [:npm, "b", "1.0.0"]])
+
+      expect(described_class.version_info(gem_name: "b", version: "1.0.0", system: :npm)[:advisory_keys]).to(eq(["GHSA-b"]))
+      expect(a_request(:get, /api\.deps\.dev/)).not_to(have_been_made)
+    end
+
+    it("never lets a prefetch error abort the audit") do
+      allow(StillActive::HttpHelper).to(receive(:post_json).and_raise(NoMethodError, "boom"))
+
+      expect { described_class.prefetch_versions([[:npm, "a", "1"]]) }.to(output(/prefetch failed/).to_stderr)
+    end
+
+    it("splits more versions than one batch takes") do
+      stub_const("StillActive::DepsDevClient::BATCH_LIMIT", 2)
+      stub_request(:post, batch_url).to_return(batch_response([]))
+
+      described_class.prefetch_versions([[:npm, "a", "1"], [:npm, "b", "1"], [:npm, "c", "1"]])
+
+      expect(a_request(:post, batch_url)).to(have_been_made.twice)
+    end
+  end
+
   describe(".advisory_detail") do
     it("returns advisory details for a known advisory") do
       body = {
