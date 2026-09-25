@@ -5,6 +5,7 @@ require_relative "compact_index_client"
 require_relative "source_credentials"
 require_relative "ceiling_reconciler"
 require_relative "errors"
+require_relative "assessment"
 require_relative "repository_signals"
 require_relative "deps_dev_client"
 require_relative "osv_client"
@@ -119,7 +120,9 @@ module StillActive
         # Gems are inserted as their async tasks finish, so the natural order is
         # nondeterministic completion order. Sort by name once here so every
         # consumer (JSON, SARIF, the baseline diff) gets a stable, diffable order.
-        result_object.sort_by { |name, _| name }.to_h
+        # Every pass over the hashes is done; from here on consumers read the
+        # finished Assessment.
+        result_object.sort_by { |name, _| name }.to_h.transform_values { Assessment.from(_1) }
       end
       task.wait
     ensure
