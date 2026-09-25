@@ -33,6 +33,16 @@ RSpec.describe(StillActive::RubygemsClient) do
     end
   end
 
+  # Every other source's host is allowlisted for redirects; rubygems.org has to be
+  # too, or one redirect would cost every gem in the run its versions.
+  it("follows a same-host redirect on rubygems.org") do
+    stub_request(:get, "https://rubygems.org/api/v1/versions/rack.json")
+      .to_return(status: 301, headers: {"Location" => "https://rubygems.org/api/v1/versions/rack2.json"})
+    stub_json("/api/v1/versions/rack2.json", body: [{"number" => "3.1.0"}])
+
+    expect { expect(described_class.versions("rack")).to(eq([{"number" => "3.1.0"}])) }.to(output(/redirected/).to_stderr)
+  end
+
   describe(".info") do
     it("returns the gem's metadata, and nil when there is none") do
       stub_json("/api/v1/gems/rack.json", body: {"source_code_uri" => "https://github.com/rack/rack"})

@@ -435,7 +435,7 @@ module StillActive
 
     # A rubygems-type source that isn't public rubygems.org and that we have no
     # client for (Gemfury, Gemstash, geminabox, a private mirror). We must NOT
-    # fall through to Gems.versions, which always hits public rubygems.org: that
+    # fall through to RubygemsClient.versions, which always hits public rubygems.org: that
     # would silently report a public name-collision's data, or blanks, as if it
     # were the private gem's. github_packages/artifactory are handled above, so
     # anything left with a non-rubygems.org host is unqueryable. Refs #43.
@@ -525,7 +525,7 @@ module StillActive
     end
 
     # Locally-installed gem metadata and the gem's own version payload are
-    # source-accurate. This public rubygems.org Gems.info lookup is the last
+    # source-accurate. This public rubygems.org info lookup is the last
     # resort, and is skipped for an unqueryable private source: otherwise a
     # public name-collision's repo/archived/last-commit data would stand in for
     # the private gem, the same substitution #43 prevents for versions.

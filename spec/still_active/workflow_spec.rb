@@ -65,10 +65,10 @@ RSpec.describe(StillActive::Workflow) do
     context("when deps.dev can't answer the version record") do
       before do
         StillActive.config.gems = [{name: "rack", version: "2.0.0"}]
-        allow(Gems).to(receive(:versions).with("rack").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("rack").and_return([
           {"number" => "2.0.0", "prerelease" => false, "created_at" => "2016-05-06T00:00:00Z", "licenses" => ["MIT"]}
         ]))
-        allow(Gems).to(receive(:info).with("rack").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("rack").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         allow(StillActive::DepsDevClient).to(receive(:version_info).and_raise(StillActive::HttpHelper::Unavailable))
         allow(StillActive::DepsDevClient).to(receive(:project_scorecard).and_return(nil))
         allow(described_class).to(receive(:repo_signals).and_return({}))
@@ -227,7 +227,7 @@ RSpec.describe(StillActive::Workflow) do
 
       it("marks a rubygems gem unchecked when neither a pin nor the latest version is known") do
         StillActive.config.gems = [{name: "flaky"}]
-        allow(Gems).to(receive_messages(versions: [], info: nil))
+        allow(StillActive::RubygemsClient).to(receive_messages(versions: [], info: nil))
         expect(result["flaky"]).to(include(vulnerabilities_checked: false))
       end
 
@@ -248,7 +248,7 @@ RSpec.describe(StillActive::Workflow) do
         allow(StillActive::DepsDevClient).to(receive(:project_scorecard).and_return(nil))
       end
 
-      it("does not query Gems.versions") do
+      it("does not query rubygems.org") do
         result
         expect(StillActive::RubygemsClient).not_to(have_received(:versions))
       end
@@ -273,7 +273,7 @@ RSpec.describe(StillActive::Workflow) do
         allow(StillActive::DepsDevClient).to(receive(:project_scorecard).and_return(nil))
       end
 
-      it("does not query Gems.versions") do
+      it("does not query rubygems.org") do
         result
         expect(StillActive::RubygemsClient).not_to(have_received(:versions))
       end
