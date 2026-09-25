@@ -254,6 +254,26 @@ RSpec.describe(StillActive::Workflow) do
 
     # Every pinned gem's deps.dev record in one batch before the fan-out; the table
     # is run-scoped, so it's cleared afterwards even when the audit raises.
+    context("when no source can read a gem's repository") do
+      before do
+        StillActive.config.gems = [{name: "rack", version: "2.0.0"}]
+        allow(StillActive::RubygemsClient).to(receive_messages(
+          versions: [{"number" => "2.0.0", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z"}],
+          info: {"source_code_uri" => "https://github.com/rack/rack"}
+        ))
+        allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
+        allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_raise(StillActive::RepoSignalsUnavailable))
+        allow(StillActive::GithubClient).to(receive(:repo_signals).and_raise(StillActive::RepoSignalsUnavailable))
+      end
+
+      it("marks it unavailable rather than leaving archived blank as if answered") do
+        data = nil
+        expect { data = result["rack"] }.to(output(/archived status unknown/).to_stderr)
+
+        expect(data).to(include(repository_unavailable: true, archived: nil))
+      end
+    end
+
     context("when prefetching deps.dev version records") do
       before do
         StillActive.config.gems = [{name: "rack", version: "2.0.0"}, {name: "unpinned"}]

@@ -49,7 +49,7 @@ RSpec.describe("--sbom JSON Schema conformance") do # rubocop:disable RSpec/Desc
         language_ceiling: {runtime: "Python", requirement: "< 3.9", eol_forced: true, severity: :critical, ceiling_version: "3.8", ceiling_eol_date: Time.new(2024, 10, 7, 0, 0, 0, "+00:00"), oldest_supported: "3.10", latest_stable: "3.14.0", fixed_by_upgrade: false, upgrade_blocked: true}
       },
       "npm/ghost@9.9.9" => {
-        ecosystem: :npm, name: "ghost", version_used: "9.9.9", purl: "pkg:npm/ghost@9.9.9", version_unresolved: true,
+        ecosystem: :npm, name: "ghost", version_used: "9.9.9", purl: "pkg:npm/ghost@9.9.9", version_unresolved: true, repository_unavailable: true,
         vulnerability_count: 0, vulnerabilities_checked: true, vulnerabilities: []
       }
     }

@@ -39,10 +39,23 @@ RSpec.describe(StillActive::GithubClient) do
       expect(client).not_to(have_received(:repository))
     end
 
-    it("returns {} and warns on an Octokit error") do
+    # A 404 is GitHub answering that the repo isn't there; anything else is no
+    # answer, and a missing archived flag must not read as "not archived".
+    it("returns {} for a repo GitHub says doesn't exist") do
       allow(client).to(receive(:repository).and_raise(Octokit::NotFound))
-      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq({})) }
-        .to(output(/repo signals failed/).to_stderr)
+      expect(described_class.repo_signals(owner: owner, name: name)).to(eq({}))
+    end
+
+    it("asks ecosyste.ms when GitHub can't answer, and raises when neither can") do
+      allow(client).to(receive(:repository).and_raise(Octokit::InternalServerError))
+      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).with(owner: owner, name: name).and_return(archived: true))
+
+      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq(archived: true)) }
+        .to(output(/repo signals failed.*asking ecosyste\.ms/).to_stderr)
+
+      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_raise(StillActive::RepoSignalsUnavailable))
+      expect { described_class.repo_signals(owner: owner, name: name) }
+        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
     end
 
     it("returns {} when the repository can't be read") do
@@ -95,15 +108,22 @@ RSpec.describe(StillActive::GithubClient) do
       expect(described_class).to(have_received(:sleep))
     end
 
-    it("does not auto-wait when the reset is far away; warns with the token hint and returns {}") do
+    # A rate-limited run once read an archived repo as healthy: the limit left
+    # archived blank, and a blank archived isn't "archived".
+    it("doesn't wait out a far reset; asks ecosyste.ms instead") do
       allow(client).to(receive(:repository).and_raise(too_many(retry_after: 9999)))
-      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq({})) }.to(output(/set GITHUB_TOKEN/).to_stderr)
+      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_return(archived: true))
+
+      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq(archived: true)) }.to(output(/rate limited/).to_stderr)
       expect(described_class).not_to(have_received(:sleep))
     end
 
-    it("retries at most once on a persistent rate limit, then gives up with the token hint") do
+    it("retries at most once on a persistent rate limit, then asks ecosyste.ms") do
       allow(client).to(receive(:repository).and_raise(too_many(retry_after: 1)))
-      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq({})) }.to(output(/waiting 1s.*set GITHUB_TOKEN/m).to_stderr)
+      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_raise(StillActive::RepoSignalsUnavailable))
+
+      expect { described_class.repo_signals(owner: owner, name: name) }
+        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output(/waiting 1s/).to_stderr))
       expect(described_class).to(have_received(:sleep).once)
     end
   end

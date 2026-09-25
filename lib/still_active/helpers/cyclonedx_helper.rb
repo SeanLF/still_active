@@ -155,6 +155,8 @@ module StillActive
         # An empty vulnerabilities list reads as clean downstream; this says whether
         # anything was actually looked up.
         "still_active:vulnerabilities_checked" => boolean_property(data[:vulnerabilities_checked]),
+        # Present only when true: a blank archived flag here is "unknown", not "no".
+        "still_active:repository_unavailable" => (data[:repository_unavailable] ? "true" : nil),
         "still_active:scorecard_score" => data[:scorecard_score]&.to_s,
         "still_active:libyear" => data[:libyear]&.to_s,
         "still_active:last_commit_date" => iso8601(data[:last_commit_date])

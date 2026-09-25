@@ -30,10 +30,10 @@ RSpec.describe(StillActive::EcosystemsClient) do
       expect(described_class.repo_signals(owner: owner, name: name)).not_to(have_key(:archived))
     end
 
-    it("returns {} on an unexpected non-object JSON body, without crashing") do
+    it("raises RepoSignalsUnavailable on an unexpected non-object JSON body") do
       stub_request(:get, repo_url)
         .to_return(status: 200, body: [1, 2].to_json, headers: {"Content-Type" => "application/json"})
-      expect { expect(described_class.repo_signals(owner: owner, name: name)).to(eq({})) }.not_to(raise_error)
+      expect { described_class.repo_signals(owner: owner, name: name) }.to(raise_error(StillActive::RepoSignalsUnavailable))
     end
 
     it("leaves the date nil on a non-string pushed_at, without crashing") do
@@ -46,12 +46,18 @@ RSpec.describe(StillActive::EcosystemsClient) do
       expect(described_class.repo_signals(owner: nil, name: name)).to(eq({}))
     end
 
-    it("returns {} on timeout") do
+    # No answer is not "not archived": the caller marks the repo unavailable.
+    it("raises RepoSignalsUnavailable on a timeout or a 5xx") do
       stub_request(:get, repo_url).to_timeout
-      expect(described_class.repo_signals(owner: owner, name: name)).to(eq({}))
+      expect { described_class.repo_signals(owner: owner, name: name) }
+        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
+
+      stub_request(:get, repo_url).to_return(status: 503)
+      expect { described_class.repo_signals(owner: owner, name: name) }
+        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
     end
 
-    it("returns {} on a non-success status") do
+    it("returns {} on a 404, which is an answer") do
       stub_request(:get, repo_url).to_return(status: 404)
       expect(described_class.repo_signals(owner: owner, name: name)).to(eq({}))
     end

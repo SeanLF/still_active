@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "time"
+require_relative "errors"
 require_relative "helpers/http_helper"
 require_relative "version"
 
@@ -30,16 +31,16 @@ module StillActive
 
     # archived + last-commit date from a single repository call. ecosyste.ms's
     # pushed_at mirrors GitHub's, so this returns the same shape as GithubClient.
-    # Returns {} when the repo can't be read, so the caller leaves both blank.
+    # Returns {} when ecosyste.ms has no record of the repo (a 404), and raises
+    # RepoSignalsUnavailable when it couldn't answer, including a 200 whose body
+    # isn't a repository record (an error envelope, schema drift).
     def repo_signals(owner:, name:)
       return {} if owner.nil? || name.nil?
 
       path = "/api/v1/hosts/GitHub/repositories/#{encode_repo(owner, name)}"
-      body = HttpHelper.get_json(BASE_URI, path, headers: {"User-Agent" => USER_AGENT}, params: politeness_params)
-      # A non-Hash 200 body (error envelope rendered as an array, schema drift)
-      # would otherwise raise on indexing and vanish the gem from the audit via
-      # the workflow's rescue; degrade to "no signal" like any other read failure.
-      return {} unless body.is_a?(Hash)
+      body = HttpHelper.get_json(BASE_URI, path, headers: {"User-Agent" => USER_AGENT}, params: politeness_params, strict: true)
+      return {} if body.nil?
+      raise RepoSignalsUnavailable, "ecosyste.ms returned a #{body.class} for #{owner}/#{name}" unless body.is_a?(Hash)
 
       signals = {last_commit_date: parse_time(body["pushed_at"], owner, name)}
       # Only assert archived when the field is actually present. A missing field
@@ -47,6 +48,8 @@ module StillActive
       # crawl could silently mask the most actionable verdict (gem is archived).
       signals[:archived] = body["archived"] == true if body.key?("archived")
       signals
+    rescue HttpHelper::Unavailable => e
+      raise RepoSignalsUnavailable, e.message
     end
 
     # ecosyste.ms dependency-kind labels that ship at RUNTIME (so a cap on one

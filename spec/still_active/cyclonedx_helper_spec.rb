@@ -257,6 +257,14 @@ RSpec.describe(StillActive::CyclonedxHelper) do
 
     # An empty vulnerabilities list for a component reads as clean downstream, so
     # an unchecked one has to say so on the component itself.
+    it("marks a component whose repository couldn't be read") do
+      unreadable = assessed.transform_values { |data| data.merge(repository_unavailable: true, archived: nil) }
+      doc = JSON.parse(described_class.render_sbom(result: unreadable, tool_version: "3.0.0"))
+      props = doc["components"].first["properties"].to_h { |p| [p["name"], p["value"]] }
+
+      expect(props).to(include("still_active:repository_unavailable" => "true"))
+    end
+
     it("marks a component whose advisories went unchecked") do
       unchecked = assessed.transform_values { |data| data.merge(vulnerability_count: 0, vulnerabilities: [], vulnerabilities_checked: false) }
       doc = JSON.parse(described_class.render_sbom(result: unchecked, tool_version: "3.0.0"))

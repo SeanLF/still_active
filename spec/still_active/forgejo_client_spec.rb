@@ -30,14 +30,20 @@ RSpec.describe(StillActive::ForgejoClient) do
       expect(described_class.repo_signals(owner: nil, name: name)).to(eq({}))
     end
 
-    it("returns {} on a non-success status") do
+    it("returns {} on a 404, which is an answer") do
       stub_request(:get, repo_url).to_return(status: 404)
       expect(described_class.repo_signals(owner: owner, name: name)).to(eq({}))
     end
 
-    it("returns {} on timeout") do
+    # No answer is not "not archived": the caller marks the repo unavailable.
+    it("raises RepoSignalsUnavailable on a timeout or a 5xx") do
       stub_request(:get, repo_url).to_timeout
-      expect(described_class.repo_signals(owner: owner, name: name)).to(eq({}))
+      expect { described_class.repo_signals(owner: owner, name: name) }
+        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
+
+      stub_request(:get, repo_url).to_return(status: 503)
+      expect { described_class.repo_signals(owner: owner, name: name) }
+        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
     end
 
     it("leaves the date nil when updated_at is absent") do

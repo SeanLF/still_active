@@ -56,7 +56,8 @@
         "unassessable_count",
         "status",
         "status_counts",
-        "vulnerabilities_unchecked"
+        "vulnerabilities_unchecked",
+        "repositories_unavailable"
       ],
       "additionalProperties": false,
       "properties": {
@@ -82,6 +83,10 @@
           }
         },
         "vulnerabilities_unchecked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "repositories_unavailable": {
           "type": "integer",
           "minimum": 0
         }
@@ -165,6 +170,9 @@
         "purl": {
           "type": "string",
           "description": "The input SBOM's package URL, verbatim."
+        },
+        "repository_unavailable": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/repository_unavailable"
         },
         "repository_url": {
           "$ref": "still_active.schema.json#/$defs/gem/properties/repository_url"

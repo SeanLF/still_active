@@ -4,6 +4,7 @@ require_relative "artifactory_client"
 require_relative "compact_index_client"
 require_relative "source_credentials"
 require_relative "ceiling_reconciler"
+require_relative "errors"
 require_relative "deps_dev_client"
 require_relative "osv_client"
 require_relative "poison_security_correlator"
@@ -189,6 +190,7 @@ module StillActive
         repository_url: repo_info[:url],
         last_commit_date: commit_date,
         archived: archived,
+        **repository_availability(signals),
         **deps_dev
       })
 
@@ -319,6 +321,7 @@ module StillActive
         repository_url: repo_info[:url],
         last_commit_date: signals[:last_commit_date],
         archived: signals[:archived],
+        **repository_availability(signals),
         **deps_dev
       })
     end
@@ -593,8 +596,17 @@ module StillActive
     # One provider call yields both archived and the last-activity date (the
     # repo object carries both), so a gem's repo signals cost a single request
     # instead of two. Returns {} for an unhandled host.
+    # {unavailable: true} when the provider couldn't answer, so the gem is marked
+    # rather than its blank archived flag read as "not archived".
     def repo_signals(source:, repository_owner:, repository_name:)
       provider_for(source)&.repo_signals(owner: repository_owner, name: repository_name) || {}
+    rescue RepoSignalsUnavailable
+      warn("warning: #{repository_owner}/#{repository_name}: no repository source answered; archived status unknown")
+      {unavailable: true}
+    end
+
+    def repository_availability(signals)
+      signals[:unavailable] ? {repository_unavailable: true} : {}
     end
 
     def unreleased_commits(source:, repository_owner:, repository_name:, version:)

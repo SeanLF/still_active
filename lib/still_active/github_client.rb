@@ -2,6 +2,8 @@
 
 require "time"
 require "octokit"
+require_relative "errors"
+require_relative "ecosystems_client"
 
 module StillActive
   # Repo signals (archived?, last commit date) for github.com-hosted gems.
@@ -20,19 +22,26 @@ module StillActive
     # object's pushed_at (last push) stands in for the last-commit date: it
     # matches the default-branch commit date to the day in practice, and folding
     # the two signals into one call halves the per-gem GitHub requests. Returns
-    # {} when the repo can't be read, so the caller leaves both signals blank.
+    # {} when GitHub says the repo isn't there. When GitHub can't answer (a rate
+    # limit past its short wait, an error status, a network failure), ecosyste.ms
+    # mirrors the same two fields, so it is asked instead; if it can't answer
+    # either, RepoSignalsUnavailable, never a blank archived flag that reads as
+    # "not archived".
     def repo_signals(owner:, name:)
       return {} if owner.nil? || name.nil?
 
       repo = with_rate_limit_retry("repo #{owner}/#{name}") do
         StillActive.config.github_client.repository("#{owner}/#{name}")
       end
+      return fallback_signals(owner, name) if repo == :rate_limited
       return {} unless repo
 
       {archived: repo.archived, last_commit_date: as_time(repo.pushed_at, owner, name)}
-    rescue Octokit::Error, Faraday::Error => e
-      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}")
+    rescue Octokit::NotFound
       {}
+    rescue Octokit::Error, Faraday::Error => e
+      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}; asking ecosyste.ms")
+      fallback_signals(owner, name)
     end
 
     # Commits on the default branch since the latest release's tag: the
@@ -48,7 +57,8 @@ module StillActive
 
       repo = "#{owner}/#{name}"
       ["v#{version}", version.to_s].each do |tag|
-        return with_rate_limit_retry("unreleased-commits #{repo}") { StillActive.config.github_client.compare(repo, tag, "HEAD").ahead_by }
+        ahead = with_rate_limit_retry("unreleased-commits #{repo}") { StillActive.config.github_client.compare(repo, tag, "HEAD").ahead_by }
+        return (ahead == :rate_limited) ? nil : ahead
       rescue Octokit::NotFound
         # this tag form doesn't exist; fall through to try the next one
       end
@@ -59,6 +69,10 @@ module StillActive
     end
 
     private
+
+    def fallback_signals(owner, name)
+      EcosystemsClient.repo_signals(owner: owner, name: name)
+    end
 
     # Pause-and-retry on a rate-limit response when the reset is near, so a
     # transient secondary/burst limit (which GitHub's concurrent fan-out can
@@ -76,7 +90,7 @@ module StillActive
           # Surface the one actionable hint rather than a generic class name,
           # then return nil so this signal is simply absent for the gem.
           warn("rate limited on #{label}; set GITHUB_TOKEN to raise your limit, or run less often")
-          return
+          return :rate_limited
         end
 
         retried = true
