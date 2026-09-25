@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tmpdir"
+
 RSpec.describe(StillActive::DepsDevClient) do
   describe(".advisory_schema_ok?") do
     # Guards against the alpha v3alpha API renaming/dropping `advisoryKeys`, which
@@ -348,23 +350,32 @@ RSpec.describe(StillActive::DepsDevClient) do
   # One versionbatch request before the fan-out instead of a GET per version.
   # Only a positive, well-formed record is taken from it; anything else falls back
   # to the per-version GET, so the batch can save requests but never change an answer.
+  # One versionbatch request before the fan-out instead of a GET per version.
+  # Only a positive, well-formed record is taken from it, and only from a batch
+  # whose advisory canary came back with its advisories; anything else falls back
+  # to the per-version GET, so the batch can save requests but never change an answer.
   describe(".prefetch_versions") do
     after { described_class.clear_prefetch }
 
     let(:batch_url) { "https://api.deps.dev/v3alpha/versionbatch" }
+    let(:canary) { entry("PYPI", "django", "3.0.0", {"advisoryKeys" => [{"id" => "GHSA-canary"}]}) }
 
-    def batch_response(entries, page_token: nil)
+    # canary: the entry for the advisory canary every batch carries; nil leaves it out.
+    def batch_response(entries, page_token: nil, canary: self.canary)
       {status: 200, headers: {"Content-Type" => "application/json"},
-       body: {"responses" => entries, "nextPageToken" => page_token}.compact.to_json}
+       body: {"responses" => entries + [canary].compact, "nextPageToken" => page_token}.compact.to_json}
     end
 
     def entry(system, name, version, record)
       {"request" => {"versionKey" => {"system" => system, "name" => name, "version" => version}}}.merge(record ? {"version" => record} : {})
     end
 
-    it("serves version_info from one batch request") do
+    def stub_get(name) = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/#{name}/versions/1\.0\.0})
+      .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"advisoryKeys" => [{"id" => "GHSA-live"}]}.to_json)
+
+    it("serves version_info from one batch request, which carries the advisory canary") do
       stub_request(:post, batch_url)
-        .with(body: {requests: [{versionKey: {system: "NPM", name: "express", version: "5.1.0"}}]}.to_json)
+        .with(body: {requests: [{versionKey: {system: "NPM", name: "express", version: "5.1.0"}}, {versionKey: {system: "PYPI", name: "django", version: "3.0.0"}}]}.to_json)
         .to_return(batch_response([entry("NPM", "express", "5.1.0", {"advisoryKeys" => [{"id" => "GHSA-x"}]})]))
 
       described_class.prefetch_versions([[:npm, "express", "5.1.0"]])
@@ -373,29 +384,45 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(a_request(:get, /api\.deps\.dev/)).not_to(have_been_made)
     end
 
+    # The canary guards the batch endpoint itself: if it comes back empty there,
+    # the batch's zeros can't be trusted, whatever the GET canary says.
+    it("discards the whole batch when its canary comes back without advisories, or not at all") do
+      get = stub_get("a")
+      [entry("PYPI", "django", "3.0.0", {"advisoryKeys" => []}), nil].each do |bad_canary|
+        described_class.clear_prefetch
+        WebMock.reset_executed_requests!
+        stub_request(:post, batch_url).to_return(batch_response([entry("NPM", "a", "1.0.0", {"advisoryKeys" => []})], canary: bad_canary))
+
+        described_class.prefetch_versions([[:npm, "a", "1.0.0"]])
+
+        expect(described_class.version_info(gem_name: "a", version: "1.0.0", system: :npm)[:advisory_keys]).to(eq(["GHSA-live"]))
+        expect(get).to(have_been_requested.once)
+      end
+    end
+
     it("falls back to the per-version GET for a missing or malformed record, or a failed batch") do
       stub_request(:post, batch_url).to_return(batch_response([
         entry("NPM", "gone", "1.0.0", nil),
         entry("NPM", "odd", "1.0.0", {"no" => "advisoryKeys"})
       ]))
-      get = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/npm/packages/(gone|odd)/versions/1\.0\.0})
-        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"advisoryKeys" => []}.to_json)
+      gone = stub_get("gone")
+      odd = stub_get("odd")
 
       described_class.prefetch_versions([[:npm, "gone", "1.0.0"], [:npm, "odd", "1.0.0"]])
       described_class.version_info(gem_name: "gone", version: "1.0.0", system: :npm)
       described_class.version_info(gem_name: "odd", version: "1.0.0", system: :npm)
-      expect(get).to(have_been_requested.twice)
+      expect([gone, odd]).to(all(have_been_requested.once))
 
       described_class.clear_prefetch
       stub_request(:post, batch_url).to_return(status: 503)
       expect { described_class.prefetch_versions([[:npm, "gone", "1.0.0"]]) }.to(output.to_stderr)
       described_class.version_info(gem_name: "gone", version: "1.0.0", system: :npm)
-      expect(get).to(have_been_requested.times(3))
+      expect(gone).to(have_been_requested.twice)
     end
 
-    it("follows the batch's page token") do
+    it("follows the batch's page token, checking the canary across every page") do
       stub_request(:post, batch_url).with { |req| !JSON.parse(req.body).key?("pageToken") }
-        .to_return(batch_response([entry("NPM", "a", "1.0.0", {"advisoryKeys" => []})], page_token: "p2"))
+        .to_return(batch_response([entry("NPM", "a", "1.0.0", {"advisoryKeys" => []})], page_token: "p2", canary: nil))
       stub_request(:post, batch_url).with { |req| JSON.parse(req.body)["pageToken"] == "p2" }
         .to_return(batch_response([entry("NPM", "b", "1.0.0", {"advisoryKeys" => [{"id" => "GHSA-b"}]})]))
 
@@ -405,8 +432,29 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(a_request(:get, /api\.deps\.dev/)).not_to(have_been_made)
     end
 
+    it("gives up on a batch whose pages never end, and uses none of it") do
+      stub_const("StillActive::DepsDevClient::MAX_BATCH_PAGES", 3)
+      stub_request(:post, batch_url).to_return(batch_response([entry("NPM", "a", "1.0.0", {"advisoryKeys" => []})], page_token: "again"))
+      get = stub_get("a")
+
+      expect { described_class.prefetch_versions([[:npm, "a", "1.0.0"]]) }.to(output(/pages/).to_stderr)
+      described_class.version_info(gem_name: "a", version: "1.0.0", system: :npm)
+
+      expect(a_request(:post, batch_url)).to(have_been_made.times(3))
+      expect(get).to(have_been_requested)
+    end
+
+    it("splits more versions than one batch takes") do
+      stub_const("StillActive::DepsDevClient::BATCH_LIMIT", 2)
+      stub_request(:post, batch_url).to_return(batch_response([]))
+
+      described_class.prefetch_versions([[:npm, "a", "1"], [:npm, "b", "1"], [:npm, "c", "1"]])
+
+      expect(a_request(:post, batch_url)).to(have_been_made.twice)
+    end
+
     it("doesn't serve a caller that skips the cache (a canary) from the prefetched table") do
-      stub_request(:post, batch_url).to_return(batch_response([entry("PYPI", "django", "3.0.0", {"advisoryKeys" => []})]))
+      stub_request(:post, batch_url).to_return(batch_response([]))
       live = stub_request(:get, %r{/packages/django/versions/3\.0\.0\z})
         .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"advisoryKeys" => [{"id" => "A"}]}.to_json)
 
@@ -422,13 +470,41 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect { described_class.prefetch_versions([[:npm, "a", "1"]]) }.to(output(/prefetch failed/).to_stderr)
     end
 
-    it("splits more versions than one batch takes") do
-      stub_const("StillActive::DepsDevClient::BATCH_LIMIT", 2)
-      stub_request(:post, batch_url).to_return(batch_response([]))
+    describe("with the disk cache on") do
+      around do |example|
+        Dir.mktmpdir do |dir|
+          previous = ENV["XDG_CACHE_HOME"]
+          ENV["XDG_CACHE_HOME"] = dir
+          example.run
+        ensure
+          ENV["XDG_CACHE_HOME"] = previous
+        end
+      end
 
-      described_class.prefetch_versions([[:npm, "a", "1"], [:npm, "b", "1"], [:npm, "c", "1"]])
+      before do
+        StillActive.config.http_cache = true
+        allow(StillActive::HttpCache).to(receive(:ttl).and_call_original)
+      end
 
-      expect(a_request(:post, batch_url)).to(have_been_made.twice)
+      it("writes a trusted batch's records under their GET key, so a later lookup needs neither") do
+        stub_request(:post, batch_url).to_return(batch_response([entry("NPM", "a", "1.0.0", {"advisoryKeys" => [{"id" => "GHSA-a"}]})]))
+        described_class.prefetch_versions([[:npm, "a", "1.0.0"]])
+        described_class.clear_prefetch
+
+        expect(described_class.version_info(gem_name: "a", version: "1.0.0", system: :npm)[:advisory_keys]).to(eq(["GHSA-a"]))
+        expect(a_request(:get, /api\.deps\.dev/)).not_to(have_been_made)
+      end
+
+      it("writes nothing from a batch whose canary failed") do
+        stub_request(:post, batch_url).to_return(batch_response([entry("NPM", "a", "1.0.0", {"advisoryKeys" => []})], canary: nil))
+        get = stub_get("a")
+        described_class.prefetch_versions([[:npm, "a", "1.0.0"]])
+        described_class.clear_prefetch
+
+        described_class.version_info(gem_name: "a", version: "1.0.0", system: :npm)
+
+        expect(get).to(have_been_requested)
+      end
     end
   end
 

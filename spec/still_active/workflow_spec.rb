@@ -252,6 +252,34 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    # Every pinned gem's deps.dev record in one batch before the fan-out; the table
+    # is run-scoped, so it's cleared afterwards even when the audit raises.
+    context("when prefetching deps.dev version records") do
+      before do
+        StillActive.config.gems = [{name: "rack", version: "2.0.0"}, {name: "unpinned"}]
+        allow(StillActive::DepsDevClient).to(receive(:prefetch_versions).and_call_original)
+        allow(StillActive::DepsDevClient).to(receive(:clear_prefetch).and_call_original)
+      end
+
+      it("batches the pinned gems, then clears the table") do
+        allow(described_class).to(receive(:gem_info))
+
+        result
+
+        expect(StillActive::DepsDevClient).to(have_received(:prefetch_versions).with([[:rubygems, "rack", "2.0.0"]]))
+        expect(StillActive::DepsDevClient).to(have_received(:clear_prefetch))
+        expect(StillActive::DepsDevClient.instance_variable_get(:@prefetched)).to(be_nil)
+      end
+
+      it("clears the table when the audit raises") do
+        allow(StillActive::CeilingReconciler).to(receive(:reconcile_ceiling_with_poison).and_raise(RuntimeError, "boom"))
+        allow(described_class).to(receive(:gem_info))
+
+        expect { result }.to(raise_error(RuntimeError, "boom"))
+        expect(StillActive::DepsDevClient.instance_variable_get(:@prefetched)).to(be_nil)
+      end
+    end
+
     context("when a gem is git-sourced") do
       before do
         StillActive.config.gems = [{name: "git_gem", version: "0.5.0", source_type: :git}]

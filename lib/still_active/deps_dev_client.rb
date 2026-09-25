@@ -74,6 +74,9 @@ module StillActive
 
     # The most versions one versionbatch request takes (deps.dev rejects more).
     BATCH_LIMIT = 5000
+    # deps.dev pages a batch 100 records at a time, so 5000 keys take 50 pages;
+    # past this, the pagination is broken and the batch is abandoned, not trusted.
+    MAX_BATCH_PAGES = 60
 
     # Fetches the version records for [system, name, version] keys in batches of
     # BATCH_LIMIT, before a fan-out, so version_info answers from memory instead of
@@ -234,28 +237,48 @@ module StillActive
       "/v3alpha/systems/#{encode(system)}/packages/#{encode(name)}/versions/#{encode(version)}"
     end
 
+    # Each batch carries the advisory canary, and its records are used (and
+    # cached) only if the canary comes back with its advisories: the GET canary
+    # in SourceHealth can't vouch for this endpoint, and a batch that silently
+    # zeroed advisoryKeys would otherwise read every dependency clean. Every page
+    # is collected before that check, since the canary can land on any of them.
     def prefetch_batch(keys)
-      requests = keys.map { |system, name, version| {versionKey: {system: system.to_s.upcase, name: name, version: version}} }
+      canary = [ADVISORY_CANARY[:system], ADVISORY_CANARY[:name], ADVISORY_CANARY[:version]]
+      requests = (keys + [canary]).uniq.map { |system, name, version| {versionKey: {system: system.to_s.upcase, name: name, version: version}} }
+      records = {}
       page_token = nil
-      loop do
+      MAX_BATCH_PAGES.times do
         body = HttpHelper.post_json(BASE_URI, "/v3alpha/versionbatch", body: JSON.generate({requests: requests, pageToken: page_token}.compact))
         return unless body.is_a?(Hash)
 
-        Array(body["responses"]).each { prefetch_entry(_1) }
+        Array(body["responses"]).each { |response| batch_record(response)&.then { |path, record| records[path] = record } }
         page_token = body["nextPageToken"]
-        break if page_token.nil? || page_token.to_s.empty?
+        return accept_batch(records) if page_token.nil? || page_token.to_s.empty?
       end
+      warn("warning: deps.dev's version batch ran past #{MAX_BATCH_PAGES} pages; looking those versions up one at a time")
     end
 
-    def prefetch_entry(response)
+    # [path, record] for a well-formed record in a batch response, or nil.
+    def batch_record(response)
       key = response.is_a?(Hash) && response.dig("request", "versionKey")
       record = response.is_a?(Hash) && response["version"]
-      return unless key.is_a?(Hash) && record.is_a?(Hash) && record["advisoryKeys"].is_a?(Array)
+      return unless key.is_a?(Hash) && record.is_a?(Hash) && version_record?(record)
 
-      path = version_path(key["system"].to_s.downcase, key["name"], key["version"])
-      @prefetched[path] = record
-      uri = BASE_URI.dup.tap { _1.path = path }
-      HttpCache.write(HttpCache.key("GET", uri), record) if HttpCache.ttl(uri, {})
+      [version_path(key["system"].to_s.downcase, key["name"], key["version"]), record]
+    end
+
+    def accept_batch(records)
+      canary = records[version_path(ADVISORY_CANARY[:system], ADVISORY_CANARY[:name], ADVISORY_CANARY[:version])]
+      unless canary && !canary["advisoryKeys"].empty?
+        warn("warning: deps.dev's version batch returned its advisory canary without advisories; looking those versions up one at a time")
+        return
+      end
+
+      records.each do |path, record|
+        @prefetched[path] = record
+        uri = BASE_URI.dup.tap { _1.path = path }
+        HttpCache.write(HttpCache.key("GET", uri), record) if HttpCache.ttl(uri, {})
+      end
     end
 
     # deps.dev sends `advisoryKeys` on every version record, as [] when there are
