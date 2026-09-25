@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "ecosystem_lens"
+require_relative "source_health"
 require_relative "ceiling_reconciler"
 require_relative "poison_security_correlator"
 require_relative "helpers/python_helper"
@@ -30,7 +31,9 @@ module StillActive
     # rate-limited run read "all clear" while silently skipping deps.
     Outcome = Data.define(:assessed, :failures)
 
-    def call(sbom_result, &on_progress)
+    # `health` is the run's SourceHealth report: in an ecosystem it distrusts,
+    # deps.dev's advisories count as unchecked. The Go toolchain's come from OSV.
+    def call(sbom_result, health: SourceHealth::Report.healthy, &on_progress)
       dependencies = sbom_result.dependencies
       Async do
         # The language-runtime support windows, fetched once for the whole SBOM
@@ -78,6 +81,11 @@ module StillActive
           end
         end
         barrier.wait
+        result.each_value do |data|
+          next if health.deps_dev_trusted?(data[:ecosystem]) || GoToolchain.toolchain?(data[:ecosystem], data[:name])
+
+          data[:vulnerabilities_checked] = false
+        end
         # Whole-tree correlation once every package's signals are in: a Python
         # ceiling's "upgrade to lift it" must not contradict a poison finding that
         # caps the same package below that upgrade (same guarantee as the native path).

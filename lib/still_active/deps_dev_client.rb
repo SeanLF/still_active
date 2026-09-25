@@ -101,6 +101,21 @@ module StillActive
       {version: entry.dig("versionKey", "version"), published_at: entry["publishedAt"]}
     end
 
+    # The newest publishedAt across every version, prereleases and pseudo-versions
+    # included: when deps.dev last ingested anything for this package, which is the
+    # index-freshness question, not "what is the latest release". nil when no
+    # version carries a date or the package isn't indexed; raises
+    # HttpHelper::Unavailable when deps.dev can't answer, after one retry.
+    def newest_publish_date(name:, system:)
+      path = "/v3alpha/systems/#{encode(system)}/packages/#{encode(name)}"
+      body = begin
+        HttpHelper.get_json(BASE_URI, path, strict: true)
+      rescue HttpHelper::Unavailable
+        HttpHelper.get_json(BASE_URI, path, strict: true)
+      end
+      Array(body.is_a?(Hash) ? body["versions"] : nil).filter_map { _1["publishedAt"] if _1.is_a?(Hash) && _1["publishedAt"].is_a?(String) }.max
+    end
+
     # The newest non-prerelease version by version number (not publishedAt: a
     # backported patch on an old line can post-date the latest major). nil when no
     # version parses as a stable release.
