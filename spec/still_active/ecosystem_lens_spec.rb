@@ -371,14 +371,33 @@ RSpec.describe(StillActive::EcosystemLens) do
       stub_request(:get, %r{api\.github\.com/}).to_return(status: 404)
     end
 
-    it("reads the module's deprecation from its latest version when an older one is pinned") do
-      stub_package(default_published_at: "2024-03-01T00:00:00Z") # default version is "9.9.9"
+    def stub_go_package(latest_reason)
+      versions = [
+        {"versionKey" => {"version" => "v1.3.5"}, "publishedAt" => "2020-03-01T00:00:00Z"},
+        {"versionKey" => {"version" => "v1.5.4"}, "isDeprecated" => true, "deprecatedReason" => latest_reason, "publishedAt" => "2024-03-05T00:00:00Z"}
+      ]
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/go/packages/[^/]+\z})
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"versions" => versions}.to_json)
       stub_request(:get, %r{/versions/v1\.3\.5\z}).to_return(version_record(deprecated: false))
-      stub_request(:get, %r{/versions/9\.9\.9\z}).to_return(version_record(deprecated: true, reason: "Module deprecated: Use google.golang.org/protobuf instead."))
+      stub_request(:get, %r{/versions/v1\.5\.4\z}).to_return(version_record(deprecated: true, reason: latest_reason))
+    end
+
+    it("reads the module's deprecation from its latest version when an older one is pinned") do
+      stub_go_package("Module deprecated: Use google.golang.org/protobuf instead.")
 
       result = described_class.assess(ecosystem: :go, name: "github.com/golang/protobuf", version: "v1.3.5")
 
-      expect(result).to(include(deprecated: true, deprecation_reason: "Module deprecated: Use google.golang.org/protobuf instead."))
+      expect(result).to(include(latest_version: "v1.5.4", deprecated: true, deprecation_reason: "Module deprecated: Use google.golang.org/protobuf instead."))
+    end
+
+    # A retraction is one bad release, not the module: it isn't the latest to
+    # move to, and it says nothing about the version pinned.
+    it("doesn't spread a retracted latest version to the rest of the module") do
+      stub_go_package("Version retracted: published by mistake")
+
+      result = described_class.assess(ecosystem: :go, name: "example.com/widget", version: "v1.3.5")
+
+      expect(result).to(include(latest_version: "v1.3.5", deprecated: false))
     end
 
     it("keeps npm's per-version deprecation per version") do

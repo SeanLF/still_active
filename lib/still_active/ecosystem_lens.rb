@@ -167,26 +167,17 @@ module StillActive
     end
 
     # The maintainer's deprecation, from the pinned version's record. Go deprecates
-    # a module, not a version: `// Deprecated:` in the latest go.mod covers every
-    # version (it's what `go list -m -u` reports), but deps.dev flags only the
-    # version whose go.mod carries it, so a Go module pinned below its latest is
-    # also read from the latest version. npm deprecates versions, so it stays
-    # per version.
+    # a module: `// Deprecated:` in the latest go.mod covers every version (it's
+    # what `go list -m -u` reports), but deps.dev flags only the versions whose
+    # go.mod carries it, so a module deprecated at its latest is deprecated
+    # whichever version is pinned. A retracted latest isn't: that's one release.
+    # npm deprecates versions, so it stays per version.
     def deprecation(ecosystem, name, version, info, default)
-      if info&.dig(:deprecated) != true && ecosystem == :go && !GoToolchain.toolchain?(ecosystem, name)
-        latest = default&.dig(:version)
-        latest_info = (latest && latest != version) ? latest_version_info(name, latest) : nil
-        return {deprecated: true, deprecation_reason: latest_info[:deprecation_reason]} if latest_info&.dig(:deprecated) == true
+      if info&.dig(:deprecated) != true && ecosystem == :go && DepsDevClient.module_deprecation?(default&.dig(:deprecation_reason))
+        return {deprecated: true, deprecation_reason: default[:deprecation_reason]}
       end
 
       {deprecated: info&.dig(:deprecated) == true, deprecation_reason: info&.dig(:deprecation_reason)}
-    end
-
-    # A failed lookup just leaves the module's deprecation unread.
-    def latest_version_info(name, version)
-      DepsDevClient.version_info(gem_name: name, version: version, system: :go)
-    rescue HttpHelper::Unavailable
-      nil
     end
 
     # Language-runtime ceiling for the cross-ecosystem path, the sibling of the
