@@ -229,6 +229,31 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(described_class.latest_release_date(name: "requests", system: :pypi)).to(eq("2025-08-18T20:46:00Z"))
     end
 
+    # deps.dev flags both a Go module's deprecation ("Module deprecated: ...",
+    # on every version since its go.mod gained the comment) and a retracted
+    # version ("Version retracted: ..."). The first must count toward the latest,
+    # or a deprecated module's latest is years old; the second must not, like
+    # npm's per-version deprecation.
+    it("counts a deprecated Go module's versions toward its latest, but not a retracted one, nor npm's") do
+      versions = [
+        {"versionKey" => {"version" => "v1.5.1"}, "publishedAt" => "2021-03-18T00:00:00Z"},
+        {"versionKey" => {"version" => "v1.5.4"}, "isDeprecated" => true, "deprecatedReason" => "Module deprecated: Use x instead.", "isDefault" => true, "publishedAt" => "2024-03-05T00:00:00Z"}
+      ]
+      stub_request(:get, %r{/systems/go/packages/github\.com%2Fgolang%2Fprotobuf\z})
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: package_body(versions))
+      stub_request(:get, %r{/systems/npm/packages/left-pad\z})
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: package_body(versions.map { _1.merge("versionKey" => {"version" => _1.dig("versionKey", "version").delete_prefix("v")}) }))
+
+      expect(described_class.default_version_info(name: "github.com/golang/protobuf", system: :go))
+        .to(include(version: "v1.5.4", deprecated: true, deprecation_reason: "Module deprecated: Use x instead."))
+      expect(described_class.default_version_info(name: "left-pad", system: :npm)[:version]).to(eq("1.5.1"))
+
+      retracted = [versions.first, versions.last.merge("deprecatedReason" => "Version retracted: broken")]
+      stub_request(:get, %r{/systems/go/packages/example\.com%2Fwidget\z})
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: package_body(retracted))
+      expect(described_class.default_version_info(name: "example.com/widget", system: :go)).to(include(version: "v1.5.1", deprecated: false))
+    end
+
     it("queries the rubygems system by default") do
       stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/rubygems/packages/nokogiri\z})
         .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: package_body([]))
@@ -252,7 +277,7 @@ RSpec.describe(StillActive::DepsDevClient) do
       )
 
       expect(described_class.default_version_info(name: "wasi", system: :cargo))
-        .to(eq({version: "0.14.7+wasi-0.2.4", published_at: "2025-09-01T00:00:00Z"}))
+        .to(include(version: "0.14.7+wasi-0.2.4", published_at: "2025-09-01T00:00:00Z"))
     end
 
     it("skips a deprecated (yanked) release even when it is the newest by version") do

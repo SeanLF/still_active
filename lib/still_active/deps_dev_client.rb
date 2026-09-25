@@ -122,13 +122,26 @@ module StillActive
       # upgrade. So rank by version and take the newest STABLE release; fall back to
       # isDefault, then newest-by-date, only when no stable version parses (a
       # genuinely prerelease-only package still reads active, not dormant).
-      entry = latest_stable_version(versions) ||
+      entry = latest_stable_version(versions, system: system) ||
         versions.find { |v| v.is_a?(Hash) && v["isDefault"] } ||
-        newest_version(versions)
+        newest_version(versions, system: system)
       return if entry.nil?
 
-      {version: entry.dig("versionKey", "version"), published_at: entry["publishedAt"]}
+      {
+        version: entry.dig("versionKey", "version"),
+        published_at: entry["publishedAt"],
+        # The latest version's own deprecation, from the listing already fetched.
+        deprecated: entry["isDeprecated"] == true,
+        deprecation_reason: presence(entry["deprecatedReason"])
+      }
     end
+
+    # A Go module's deprecation, as deps.dev words it: `// Deprecated:` in the
+    # latest go.mod, which covers every version. deps.dev uses the same flag for
+    # a retracted version ("Version retracted: ..."), which covers only that one.
+    MODULE_DEPRECATED = "Module deprecated:"
+
+    def module_deprecation?(reason) = reason.to_s.start_with?(MODULE_DEPRECATED)
 
     # The newest publishedAt across every version, prereleases and pseudo-versions
     # included: when deps.dev last ingested anything for this package, which is the
@@ -149,10 +162,10 @@ module StillActive
     # The newest non-prerelease version by version number (not publishedAt: a
     # backported patch on an old line can post-date the latest major). nil when no
     # version parses as a stable release.
-    def latest_stable_version(versions)
+    def latest_stable_version(versions, system: :rubygems)
       versions
         .filter_map do |v|
-          next unless v.is_a?(Hash) && !v["isDeprecated"]
+          next unless v.is_a?(Hash) && !superseded?(v, system)
 
           gem_version = VersionHelper.comparable(v.dig("versionKey", "version"))
           [gem_version, v] if gem_version && !gem_version.prerelease?
@@ -232,6 +245,13 @@ module StillActive
     end
 
     private
+
+    # A version not to count as the latest: deprecated on its own (npm's one bad
+    # release, a retracted Go version). A Go module's deprecation covers every
+    # version since, so skipping those would make a years-old one the latest.
+    def superseded?(version, system)
+      version["isDeprecated"] == true && !(system.to_sym == :go && module_deprecation?(version["deprecatedReason"]))
+    end
 
     def version_path(system, name, version)
       "/v3alpha/systems/#{encode(system)}/packages/#{encode(name)}/versions/#{encode(version)}"
@@ -391,9 +411,9 @@ module StillActive
     # flagged default. Versions without a publishedAt are dropped; the rest
     # compare lexicographically (deps.dev returns RFC3339 UTC, so string order
     # is chronological), and a dated release always wins over an undated one.
-    def newest_version(versions)
+    def newest_version(versions, system: :rubygems)
       versions
-        .select { |v| v.is_a?(Hash) && v["publishedAt"] && !v["isDeprecated"] }
+        .select { |v| v.is_a?(Hash) && v["publishedAt"] && !superseded?(v, system) }
         .max_by { |v| v["publishedAt"].to_s }
     end
 

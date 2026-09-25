@@ -356,6 +356,61 @@ RSpec.describe(StillActive::EcosystemLens) do
 
   # A failed advisory lookup is "unchecked", never "clean"; a 404 is deps.dev
   # answering that it has no record, which is not a failure.
+  # Go deprecates a module, not a version: a `// Deprecated:` comment in the
+  # latest go.mod covers every version, but deps.dev only flags the version
+  # whose go.mod carries it.
+  describe(".assess Go module deprecation") do
+    def version_record(deprecated:, reason: "")
+      {status: 200, headers: {"Content-Type" => "application/json"},
+       body: {"advisoryKeys" => [], "isDeprecated" => deprecated, "deprecatedReason" => reason}.to_json}
+    end
+
+    before do
+      stub_project_scorecard
+      stub_request(:get, %r{repos\.ecosyste\.ms/}).to_return(status: 404)
+      stub_request(:get, %r{api\.github\.com/}).to_return(status: 404)
+    end
+
+    def stub_go_package(latest_reason)
+      versions = [
+        {"versionKey" => {"version" => "v1.3.5"}, "publishedAt" => "2020-03-01T00:00:00Z"},
+        {"versionKey" => {"version" => "v1.5.4"}, "isDeprecated" => true, "deprecatedReason" => latest_reason, "publishedAt" => "2024-03-05T00:00:00Z"}
+      ]
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/go/packages/[^/]+\z})
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"versions" => versions}.to_json)
+      stub_request(:get, %r{/versions/v1\.3\.5\z}).to_return(version_record(deprecated: false))
+      stub_request(:get, %r{/versions/v1\.5\.4\z}).to_return(version_record(deprecated: true, reason: latest_reason))
+    end
+
+    it("reads the module's deprecation from its latest version when an older one is pinned") do
+      stub_go_package("Module deprecated: Use google.golang.org/protobuf instead.")
+
+      result = described_class.assess(ecosystem: :go, name: "github.com/golang/protobuf", version: "v1.3.5")
+
+      expect(result).to(include(latest_version: "v1.5.4", deprecated: true, deprecation_reason: "Module deprecated: Use google.golang.org/protobuf instead."))
+    end
+
+    # A retraction is one bad release, not the module: it isn't the latest to
+    # move to, and it says nothing about the version pinned.
+    it("doesn't spread a retracted latest version to the rest of the module") do
+      stub_go_package("Version retracted: published by mistake")
+
+      result = described_class.assess(ecosystem: :go, name: "example.com/widget", version: "v1.3.5")
+
+      expect(result).to(include(latest_version: "v1.3.5", deprecated: false))
+    end
+
+    it("keeps npm's per-version deprecation per version") do
+      stub_package(default_published_at: "2024-03-01T00:00:00Z")
+      stub_request(:get, %r{/versions/1\.0\.0\z}).to_return(version_record(deprecated: false))
+      stub_request(:get, %r{/versions/9\.9\.9\z}).to_return(version_record(deprecated: true, reason: "gone"))
+
+      result = described_class.assess(ecosystem: :npm, name: "left-pad", version: "1.0.0")
+
+      expect(result).to(include(deprecated: false, deprecation_reason: nil))
+    end
+  end
+
   describe(".assess repository coverage") do
     it("marks the repository unavailable when no source can read it, and the status unknown") do
       stub_version(source_repo: "https://github.com/expressjs/express")
