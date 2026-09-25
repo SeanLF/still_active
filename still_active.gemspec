@@ -62,7 +62,6 @@ Gem::Specification.new do |spec|
   # CvssHelper reads.
   spec.add_runtime_dependency("cvss-suite", ">= 5.0")
   spec.add_runtime_dependency("faraday-retry")
-  spec.add_runtime_dependency("gems")
   spec.add_runtime_dependency("octokit")
   # Spec-compliant package-URL parsing for SBOM ingestion (decodes npm scopes,
   # maven group:artifact, qualifiers). 0.1 is the verified floor; the official

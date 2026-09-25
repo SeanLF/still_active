@@ -27,7 +27,7 @@ require "async"
 require "async/barrier"
 require "async/semaphore"
 require "cgi"
-require "gems"
+require_relative "rubygems_client"
 
 module StillActive
   module Workflow
@@ -423,20 +423,8 @@ module StillActive
       elsif unqueryable_private_source?(source_uri)
         private_source_versions(gem_name: gem_name, source_uri: source_uri)
       else
-        Gems.versions(gem_name)
+        RubygemsClient.versions(gem_name)
       end
-    rescue Gems::NotFound
-      []
-    # Gems::GemError is the `gems` library's catch-all for any non-success,
-    # non-404 response -- crucially a 429 rate-limit or a 5xx. Left unrescued it
-    # escapes to the per-gem rescue in #call and strips the gem of ALL its signals
-    # (not just versions), blaming a generic "error occurred". The poison-pill
-    # enrichment adds extra version lookups that make a 429 likelier, so a
-    # best-effort feature must not be able to degrade an unrelated gem's core data:
-    # degrade to "no versions known" here, exactly like Gems::NotFound.
-    rescue Gems::GemError, *HttpHelper::TRANSPORT_ERRORS => e
-      warn("warning: rubygems.org versions lookup failed for #{gem_name}: #{e.class} (#{e.message})")
-      []
     end
 
     def github_packages_uri?(uri)
@@ -447,7 +435,7 @@ module StillActive
 
     # A rubygems-type source that isn't public rubygems.org and that we have no
     # client for (Gemfury, Gemstash, geminabox, a private mirror). We must NOT
-    # fall through to Gems.versions, which always hits public rubygems.org: that
+    # fall through to RubygemsClient.versions, which always hits public rubygems.org: that
     # would silently report a public name-collision's data, or blanks, as if it
     # were the private gem's. github_packages/artifactory are handled above, so
     # anything left with a non-rubygems.org host is unqueryable. Refs #43.
@@ -537,7 +525,7 @@ module StillActive
     end
 
     # Locally-installed gem metadata and the gem's own version payload are
-    # source-accurate. This public rubygems.org Gems.info lookup is the last
+    # source-accurate. This public rubygems.org info lookup is the last
     # resort, and is skipped for an unqueryable private source: otherwise a
     # public name-collision's repo/archived/last-commit data would stand in for
     # the private gem, the same substitution #43 prevents for versions.
@@ -564,15 +552,13 @@ module StillActive
     end
 
     def rubygems_gem_repository_url(gem_name:)
-      info = Gems.info(gem_name)
+      info = RubygemsClient.info(gem_name)
       return [] if info.nil?
 
       [
         info["homepage_uri"],
         info["source_code_uri"]
       ].compact.uniq
-    rescue Gems::NotFound
-      []
     end
 
     # The repo-signal provider for a source, or nil for an unhandled host. Every

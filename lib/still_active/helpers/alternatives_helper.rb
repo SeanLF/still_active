@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "gems"
+require_relative "../rubygems_client"
 
 module StillActive
   # Turns a gem's catalog siblings into ranked "leads" -- the most-downloaded
@@ -33,7 +33,7 @@ module StillActive
     private
 
     def downloads(gem_name)
-      info = Gems.info(gem_name)
+      info = RubygemsClient.info(gem_name)
       info && info["downloads"]
     rescue
       nil

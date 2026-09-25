@@ -65,10 +65,10 @@ RSpec.describe(StillActive::Workflow) do
     context("when deps.dev can't answer the version record") do
       before do
         StillActive.config.gems = [{name: "rack", version: "2.0.0"}]
-        allow(Gems).to(receive(:versions).with("rack").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("rack").and_return([
           {"number" => "2.0.0", "prerelease" => false, "created_at" => "2016-05-06T00:00:00Z", "licenses" => ["MIT"]}
         ]))
-        allow(Gems).to(receive(:info).with("rack").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("rack").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         allow(StillActive::DepsDevClient).to(receive(:version_info).and_raise(StillActive::HttpHelper::Unavailable))
         allow(StillActive::DepsDevClient).to(receive(:project_scorecard).and_return(nil))
         allow(described_class).to(receive(:repo_signals).and_return({}))
@@ -90,10 +90,10 @@ RSpec.describe(StillActive::Workflow) do
     context("when ruby-advisory-db is available as a second source") do
       before do
         StillActive.config.gems = [{name: "rack", version: "2.0.0"}]
-        allow(Gems).to(receive(:versions).with("rack").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("rack").and_return([
           {"number" => "2.0.0", "prerelease" => false, "created_at" => "2016-05-06T00:00:00Z", "licenses" => ["MIT"]}
         ]))
-        allow(Gems).to(receive(:info).with("rack").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("rack").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         allow(StillActive::DepsDevClient).to(receive_messages(
           version_info: {advisory_keys: ["GHSA-deps"], project_id: nil},
           project_scorecard: nil,
@@ -176,10 +176,10 @@ RSpec.describe(StillActive::Workflow) do
         StillActive.config.gems = [{name: "yanked_gem", version: "0.9.0"}]
 
         # Gem exists but version 0.9.0 is not in the list (yanked)
-        allow(Gems).to(receive(:versions).with("yanked_gem").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("yanked_gem").and_return([
           {"number" => "1.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z"}
         ]))
-        allow(Gems).to(receive(:info).with("yanked_gem").and_return({
+        allow(StillActive::RubygemsClient).to(receive(:info).with("yanked_gem").and_return({
           "homepage_uri" => nil,
           "source_code_uri" => nil
         }))
@@ -197,10 +197,10 @@ RSpec.describe(StillActive::Workflow) do
       before do
         StillActive.config.gems = [{name: "good_gem", version: "1.0.0"}]
 
-        allow(Gems).to(receive(:versions).with("good_gem").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("good_gem").and_return([
           {"number" => "1.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z"}
         ]))
-        allow(Gems).to(receive(:info).with("good_gem").and_return({
+        allow(StillActive::RubygemsClient).to(receive(:info).with("good_gem").and_return({
           "homepage_uri" => nil,
           "source_code_uri" => nil
         }))
@@ -227,7 +227,7 @@ RSpec.describe(StillActive::Workflow) do
 
       it("marks a rubygems gem unchecked when neither a pin nor the latest version is known") do
         StillActive.config.gems = [{name: "flaky"}]
-        allow(Gems).to(receive_messages(versions: [], info: nil))
+        allow(StillActive::RubygemsClient).to(receive_messages(versions: [], info: nil))
         expect(result["flaky"]).to(include(vulnerabilities_checked: false))
       end
 
@@ -244,13 +244,13 @@ RSpec.describe(StillActive::Workflow) do
     context("when a gem is git-sourced") do
       before do
         StillActive.config.gems = [{name: "git_gem", version: "0.5.0", source_type: :git}]
-        allow(Gems).to(receive(:versions))
+        allow(StillActive::RubygemsClient).to(receive(:versions))
         allow(StillActive::DepsDevClient).to(receive(:project_scorecard).and_return(nil))
       end
 
-      it("does not query Gems.versions") do
+      it("does not query rubygems.org") do
         result
-        expect(Gems).not_to(have_received(:versions))
+        expect(StillActive::RubygemsClient).not_to(have_received(:versions))
       end
 
       it("sets source_type to :git") do
@@ -269,13 +269,13 @@ RSpec.describe(StillActive::Workflow) do
     context("when a gem is path-sourced") do
       before do
         StillActive.config.gems = [{name: "path_gem", version: "0.1.0", source_type: :path}]
-        allow(Gems).to(receive(:versions))
+        allow(StillActive::RubygemsClient).to(receive(:versions))
         allow(StillActive::DepsDevClient).to(receive(:project_scorecard).and_return(nil))
       end
 
-      it("does not query Gems.versions") do
+      it("does not query rubygems.org") do
         result
-        expect(Gems).not_to(have_received(:versions))
+        expect(StillActive::RubygemsClient).not_to(have_received(:versions))
       end
 
       it("sets source_type to :path") do
@@ -308,7 +308,7 @@ RSpec.describe(StillActive::Workflow) do
         StillActive.config.github_oauth_token = "ghp_test_token"
         stub_request(:get, "https://rubygems.pkg.github.com/my-org/api/v1/gems/private_gem/versions.json")
           .to_return(status: 200, body: ghp_versions.to_json, headers: {"Content-Type" => "application/json"})
-        allow(Gems).to(receive(:info).with("private_gem").and_return({
+        allow(StillActive::RubygemsClient).to(receive(:info).with("private_gem").and_return({
           "homepage_uri" => nil,
           "source_code_uri" => nil
         }))
@@ -338,7 +338,7 @@ RSpec.describe(StillActive::Workflow) do
           source_type: :rubygems,
           source_uri: "https://rubygems.pkg.github.com/my-org"
         }]
-        allow(Gems).to(receive(:info).with("evil/../secrets").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("evil/../secrets").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         requested_path = nil
         allow(StillActive::HttpHelper).to(receive(:get_json)) do |_base, path, **_kwargs|
           requested_path = path
@@ -359,7 +359,7 @@ RSpec.describe(StillActive::Workflow) do
           source_type: :rubygems,
           source_uri: "https://rubygems.pkg.github.com/my-org"
         }]
-        allow(Gems).to(receive(:info).with("bad name").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("bad name").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         stub_request(:get, "https://rubygems.pkg.github.com/my-org/api/v1/gems/bad+name/versions.json")
           .to_return(status: 200, body: ghp_versions.to_json, headers: {"Content-Type" => "application/json"})
 
@@ -385,7 +385,7 @@ RSpec.describe(StillActive::Workflow) do
           source_type: :rubygems,
           source_uri: source_uri
         }]
-        allow(Gems).to(receive(:info).with("private_gem").and_return({
+        allow(StillActive::RubygemsClient).to(receive(:info).with("private_gem").and_return({
           "homepage_uri" => nil,
           "source_code_uri" => nil
         }))
@@ -483,7 +483,7 @@ RSpec.describe(StillActive::Workflow) do
           {name: "gem_b", version: "2.0.0"},
           {name: "gem_c", version: "3.0.0"}
         ]
-        allow(Gems).to(receive_messages(
+        allow(StillActive::RubygemsClient).to(receive_messages(
           versions: [{"number" => "1.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z"}],
           info: {"homepage_uri" => nil, "source_code_uri" => nil}
         ))
@@ -508,7 +508,7 @@ RSpec.describe(StillActive::Workflow) do
           {name: "mango", version: "1.0.0"},
           {name: "apple", version: "1.0.0"}
         ]
-        allow(Gems).to(receive_messages(
+        allow(StillActive::RubygemsClient).to(receive_messages(
           versions: [{"number" => "1.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z"}],
           info: {"homepage_uri" => nil, "source_code_uri" => nil}
         ))
@@ -524,10 +524,10 @@ RSpec.describe(StillActive::Workflow) do
       before do
         StillActive.config.gems = [{name: "paperclip", version: "6.0.0"}]
         StillActive.config.alternatives = true
-        allow(Gems).to(receive(:versions).with("paperclip").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("paperclip").and_return([
           {"number" => "6.0.0", "prerelease" => false, "created_at" => "2018-01-01T00:00:00Z", "licenses" => ["MIT"]}
         ]))
-        allow(Gems).to(receive(:info).with("paperclip").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("paperclip").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
         allow(described_class).to(receive(:repo_signals).and_return({archived: true, last_commit_date: nil}))
         allow(StillActive::CatalogIndex).to(receive(:load).and_return({"paperclip" => ["shrine", "carrierwave"]}))
@@ -543,10 +543,10 @@ RSpec.describe(StillActive::Workflow) do
       before do
         StillActive.config.gems = [{name: "paperclip", version: "6.0.0", direct: false, dependency_path: ["rails", "paperclip"]}]
         StillActive.config.alternatives = true
-        allow(Gems).to(receive(:versions).with("paperclip").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("paperclip").and_return([
           {"number" => "6.0.0", "prerelease" => false, "created_at" => "2018-01-01T00:00:00Z", "licenses" => ["MIT"]}
         ]))
-        allow(Gems).to(receive(:info).with("paperclip").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("paperclip").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
         allow(described_class).to(receive(:repo_signals).and_return({archived: true, last_commit_date: nil}))
         allow(StillActive::CatalogIndex).to(receive(:load).and_return({"paperclip" => ["shrine", "carrierwave"]}))
@@ -564,10 +564,10 @@ RSpec.describe(StillActive::Workflow) do
       before do
         StillActive.config.gems = [{name: "paperclip", version: "6.0.0"}]
         StillActive.config.alternatives = true
-        allow(Gems).to(receive(:versions).with("paperclip").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("paperclip").and_return([
           {"number" => "6.0.0", "prerelease" => false, "created_at" => "2018-01-01T00:00:00Z", "licenses" => ["MIT"]}
         ]))
-        allow(Gems).to(receive(:info).with("paperclip").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("paperclip").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
         allow(described_class).to(receive(:repo_signals).and_return({archived: true, last_commit_date: nil}))
         allow(StillActive::CatalogIndex).to(receive(:load).and_return({}))
@@ -582,10 +582,10 @@ RSpec.describe(StillActive::Workflow) do
       before do
         StillActive.config.gems = [{name: "paperclip", version: "6.0.0"}]
         StillActive.config.alternatives = false
-        allow(Gems).to(receive(:versions).with("paperclip").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("paperclip").and_return([
           {"number" => "6.0.0", "prerelease" => false, "created_at" => "2018-01-01T00:00:00Z"}
         ]))
-        allow(Gems).to(receive(:info).with("paperclip").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("paperclip").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
         allow(described_class).to(receive(:repo_signals).and_return({archived: true, last_commit_date: nil}))
         allow(StillActive::CatalogIndex).to(receive(:load))
@@ -600,17 +600,17 @@ RSpec.describe(StillActive::Workflow) do
     context("with a poison-pill / compatibility ceiling") do
       # A dormant gem (last release 2016 -> critical) locked at 1.1.4.
       def stub_dormant_gem(name)
-        allow(Gems).to(receive(:versions).with(name).and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with(name).and_return([
           {"number" => "1.1.4", "prerelease" => false, "created_at" => "2016-01-01T00:00:00Z", "licenses" => ["MIT"]}
         ]))
-        allow(Gems).to(receive(:info).with(name).and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with(name).and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
       end
 
       before do
         StillActive.config.gems = [{name: "protected_attributes", version: "1.1.4"}]
         stub_dormant_gem("protected_attributes")
         # activemodel is at v8, so a "< 5.0" cap is 4 majors behind.
-        allow(Gems).to(receive(:versions).with("activemodel").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("activemodel").and_return([
           {"number" => "8.0.1", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z"}
         ]))
         allow(StillActive::DepsDevClient).to(receive_messages(version_info: nil, project_scorecard: nil))
@@ -632,10 +632,10 @@ RSpec.describe(StillActive::Workflow) do
 
       it("does NOT flag a maintained gem's cap, and never even asks for its constraints (the discipline)") do
         StillActive.config.gems = [{name: "activerecord", version: "8.0.0"}]
-        allow(Gems).to(receive(:versions).with("activerecord").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("activerecord").and_return([
           {"number" => "8.0.0", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"]}
         ]))
-        allow(Gems).to(receive(:info).with("activerecord").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("activerecord").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
         allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies))
 
         data = result["activerecord"]
@@ -675,7 +675,7 @@ RSpec.describe(StillActive::Workflow) do
       end
 
       it("drops a capped dep whose latest version can't be resolved, rather than guessing") do
-        allow(Gems).to(receive(:versions).with("activemodel").and_return([]))
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("activemodel").and_return([]))
         allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([
           {package_name: "activemodel", requirements: "< 5.0"}
         ]))
@@ -683,10 +683,11 @@ RSpec.describe(StillActive::Workflow) do
         expect(result["protected_attributes"]).not_to(have_key(:constraints))
       end
 
-      it("drops a capped dep when its latest lookup is rate-limited (Gems::GemError), leaving the dormant gem's own signals intact") do
+      it("drops a capped dep when its latest lookup is rate-limited, leaving the dormant gem's own signals intact") do
         # A 429 on the extra dep lookup the poison path adds must degrade to "no
         # constraints", never crash the gem or blame it for an unrelated failure.
-        allow(Gems).to(receive(:versions).with("activemodel").and_raise(Gems::GemError.new("429 Too Many Requests")))
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("activemodel").and_call_original)
+        stub_request(:get, "https://rubygems.org/api/v1/versions/activemodel.json").to_return(status: 429)
         allow(StillActive::EcosystemsClient).to(receive(:declared_dependencies).and_return([
           {package_name: "activemodel", requirements: "< 5.0"}
         ]))
@@ -721,11 +722,11 @@ RSpec.describe(StillActive::Workflow) do
       # runtime. NOT dormant: the ceiling is a compatibility fact regardless of
       # maintenance, unlike poison. latest (4.0.0) lifts the cap.
       def stub_gem_with_ruby_caps(name:, used:, used_ruby:, latest:, latest_ruby:)
-        allow(Gems).to(receive(:versions).with(name).and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with(name).and_return([
           {"number" => latest, "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => latest_ruby},
           {"number" => used, "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => used_ruby}
         ]))
-        allow(Gems).to(receive(:info).with(name).and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with(name).and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
       end
 
       it("flags an EOL-forcing cap (critical) and notes that upgrading the gem lifts it") do
@@ -745,10 +746,10 @@ RSpec.describe(StillActive::Workflow) do
         # 0.9.0 is gone from the registry (yanked); only latest 2.0.0 remains, and it
         # caps ruby_version. Attaching 2.0.0's ceiling to the yanked 0.9.0 would be a
         # false attribution -- we have no idea what 0.9.0's ruby_version was.
-        allow(Gems).to(receive(:versions).with("yankedcap").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("yankedcap").and_return([
           {"number" => "2.0.0", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => "< 3.2"}
         ]))
-        allow(Gems).to(receive(:info).with("yankedcap").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("yankedcap").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
 
         expect(result["yankedcap"][:version_yanked]).to(be(true))
         expect(result["yankedcap"]).not_to(have_key(:language_ceiling))
@@ -781,11 +782,11 @@ RSpec.describe(StillActive::Workflow) do
         # for. The source platform is the gem's true Ruby support, so a permissive
         # `ruby` entry must win even when a capped native entry is listed first.
         StillActive.config.gems = [{name: "sqlite3", version: "2.8.1"}]
-        allow(Gems).to(receive(:versions).with("sqlite3").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("sqlite3").and_return([
           {"number" => "2.8.1", "platform" => "x86_64-linux", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => ">= 3.1, < 3.5.dev"},
           {"number" => "2.8.1", "platform" => "ruby", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => ">= 3.1"}
         ]))
-        allow(Gems).to(receive(:info).with("sqlite3").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("sqlite3").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
 
         expect(result["sqlite3"]).not_to(have_key(:language_ceiling))
       end
@@ -794,11 +795,11 @@ RSpec.describe(StillActive::Workflow) do
         # Absent ruby_version means "runs on any Ruby" -> no ceiling. The cap on a
         # newer release must not be projected back onto the version in the tree.
         StillActive.config.gems = [{name: "oldgem", version: "1.0.0"}]
-        allow(Gems).to(receive(:versions).with("oldgem").and_return([
+        allow(StillActive::RubygemsClient).to(receive(:versions).with("oldgem").and_return([
           {"number" => "2.0.0", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"], "ruby_version" => "< 3.2"},
           {"number" => "1.0.0", "prerelease" => false, "created_at" => "2026-01-01T00:00:00Z", "licenses" => ["MIT"]} # no ruby_version
         ]))
-        allow(Gems).to(receive(:info).with("oldgem").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::RubygemsClient).to(receive(:info).with("oldgem").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
 
         expect(result["oldgem"]).not_to(have_key(:language_ceiling))
       end
@@ -859,19 +860,19 @@ RSpec.describe(StillActive::Workflow) do
   end
 
   describe(".versions") do
-    before { allow(Gems).to(receive(:versions).and_return([{"number" => "9.9.9"}])) }
+    before { allow(StillActive::RubygemsClient).to(receive(:versions).and_return([{"number" => "9.9.9"}])) }
 
     it("queries public rubygems for a gem from the public source") do
       result = described_class.send(:versions, gem_name: "rake", source_uri: "https://rubygems.org/")
 
       expect(result).to(eq([{"number" => "9.9.9"}]))
-      expect(Gems).to(have_received(:versions).with("rake"))
+      expect(StillActive::RubygemsClient).to(have_received(:versions).with("rake"))
     end
 
     it("queries public rubygems when no source is known (e.g. --gems mode)") do
       described_class.send(:versions, gem_name: "rake", source_uri: nil)
 
-      expect(Gems).to(have_received(:versions).with("rake"))
+      expect(StillActive::RubygemsClient).to(have_received(:versions).with("rake"))
     end
 
     it("audits a direct private source that speaks the compact index, instead of giving up") do
@@ -884,7 +885,7 @@ RSpec.describe(StillActive::Workflow) do
       result = described_class.send(:versions, gem_name: "sidekiq-pro", source_uri: "https://gems.contribsys.com/")
 
       expect(result.map { |h| h["number"] }).to(eq(["8.1.5", "8.1.4"]))
-      expect(Gems).not_to(have_received(:versions))
+      expect(StillActive::RubygemsClient).not_to(have_received(:versions))
     end
 
     it("falls through to the unqueryable warning when a private source serves no compact index") do
@@ -896,7 +897,7 @@ RSpec.describe(StillActive::Workflow) do
       end.to(output(/private source/i).to_stderr)
 
       expect(result).to(eq([]))
-      expect(Gems).not_to(have_received(:versions))
+      expect(StillActive::RubygemsClient).not_to(have_received(:versions))
     end
 
     it("never sends still_active's ambient Artifactory token to a lockfile-named private host") do
@@ -927,30 +928,30 @@ RSpec.describe(StillActive::Workflow) do
     it("treats rubygems.org subdomains as public") do
       described_class.send(:versions, gem_name: "rake", source_uri: "https://index.rubygems.org/")
 
-      expect(Gems).to(have_received(:versions).with("rake"))
+      expect(StillActive::RubygemsClient).to(have_received(:versions).with("rake"))
     end
 
     it("treats an uppercase RubyGems.org host as public (hostnames are case-insensitive)") do
       described_class.send(:versions, gem_name: "rake", source_uri: "https://RubyGems.org/")
 
-      expect(Gems).to(have_received(:versions).with("rake"))
+      expect(StillActive::RubygemsClient).to(have_received(:versions).with("rake"))
     end
 
     it("treats a trailing-dot FQDN rubygems.org host as public") do
       described_class.send(:versions, gem_name: "rake", source_uri: "https://rubygems.org./")
 
-      expect(Gems).to(have_received(:versions).with("rake"))
+      expect(StillActive::RubygemsClient).to(have_received(:versions).with("rake"))
     end
 
-    it("degrades to [] (never raising) when rubygems.org rate-limits or 5xxs (Gems::GemError)") do
-      # The `gems` library raises Gems::GemError for any non-success, non-404
-      # response. Unrescued it would escape #versions and strip the gem of every
-      # signal via the per-gem rescue in #call, not just its version list.
-      allow(Gems).to(receive(:versions).with("flaky").and_raise(Gems::GemError.new("429 Too Many Requests")))
+    it("degrades to [] (never raising) when rubygems.org rate-limits or 5xxs") do
+      # Escaping #versions would strip the gem of every signal via the per-gem
+      # rescue in #call, not just its version list.
+      allow(StillActive::RubygemsClient).to(receive(:versions).with("flaky").and_call_original)
+      stub_request(:get, "https://rubygems.org/api/v1/versions/flaky.json").to_return(status: 429)
 
       result = nil
       expect { result = described_class.send(:versions, gem_name: "flaky", source_uri: nil) }
-        .to(output(/versions lookup failed.*Gems::GemError/).to_stderr)
+        .to(output(/rubygems\.org.*429/).to_stderr)
       expect(result).to(eq([]))
     end
   end
@@ -973,12 +974,12 @@ RSpec.describe(StillActive::Workflow) do
   end
 
   describe(".repository_info") do
-    before { allow(Gems).to(receive(:info).and_return({"homepage_uri" => nil, "source_code_uri" => nil})) }
+    before { allow(StillActive::RubygemsClient).to(receive(:info).and_return({"homepage_uri" => nil, "source_code_uri" => nil})) }
 
     it("does not consult public rubygems.org metadata for an unqueryable private source") do
       described_class.send(:repository_info, gem_name: "internalgem_xyz", versions: [], source_uri: "https://gems.internal.example.com/")
 
-      expect(Gems).not_to(have_received(:info))
+      expect(StillActive::RubygemsClient).not_to(have_received(:info))
     end
 
     it("keeps the #43 repo-URL guard even when the private source now yields versions") do
@@ -989,29 +990,29 @@ RSpec.describe(StillActive::Workflow) do
       versions = [{"number" => "8.1.5", "prerelease" => false}]
       described_class.send(:repository_info, gem_name: "sidekiq-pro", versions: versions, source_uri: "https://gems.contribsys.com/")
 
-      expect(Gems).not_to(have_received(:info))
+      expect(StillActive::RubygemsClient).not_to(have_received(:info))
     end
 
     it("falls back to public rubygems.org metadata for a public-source gem") do
       described_class.send(:repository_info, gem_name: "publicgem_xyz", versions: [], source_uri: "https://rubygems.org/")
 
-      expect(Gems).to(have_received(:info).with("publicgem_xyz"))
+      expect(StillActive::RubygemsClient).to(have_received(:info).with("publicgem_xyz"))
     end
   end
 
   describe(".resolve_latest_version (capped-dep latest resolution + per-run cache)") do
     it("reuses an in-tree dep's already-computed latest_version without a network call") do
-      allow(Gems).to(receive(:versions))
+      allow(StillActive::RubygemsClient).to(receive(:versions))
       result_object = {"activemodel" => {latest_version: "8.0.1"}}
 
       latest = described_class.send(:resolve_latest_version, "activemodel", result_object: result_object, cache: {})
 
       expect(latest).to(eq("8.0.1"))
-      expect(Gems).not_to(have_received(:versions))
+      expect(StillActive::RubygemsClient).not_to(have_received(:versions))
     end
 
     it("fetches once and memoizes a dep not present in the tree") do
-      allow(Gems).to(receive(:versions).with("terrapin").and_return([
+      allow(StillActive::RubygemsClient).to(receive(:versions).with("terrapin").and_return([
         {"number" => "1.0.1", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z"}
       ]))
       cache = {}
@@ -1020,13 +1021,13 @@ RSpec.describe(StillActive::Workflow) do
       second = described_class.send(:resolve_latest_version, "terrapin", result_object: {}, cache: cache)
 
       expect([first, second]).to(all(eq("1.0.1")))
-      expect(Gems).to(have_received(:versions).with("terrapin").once)
+      expect(StillActive::RubygemsClient).to(have_received(:versions).with("terrapin").once)
     end
 
     it("re-attempts an unresolved dep rather than caching the miss, so a transient failure can't permanently suppress a later pill") do
       # First lookup: latest momentarily unavailable (rate-limit/timeout -> []).
       # Second: it resolves. Caching the first nil would drop the pill run-wide.
-      allow(Gems).to(receive(:versions).with("flappy")
+      allow(StillActive::RubygemsClient).to(receive(:versions).with("flappy")
         .and_return([], [{"number" => "3.0.0", "prerelease" => false, "created_at" => "2025-01-01T00:00:00Z"}]))
       cache = {}
 

@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "bundler"
-require "cgi"
 require "json"
 require "uri"
 require_relative "helpers/http_helper"
@@ -32,7 +31,7 @@ module StillActive
       compact = CompactIndexClient.versions(gem_name: gem_name, source_uri: source_uri, headers: headers)
       return dated(compact, gem_name: gem_name, source_uri: source_uri, headers: headers) unless compact.empty?
 
-      vs = RubygemsClient.versions(gem_name: gem_name, source_uri: source_uri, headers: headers)
+      vs = StillActive::RubygemsClient.versions(gem_name, base: URI(source_uri.chomp("/")), headers: headers)
       return vs unless vs.empty?
 
       AqlClient.versions(gem_name: gem_name, source_uri: source_uri, headers: headers)
@@ -49,7 +48,7 @@ module StillActive
     def dated(versions, gem_name:, source_uri:, headers:)
       return versions if versions.all? { |version| version["created_at"] }
 
-      published = RubygemsClient.versions(gem_name: gem_name, source_uri: source_uri, headers: headers)
+      published = StillActive::RubygemsClient.versions(gem_name, base: URI(source_uri.chomp("/")), headers: headers)
       return versions unless published.is_a?(Array)
 
       by_number = published.grep(Hash).to_h { |version| [version["number"], version] }
@@ -91,23 +90,6 @@ module StillActive
 
     def auth_headers(gem_name:, source_uri:)
       SourceCredentials.auth_header(credentials(gem_name: gem_name, source_uri: source_uri))
-    end
-
-    # Artifactory's Rubygems-compatible API
-    module RubygemsClient
-      extend self
-
-      def versions(gem_name:, source_uri:, headers: {})
-        base = URI(source_uri.chomp("/"))
-        path = "#{base.path}/api/v1/versions/#{encode(gem_name)}.json"
-        HttpHelper.get_json(base, path, headers: headers) || []
-      end
-
-      private
-
-      def encode(value)
-        CGI.escape(value)
-      end
     end
 
     # AQL stands for Artifactory Query Language
