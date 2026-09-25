@@ -23,6 +23,17 @@ RSpec.describe(StillActive::StatusHelper) do
       expect(described_class.gem_status(data)).to(eq(:unknown))
     end
 
+    it("is :unknown, not :ok, for a healthy gem whose advisories went unchecked") do
+      data = {latest_version_release_date: recent, vulnerability_count: 0, vulnerabilities_checked: false}
+      expect(described_class.gem_status(data)).to(eq(:unknown))
+      expect(described_class.gem_status(data.merge(vulnerabilities_checked: true))).to(eq(:ok))
+    end
+
+    it("keeps a worse verdict when the advisories went unchecked") do
+      data = {latest_version_release_date: ancient, vulnerability_count: 0, vulnerabilities_checked: false}
+      expect(described_class.gem_status(data)).to(eq(:legacy))
+    end
+
     it("is :dead for a dormant gem with an unpatched vulnerability (no one is fixing it)") do
       data = {latest_version_release_date: ancient, vulnerability_count: 1}
       expect(described_class.gem_status(data)).to(eq(:dead))

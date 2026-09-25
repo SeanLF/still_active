@@ -24,7 +24,8 @@ module StillActive
       version.to_s.delete_prefix("go").delete_prefix("v")
     end
 
-    # The same { info:, default:, vulnerabilities:, project_id:, version_unresolved: }
+    # The same { info:, default:, vulnerabilities:, vulnerabilities_checked:,
+    # project_id:, version_unresolved: }
     # EcosystemLens builds from deps.dev for any other package.
     def signals(version:)
       release = release(version)
@@ -36,18 +37,16 @@ module StillActive
       # prereleases as 1.27.0-rc.1, so a `1.27rc1` query would come back empty and
       # read as clean.
       vulnerabilities = OsvClient.advisories(ecosystem: :go, name: MODULE, version: release) if release.match?(/\A\d+\.\d+(\.\d+)?\z/)
-      # The status says unknown, but only JSON and CycloneDX carry it; the terminal,
-      # markdown and the vulnerability gate would show zero.
       warn("warning: go/#{MODULE}@#{release} advisories not checked (not a plain release, or OSV gave no complete answer); treat it as unknown, not clean") if vulnerabilities.nil?
 
       {
         info: cycle && {published_at: release_date(cycle, release), licenses: [], **end_of_life(cycle, latest)},
         default: latest && {version: latest["latest"], published_at: latest["latestReleaseDate"]},
         vulnerabilities: vulnerabilities || [],
+        vulnerabilities_checked: !vulnerabilities.nil?,
         project_id: nil,
-        # No version-specific verdict: the feed is up but doesn't know this line, or
-        # OSV didn't answer. Either way the status is :unknown, not a clean :ok.
-        version_unresolved: (!cycles.nil? && cycle.nil?) || vulnerabilities.nil?
+        # The feed is up but doesn't know this release line.
+        version_unresolved: !cycles.nil? && cycle.nil?
       }
     end
 

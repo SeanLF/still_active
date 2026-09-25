@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **A failed advisory lookup is no longer reported as "0 vulnerabilities".** Before, a deps.dev timeout, 5xx or 429 on a dependency's version record read exactly like a clean one, so a network blip could pass `--fail-if-vulnerable` with a vulnerable dependency in the tree. Now the lookup is retried once, and if no source answers the dependency carries `vulnerabilities_checked: false`: its status reads `unknown` rather than `ok`, the terminal and markdown show `?`, both JSON summaries count `vulnerabilities_unchecked`, the enriched CycloneDX marks it, and **`--fail-if-vulnerable` fails closed on it** with a warning naming it. A 404 is still an answer (a private package deps.dev has never seen stays checked), and on the native path a loaded ruby-advisory-db answers on its own. If this turns a run red, rerun it, or `--ignore` the dependency.
+
 ### Fixed
 
 - **The Go toolchain (`pkg:golang/stdlib`) is assessed from endoflife.date and OSV, not deps.dev.** deps.dev keys it `go1.27.1` where the purl says `1.27.1`, its index stops at go1.25.5, and its advisory list is the same for every version, so stdlib read as behind a stale "latest" and **every stdlib pin reported zero advisories**. It now reads its latest release from endoflife.date, its advisories from OSV for that exact version, and an end-of-life release line as deprecated, naming the line to move to. If OSV or the feed can't answer, the version reads `unknown` and a warning says its advisories went unchecked.

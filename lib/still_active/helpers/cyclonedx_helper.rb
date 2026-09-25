@@ -152,6 +152,9 @@ module StillActive
         "still_active:archived" => boolean_property(data[:archived]),
         "still_active:deprecated" => boolean_property(data[:deprecated]),
         "still_active:deprecation_reason" => data[:deprecation_reason],
+        # An empty vulnerabilities list reads as clean downstream; this says whether
+        # anything was actually looked up.
+        "still_active:vulnerabilities_checked" => boolean_property(data[:vulnerabilities_checked]),
         "still_active:scorecard_score" => data[:scorecard_score]&.to_s,
         "still_active:libyear" => data[:libyear]&.to_s,
         "still_active:last_commit_date" => iso8601(data[:last_commit_date])

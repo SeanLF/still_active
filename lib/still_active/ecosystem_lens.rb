@@ -63,8 +63,8 @@ module StillActive
         else
           registry_signals(ecosystem: ecosystem, name: name, version: version)
         end
-      info, default, vulnerabilities, project_id, version_unresolved =
-        signals.values_at(:info, :default, :vulnerabilities, :project_id, :version_unresolved)
+      info, default, vulnerabilities, vulnerabilities_checked, project_id, version_unresolved =
+        signals.values_at(:info, :default, :vulnerabilities, :vulnerabilities_checked, :project_id, :version_unresolved)
       scorecard = DepsDevClient.project_scorecard(project_id: project_id)
       repo = repo_signals(project_id)
 
@@ -109,6 +109,9 @@ module StillActive
         scorecard_score: scorecard&.dig(:score),
         scorecard_maintained: scorecard&.dig(:maintained),
         vulnerability_count: vulnerabilities.length,
+        # false when a source couldn't answer, so the zero above is "not looked
+        # at", never "clean". The status and --fail-if-vulnerable both read it.
+        vulnerabilities_checked: vulnerabilities_checked,
         vulnerabilities: vulnerabilities
       }
       gem_data[:version_unresolved] = true if version_unresolved
@@ -119,16 +122,20 @@ module StillActive
 
     private
 
-    # A package's signals from deps.dev, with OSV enrichment:
-    # { info:, default:, vulnerabilities:, project_id:, version_unresolved: }.
+    # A package's signals from deps.dev, with OSV enrichment: { info:, default:,
+    # vulnerabilities:, vulnerabilities_checked:, project_id:, version_unresolved: }.
     def registry_signals(ecosystem:, name:, version:)
-      info = DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)
+      # The version record carries the advisories, so deps.dev failing to answer it
+      # (after version_info's own retry) leaves them unchecked, not clean. A 404 is
+      # an answer: nothing public lists this version.
+      checked = true
+      info = begin
+        DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)
+      rescue HttpHelper::Unavailable
+        checked = false
+        nil
+      end
       default = DepsDevClient.default_version_info(name: name, system: ecosystem)
-      # Retry the version lookup once when it came back empty but the package DID
-      # resolve: HttpHelper collapses a genuine 404 and a transient network blip to
-      # the same nil, and a healthy version must not be mis-flagged as unresolved
-      # (below) on a one-off miss. A real 404 stays nil; a blip recovers the data.
-      info ||= DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem) if default
       # Recover the repo from the default version when the exact locked version
       # isn't indexed (yanked/normalization mismatch): otherwise its project link
       # vanishes and a still-fresh package date would read a false :ok with
@@ -139,7 +146,7 @@ module StillActive
       # (default present, so the feed is up): the version is yanked/nonexistent, not a
       # transient miss. Flag it so status reads :unknown rather than letting the still-
       # fresh PACKAGE date report a nonexistent version as :ok.
-      version_unresolved = info.nil? && !default.nil?
+      version_unresolved = checked && info.nil? && !default.nil?
       project_id = info&.dig(:project_id) || project_id_from(name, ecosystem, default)
       vulnerabilities = vulnerabilities_for(info)
       # Enrich with OSV: a real GHSA severity label (deps.dev can't score a CVSS-4-only
@@ -147,7 +154,7 @@ module StillActive
       # Passing the version also lets OSV confirm the advisory actually applies to it,
       # correcting deps.dev's lag on an advisory amended with backport fixes.
       vulnerabilities = OsvClient.enrich(vulnerabilities, ecosystem: ecosystem, name: name, version: version)
-      {info: info, default: default, vulnerabilities: vulnerabilities, project_id: project_id, version_unresolved: version_unresolved}
+      {info: info, default: default, vulnerabilities: vulnerabilities, vulnerabilities_checked: checked, project_id: project_id, version_unresolved: version_unresolved}
     end
 
     # Language-runtime ceiling for the cross-ecosystem path, the sibling of the
@@ -306,6 +313,8 @@ module StillActive
       return if version.nil?
 
       DepsDevClient.version_info(gem_name: name, version: version, system: ecosystem)&.dig(:project_id)
+    rescue HttpHelper::Unavailable
+      nil
     end
 
     # archived + last-commit for a flat github.com/owner/repo project, or {} for

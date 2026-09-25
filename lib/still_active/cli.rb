@@ -292,7 +292,8 @@ module StillActive
         # The single worst per-dependency verdict, so a consumer reads one
         # project-level posture without scanning every dependency.
         status: StatusHelper.project_status(result),
-        status_counts: statuses.tally
+        status_counts: statuses.tally,
+        vulnerabilities_unchecked: result.count { |_key, data| data[:vulnerabilities_checked] == false }
       }
     end
 
@@ -484,6 +485,7 @@ module StillActive
       return unless config.fail_if_critical || config.fail_if_warning || config.fail_if_vulnerable || config.fail_if_outdated || config.fail_if_poison || config.fail_if_language_ceiling || config.fail_if_deprecated
 
       warn_unknown_severity_gate(result, config)
+      warn_unchecked_gate(result, config)
       # Match the gate on the dependency's identity (bare gem name natively,
       # "ecosystem/name" for an SBOM dep), not the composite SBOM hash key, so an
       # --ignore/.still_active.yml entry actually covers a cross-ecosystem finding.
@@ -511,6 +513,22 @@ module StillActive
         ids = unknown.filter_map { |vuln| vuln[:id] }.join(", ")
         labelled = ids.empty? ? "" : " (#{ids})"
         warn("warning: #{gem} has an advisory of unknown severity#{labelled}; failing --fail-if-vulnerable=#{threshold} because it can't be ruled out below the threshold (review, then fix or suppress it in .still_active.yml)")
+      end
+    end
+
+    # The gate fails closed on a gem whose advisories no source could answer for,
+    # so say which gem and why, as warn_unknown_severity_gate does for an unscored
+    # advisory.
+    def warn_unchecked_gate(result, config)
+      return unless config.fail_if_vulnerable
+
+      result.each do |name, data|
+        next unless data[:vulnerabilities_checked] == false
+
+        gem = DependencyHelper.identity(name, data)
+        next if config.ignored_gems.include?(gem)
+
+        warn("warning: #{gem}: advisories could not be checked (no source answered for this version); failing --fail-if-vulnerable rather than reading it as clean (rerun, or --ignore it)")
       end
     end
 
@@ -576,6 +594,7 @@ module StillActive
     def failed_vulnerability?(name, data, config, suppressions)
       setting = config.fail_if_vulnerable
       return false unless setting
+      return true if data[:vulnerabilities_checked] == false
 
       # Reason over the live advisory array (not vulnerability_count) so the gate
       # and warn_unknown_severity_gate share one source of truth: a warning that

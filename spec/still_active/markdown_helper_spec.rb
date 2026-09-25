@@ -66,6 +66,11 @@ RSpec.describe(StillActive::MarkdownHelper) do
       expect(line).to(include("✅"))
     end
 
+    it("shows the unsure emoji, not success, when the advisories went unchecked") do
+      cell = described_class.send(:format_vulns, {vulnerability_count: 0, vulnerabilities: [], vulnerabilities_checked: false})
+      expect(cell).to(eq(StillActive.config.unsure_emoji))
+    end
+
     it("includes last commit year/month") do
       expect(line).to(include("2024/07"))
     end

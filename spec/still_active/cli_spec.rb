@@ -339,6 +339,7 @@ RSpec.describe(StillActive::CLI) do
             deprecated: false,
             deprecation_reason: nil,
             vulnerability_count: 0,
+            vulnerabilities_checked: true,
             vulnerabilities: [],
             ruby_gems_url: "https://rubygems.org/gems/rails",
             up_to_date: false,
@@ -617,6 +618,25 @@ RSpec.describe(StillActive::CLI) do
       suppress([{"gem" => "vuln_gem", "advisory" => "CVE-1"}, {"gem" => "vuln_gem", "advisory" => "CVE-2"}])
       expect { cli.send(:check_exit_status, {"vuln_gem" => vuln_gem(["CVE-1", "CVE-2"])}) }
         .not_to(raise_error)
+    end
+
+    # Unchecked is not clean: the gate fails closed, as it does on an unscored
+    # advisory, and says which gem so the failure isn't a mystery.
+    it("fails --fail-if-vulnerable, naming the gem, when its advisories went unchecked") do
+      StillActive.config.fail_if_vulnerable = "high"
+      data = gem_data(last_commit_date: Time.now).merge(vulnerability_count: 0, vulnerabilities: [], vulnerabilities_checked: false)
+      expect { cli.send(:check_exit_status, {"g" => data}) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) }
+        .and(output(/g: advisories could not be checked/).to_stderr))
+    end
+
+    it("does not fail on unchecked advisories for an --ignore'd gem, or without the gate") do
+      data = gem_data(last_commit_date: Time.now).merge(vulnerability_count: 0, vulnerabilities: [], vulnerabilities_checked: false)
+      expect { cli.send(:check_exit_status, {"g" => data}) }.not_to(raise_error)
+
+      StillActive.config.fail_if_vulnerable = true
+      StillActive.config.ignored_gems = ["g"]
+      expect { cli.send(:check_exit_status, {"g" => data}) }.not_to(raise_error)
     end
 
     it("does not let an advisory suppression hide the same gem going critical") do

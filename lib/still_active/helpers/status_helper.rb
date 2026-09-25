@@ -28,6 +28,14 @@ module StillActive
     # Returns :dead, :vulnerable, :deprecated, :archived, :legacy, :stale, :ok,
     # or :unknown.
     def gem_status(gem_data)
+      status = lifecycle_status(gem_data)
+      # Advisories a source couldn't answer for are not "none": an otherwise
+      # clean package reads :unknown. Worse verdicts stand, since what they
+      # already found (archived, dormant) is true either way.
+      (status == :ok && gem_data[:vulnerabilities_checked] == false) ? :unknown : status
+    end
+
+    def lifecycle_status(gem_data)
       vulnerable = gem_data[:vulnerability_count].to_i.positive?
 
       # A pinned version the registry can't resolve (yanked, typo, or nonexistent)

@@ -294,7 +294,7 @@ module StillActive
 
     def format_vulns(data)
       count = data[:vulnerability_count]
-      return StillActive.config.unsure_emoji if count.nil?
+      return StillActive.config.unsure_emoji if count.nil? || (count.zero? && data[:vulnerabilities_checked] == false)
       return StillActive.config.success_emoji if count.zero?
 
       vulnerabilities = data[:vulnerabilities] || []

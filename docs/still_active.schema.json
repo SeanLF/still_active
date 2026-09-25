@@ -134,6 +134,10 @@
           "type": "integer",
           "minimum": 0
         },
+        "vulnerabilities_unchecked": {
+          "type": "integer",
+          "minimum": 0
+        },
         "vulnerabilities": {
           "type": "integer",
           "minimum": 0
@@ -278,6 +282,9 @@
         "vulnerability_count": {
           "type": "integer",
           "minimum": 0
+        },
+        "vulnerabilities_checked": {
+          "type": "boolean"
         },
         "vulnerabilities": {
           "type": "array",

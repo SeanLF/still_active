@@ -232,4 +232,42 @@ RSpec.describe(StillActive::HttpHelper) do
       expect(result).to(be_nil)
     end
   end
+
+  # A caller that must not read a failure as "nothing there" (advisories) asks for
+  # strict mode: a 404 is still an answer, anything else that isn't one raises.
+  describe("strict mode") do
+    let(:base) { URI("https://api.deps.dev") }
+
+    def get
+      described_class.get_json(base, "/x", strict: true)
+    end
+
+    it("returns the body, and nil for a 404") do
+      stub_request(:get, "https://api.deps.dev/x").to_return(status: 200, body: "{}", headers: {"Content-Type" => "application/json"})
+      expect(get).to(eq({}))
+
+      stub_request(:get, "https://api.deps.dev/x").to_return(status: 404)
+      expect(get).to(be_nil)
+    end
+
+    it("raises Unavailable for a 5xx, a 429, a timeout, garbled JSON, or a refused redirect") do
+      [
+        -> { stub_request(:get, "https://api.deps.dev/x").to_return(status: 503) },
+        -> { stub_request(:get, "https://api.deps.dev/x").to_return(status: 429) },
+        -> { stub_request(:get, "https://api.deps.dev/x").to_timeout },
+        -> { stub_request(:get, "https://api.deps.dev/x").to_return(status: 200, body: "not json") },
+        -> { stub_request(:get, "https://api.deps.dev/x").to_return(status: 302, headers: {"Location" => "https://evil.example.com/"}) }
+      ].each do |stub|
+        WebMock.reset!
+        stub.call
+        expect { get }.to(raise_error(described_class::Unavailable).and(output.to_stderr))
+      end
+    end
+
+    it("leaves the default mode returning nil on failure") do
+      stub_request(:get, "https://api.deps.dev/x").to_return(status: 503)
+
+      expect { expect(described_class.get_json(base, "/x")).to(be_nil) }.to(output.to_stderr)
+    end
+  end
 end

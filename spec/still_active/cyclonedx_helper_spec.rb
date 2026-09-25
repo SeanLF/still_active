@@ -254,5 +254,15 @@ RSpec.describe(StillActive::CyclonedxHelper) do
       ))
       expect(doc["vulnerabilities"].first["affects"].first["ref"]).to(eq("pkg:npm/left-pad@1.3.0"))
     end
+
+    # An empty vulnerabilities list for a component reads as clean downstream, so
+    # an unchecked one has to say so on the component itself.
+    it("marks a component whose advisories went unchecked") do
+      unchecked = assessed.transform_values { |data| data.merge(vulnerability_count: 0, vulnerabilities: [], vulnerabilities_checked: false) }
+      doc = JSON.parse(described_class.render_sbom(result: unchecked, tool_version: "3.0.0"))
+      props = doc["components"].first["properties"].to_h { |p| [p["name"], p["value"]] }
+
+      expect(props).to(include("still_active:vulnerabilities_checked" => "false"))
+    end
   end
 end

@@ -352,6 +352,39 @@ RSpec.describe(StillActive::EcosystemLens) do
     end
   end
 
+  # A failed advisory lookup is "unchecked", never "clean"; a 404 is deps.dev
+  # answering that it has no record, which is not a failure.
+  describe(".assess advisory coverage") do
+    it("marks the advisories unchecked, and the status unknown, when deps.dev can't answer the version") do
+      stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/[^/]+/packages/.+/versions/.+}).to_return(status: 503)
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+
+      result = nil
+      expect { result = described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1") }.to(output(/503/).to_stderr)
+
+      expect(result).to(include(vulnerabilities_checked: false, vulnerability_count: 0))
+      expect(result).not_to(have_key(:version_unresolved))
+      expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
+    end
+
+    it("keeps a package deps.dev doesn't index checked (a private package has no public advisories)") do
+      stub_request(:get, /api\.deps\.dev/).to_return(status: 404)
+
+      result = described_class.assess(ecosystem: :npm, name: "@acme/internal", version: "1.0.0")
+
+      expect(result).to(include(vulnerabilities_checked: true))
+    end
+
+    it("reports a checked version as checked") do
+      stub_version(source_repo: "https://github.com/expressjs/express")
+      stub_package(default_published_at: "2026-06-01T00:00:00Z")
+      stub_project_scorecard
+      stub_ecosystems_repo(archived: false)
+
+      expect(described_class.assess(ecosystem: :npm, name: "express", version: "5.2.1")).to(include(vulnerabilities_checked: true))
+    end
+  end
+
   describe(".assess poison-pill (cross-ecosystem)") do
     before do
       stub_version(source_repo: "https://github.com/owner/pkg")
@@ -669,7 +702,8 @@ RSpec.describe(StillActive::EcosystemLens) do
         version_used_release_date: "2026-09-01",
         up_to_date: true,
         deprecated: false,
-        vulnerability_count: 0
+        vulnerability_count: 0,
+        vulnerabilities_checked: true
       ))
       expect(result).not_to(have_key(:version_unresolved))
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:ok))
@@ -700,9 +734,10 @@ RSpec.describe(StillActive::EcosystemLens) do
     it("reads a prerelease as :unknown without asking OSV") do
       stub_go_feed
 
-      result = assess("go1.27rc1")
+      result = nil
+      expect { result = assess("go1.27rc1") }.to(output(/not checked/).to_stderr)
 
-      expect(result[:version_unresolved]).to(be(true))
+      expect(result).to(include(vulnerabilities_checked: false))
       expect(a_request(:post, /api\.osv\.dev/)).not_to(have_been_made)
     end
 
@@ -735,7 +770,7 @@ RSpec.describe(StillActive::EcosystemLens) do
       # Only JSON carries the status, so the miss has to be said out loud too.
       expect { result = assess("1.27.1") }.to(output(/go\/stdlib@1\.27\.1.*not checked/).to_stderr)
 
-      expect(result[:version_unresolved]).to(be(true))
+      expect(result).to(include(vulnerabilities_checked: false))
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
     end
 

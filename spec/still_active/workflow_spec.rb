@@ -60,6 +60,33 @@ RSpec.describe(StillActive::Workflow) do
       end
     end
 
+    # A deps.dev failure leaves the advisories unchecked, unless ruby-advisory-db
+    # (the Ruby authority) was loaded and answered for them instead.
+    context("when deps.dev can't answer the version record") do
+      before do
+        StillActive.config.gems = [{name: "rack", version: "2.0.0"}]
+        allow(Gems).to(receive(:versions).with("rack").and_return([
+          {"number" => "2.0.0", "prerelease" => false, "created_at" => "2016-05-06T00:00:00Z", "licenses" => ["MIT"]}
+        ]))
+        allow(Gems).to(receive(:info).with("rack").and_return({"homepage_uri" => nil, "source_code_uri" => nil}))
+        allow(StillActive::DepsDevClient).to(receive(:version_info).and_raise(StillActive::HttpHelper::Unavailable))
+        allow(StillActive::DepsDevClient).to(receive(:project_scorecard).and_return(nil))
+        allow(described_class).to(receive(:repo_signals).and_return({}))
+      end
+
+      it("marks the advisories unchecked without ruby-advisory-db") do
+        allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil))
+
+        expect(result["rack"]).to(include(vulnerabilities_checked: false, vulnerability_count: 0))
+      end
+
+      it("counts them checked when ruby-advisory-db answered") do
+        allow(StillActive::RubyAdvisoryDb).to(receive_messages(load: :fake_db, advisories_for: []))
+
+        expect(result["rack"]).to(include(vulnerabilities_checked: true))
+      end
+    end
+
     context("when ruby-advisory-db is available as a second source") do
       before do
         StillActive.config.gems = [{name: "rack", version: "2.0.0"}]

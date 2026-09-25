@@ -278,16 +278,32 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(described_class.latest_release_date(name: "empty", system: :npm)).to(be_nil)
     end
 
-    it("returns nil on timeout") do
-      stub_request(:get, /api\.deps\.dev/).to_timeout
+    # The advisories ride on this response, so a failure must not read as "no
+    # advisories": after one retry it raises, and the caller marks them unchecked.
+    it("retries once, then raises Unavailable, on a timeout or refused connection") do
+      [-> { stub_request(:get, /api\.deps\.dev/).to_timeout }, -> { stub_request(:get, /api\.deps\.dev/).to_raise(Errno::ECONNREFUSED) }].each do |stub|
+        WebMock.reset!
+        stub.call
 
-      expect(described_class.version_info(gem_name: "nokogiri", version: "1.19.1")).to(be_nil)
+        expect { described_class.version_info(gem_name: "nokogiri", version: "1.19.1") }
+          .to(raise_error(StillActive::HttpHelper::Unavailable).and(output.to_stderr))
+        expect(a_request(:get, /api\.deps\.dev/)).to(have_been_made.twice)
+      end
     end
 
-    it("returns nil on connection refused") do
-      stub_request(:get, /api\.deps\.dev/).to_raise(Errno::ECONNREFUSED)
+    it("recovers when the retry answers") do
+      stub_request(:get, /api\.deps\.dev/).to_return(status: 503).then
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: {"advisoryKeys" => [{"id" => "GHSA-x"}]}.to_json)
 
-      expect(described_class.version_info(gem_name: "nokogiri", version: "1.19.1")).to(be_nil)
+      result = nil
+      expect { result = described_class.version_info(gem_name: "nokogiri", version: "1.19.1") }.to(output.to_stderr)
+      expect(result[:advisory_keys]).to(eq(["GHSA-x"]))
+    end
+
+    it("returns nil for a 404, which is deps.dev answering that it has no record") do
+      stub_request(:get, /api\.deps\.dev/).to_return(status: 404)
+
+      expect(described_class.version_info(gem_name: "private-gem", version: "1.0.0")).to(be_nil)
     end
   end
 

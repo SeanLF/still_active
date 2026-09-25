@@ -64,6 +64,7 @@ RSpec.describe("cross-path field parity") do # rubocop:disable RSpec/DescribeCla
       version_used
       version_used_release_date
       vulnerabilities
+      vulnerabilities_checked
       vulnerability_count
     ]
   end

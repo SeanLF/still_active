@@ -113,6 +113,8 @@ module StillActive
     def format_vulns(data)
       count = data[:vulnerability_count]
       return AnsiHelper.dim("-") if count.nil?
+      # No source answered, so a 0 here would read as clean.
+      return AnsiHelper.yellow("?") if count.zero? && data[:vulnerabilities_checked] == false
       return AnsiHelper.green("0") if count.zero?
 
       severity = VulnerabilityHelper.highest_severity(data[:vulnerabilities])
@@ -353,6 +355,7 @@ module StillActive
       activity << ", #{archived} archived" if archived > 0
       parts << activity
       parts << "#{summary[:vulnerabilities]} vulnerabilities"
+      parts.last << " (#{summary[:vulnerabilities_unchecked]} unchecked)" if summary[:vulnerabilities_unchecked] > 0
       poison_tiers = result.each_value.select { |data| data[:poison] }.map { |data| data[:poison_severity] }
       poison_part = tier_summary_part(poison_tiers, "#{poison_tiers.size} poison-#{(poison_tiers.size == 1) ? "pill" : "pills"}")
       parts << poison_part if poison_part
