@@ -345,7 +345,9 @@ module StillActive
       # any `scheme://`, and ssh userinfo (`git@`) so what remains is host/owner/repo.
       # Left unnormalized, a git-scheme URL mis-parses (host becomes `git:`), which
       # 400s the projects lookup and drops the repo signals.
-      cleaned = url.strip.delete_prefix("git+").sub(%r{\A[a-z][a-z0-9+.-]*://}i, "").sub(%r{\A[^/@]+@}, "")
+      # A fragment or query (`...bar.git#main`, `...?tab=readme`) isn't part of
+      # the repository's path.
+      cleaned = url.strip.sub(/[#?].*\z/m, "").delete_prefix("git+").sub(%r{\A[a-z][a-z0-9+.-]*://}i, "").sub(%r{\A[^/@]+@}, "")
       # scp-style git remotes separate host from path with a colon (`host:owner/repo`)
       # rather than a slash. Convert it so the split yields host/owner/repo, but leave
       # a real port (`host:443/...`) alone -- a colon before a digit isn't a path.

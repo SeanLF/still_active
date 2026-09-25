@@ -29,8 +29,9 @@ module StillActive
   # same two fields: GitHub first with a token (freshest, 5000/hr), ecosyste.ms
   # first without one (GitHub allows 60 anonymous requests an hour), each the
   # other's fallback. ecosyste.ms sees the repository's name, so it is asked only
-  # when the dependency came from a public registry (`public:`), and never after
-  # GitHub refused the token (401/403), which suggests a private repository.
+  # when the dependency came from a public registry (`public:`), which is the
+  # privacy guard; after GitHub refused the token outright (401/403: a bad token,
+  # SSO, a suspended account) the chain also stops rather than guess.
   module RepositorySignals
     extend self
 

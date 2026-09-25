@@ -55,6 +55,12 @@ RSpec.describe(StillActive::GithubClient) do
       end
     end
 
+    it("raises RepoSignalsUnavailable, not an ArgumentError, for a name Octokit won't accept") do
+      allow(client).to(receive(:repository).and_raise(Octokit::InvalidRepository))
+      expect { described_class.repo_signals(owner: "foo", name: "bar#main") }
+        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
+    end
+
     it("raises RepoAccessDenied when GitHub refuses the token") do
       [Octokit::Unauthorized, Octokit::Forbidden].each do |error|
         allow(client).to(receive(:repository).and_raise(error))

@@ -36,6 +36,10 @@ module StillActive
       {archived: repo.archived, last_commit_date: as_time(repo.pushed_at, owner, name)}
     rescue Octokit::NotFound
       {}
+    # Octokit refuses a malformed owner/name up front, with an ArgumentError.
+    rescue Octokit::InvalidRepository => e
+      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}")
+      raise RepoSignalsUnavailable, "#{owner}/#{name}: #{e.class}"
     # Rate limits are Forbidden subclasses in Octokit (a 403), but they say
     # nothing about the repository being private, so they don't stop the chain.
     rescue Octokit::TooManyRequests, Octokit::AbuseDetected, Octokit::TooManyLoginAttempts => e
