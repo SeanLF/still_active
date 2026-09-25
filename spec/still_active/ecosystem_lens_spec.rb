@@ -371,14 +371,19 @@ RSpec.describe(StillActive::EcosystemLens) do
       expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
     end
 
-    it("doesn't mark a repository GitHub says doesn't exist") do
+    # Anonymous GitHub 404s a private repository too, so neither service knowing
+    # it is unknown, not "not archived".
+    it("marks a repository neither ecosyste.ms nor GitHub knows as unavailable") do
       stub_version(source_repo: "https://github.com/gone/gone")
       stub_package(default_published_at: "2026-06-01T00:00:00Z")
       stub_project_scorecard
       stub_request(:get, %r{repos\.ecosyste\.ms/}).to_return(status: 404)
       stub_request(:get, "https://api.github.com/repos/gone/gone").to_return(status: 404)
 
-      expect(described_class.assess(ecosystem: :npm, name: "gone", version: "1.0.0")).not_to(have_key(:repository_unavailable))
+      result = nil
+      expect { result = described_class.assess(ecosystem: :npm, name: "gone", version: "1.0.0") }.to(output.to_stderr)
+      expect(result).to(include(repository_unavailable: true))
+      expect(StillActive::StatusHelper.gem_status(result)).to(eq(:unknown))
     end
 
     # Without a token, ecosyste.ms is asked first; one it hasn't crawled used to

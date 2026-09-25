@@ -34,13 +34,25 @@ RSpec.describe(StillActive::RepositorySignals) do
       expect(ask).to(eq(archived: true, source: "ecosyste.ms"))
     end
 
-    it("takes GitHub's 'doesn't exist' as an answer") do
+    # A forge 404s a private repository to anyone who can't see it, so its 404 is
+    # "don't know", like ecosyste.ms's: ask on, and if nobody knows, unknown.
+    it("reads a 404 from every service as unknown, not as 'not archived'") do
       with_token("t")
       allow(StillActive::GithubClient).to(receive(:repo_signals).and_return({}))
-      allow(StillActive::EcosystemsClient).to(receive(:repo_signals))
+      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_return({}))
 
-      expect(ask).to(eq({}))
-      expect(StillActive::EcosystemsClient).not_to(have_received(:repo_signals))
+      expect { expect(ask).to(eq(unavailable: true)) }.to(output(/no repository source answered/).to_stderr)
+
+      allow(StillActive::GitlabClient).to(receive(:repo_signals).and_return({}))
+      expect { expect(ask(host: "gitlab.com")).to(eq(unavailable: true)) }.to(output.to_stderr)
+    end
+
+    it("takes the next service's answer after a 404") do
+      with_token("t")
+      allow(StillActive::GithubClient).to(receive(:repo_signals).and_return({}))
+      allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_return(archived: true))
+
+      expect(ask).to(eq(archived: true, source: "ecosyste.ms"))
     end
 
     it("is unavailable, and warns, when no service can answer") do
@@ -63,8 +75,8 @@ RSpec.describe(StillActive::RepositorySignals) do
       expect { expect(ask).to(eq(unavailable: true)) }.to(output.to_stderr)
 
       with_token(nil)
-      allow(StillActive::GithubClient).to(receive(:repo_signals).and_return(answer))
-      expect(ask(public: false)).to(eq(answer.merge(source: "github")))
+      allow(StillActive::GithubClient).to(receive(:repo_signals).and_return({}))
+      expect { expect(ask(public: false)).to(eq(unavailable: true)) }.to(output.to_stderr)
 
       expect(StillActive::EcosystemsClient).not_to(have_received(:repo_signals))
     end

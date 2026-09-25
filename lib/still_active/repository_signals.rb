@@ -14,10 +14,16 @@ module StillActive
   #
   # Returns one of:
   #   {archived:, last_commit_date:, source:}  a service answered; source names it
-  #   {}                                       nothing to ask about, or the forge
-  #                                            says the repository doesn't exist
-  #   {unavailable: true}                      no service could answer, so
-  #                                            archived is unknown, not false
+  #   {}                                       nothing to ask about (no repository,
+  #                                            or a host no service covers)
+  #   {unavailable: true}                      no service could say, so archived is
+  #                                            unknown, not false
+  #
+  # "Don't know" is never an answer: ecosyste.ms's 404 for a repository it hasn't
+  # crawled, an answer without the archived state, and a forge's own 404 all move
+  # on to the next service. A forge 404s a private repository to anyone who can't
+  # see it (every anonymous request), so its 404 can't tell "doesn't exist" from
+  # "can't see"; and a repository that really is gone isn't healthy either.
   #
   # A GitHub repository is asked of GitHub and of ecosyste.ms, which mirrors the
   # same two fields: GitHub first with a token (freshest, 5000/hr), ecosyste.ms
@@ -39,11 +45,9 @@ module StillActive
 
       services.each do |service|
         signals = service.ask.call(owner, name)
-        # GitHub's, GitLab's or Codeberg's own "doesn't exist" is an answer. A
-        # mirror that hasn't crawled the repository (ecosyste.ms's 404), or that
-        # doesn't carry its archived state, just doesn't know: ask the next.
-        next if !signals.key?(:archived) && service.label == "ecosyste.ms"
-        return signals.empty? ? {} : signals.merge(source: service.label)
+        next unless signals.key?(:archived)
+
+        return signals.merge(source: service.label)
       rescue RepoAccessDenied
         break
       rescue RepoSignalsUnavailable
