@@ -315,11 +315,18 @@ RSpec.describe(StillActive::Workflow) do
         expect(StillActive::DepsDevClient.instance_variable_get(:@prefetched)).to(be_nil)
       end
 
+      # Raised from a stubbed Async rather than inside a real task: async's own
+      # failure logging (console) writes to whatever $stderr was when it first
+      # logged, which under GitHub Actions can be a stream an earlier spec
+      # captured, and that crash would mask what this spec is about.
       it("clears the table when the audit raises") do
-        allow(StillActive::CeilingReconciler).to(receive(:reconcile_ceiling_with_poison).and_raise(RuntimeError, "boom"))
-        allow(described_class).to(receive(:gem_info))
+        allow(described_class).to(receive(:Async)) do
+          StillActive::DepsDevClient.prefetch_versions([[:rubygems, "rack", "2.0.0"]])
+          raise "boom"
+        end
 
-        expect { result }.to(raise_error(RuntimeError, "boom"))
+        expect { described_class.call }.to(raise_error(RuntimeError, "boom"))
+        expect(StillActive::DepsDevClient).to(have_received(:prefetch_versions))
         expect(StillActive::DepsDevClient.instance_variable_get(:@prefetched)).to(be_nil)
       end
     end
