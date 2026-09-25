@@ -91,9 +91,6 @@ module StillActive
               constraint_cache: constraint_cache,
               ruby_range: ruby_range
             )
-          rescue Octokit::TooManyRequests
-            $stderr.print("\r\e[K") if on_progress
-            warn("rate limited checking #{gem[:name]}: set GITHUB_TOKEN to increase your limit")
           rescue => e
             $stderr.print("\r\e[K") if on_progress
             warn("error occurred for #{gem[:name]}: #{e.class}\n\t#{e.message}")
@@ -101,6 +98,8 @@ module StillActive
             # An assessment that raised part-way never reached the advisory lookup;
             # its entry must not read as checked.
             hash[gem[:name]][:vulnerabilities_checked] = false if hash[gem[:name]] && !hash[gem[:name]].key?(:vulnerabilities_checked)
+            # Likewise its repository: every completed path sets :archived, even to nil.
+            hash[gem[:name]][:repository_unavailable] = true if hash[gem[:name]] && !hash[gem[:name]].key?(:archived)
             completed += 1
             on_progress&.call(completed, total)
           end
@@ -166,7 +165,8 @@ module StillActive
       signals = repo_signals(
         source: repo_info[:source],
         repository_owner: repo_info[:owner],
-        repository_name: repo_info[:name]
+        repository_name: repo_info[:name],
+        public: public_source?(source_uri)
       )
       commit_date = signals[:last_commit_date]
       archived = signals[:archived]
@@ -598,11 +598,25 @@ module StillActive
     # instead of two. Returns {} for an unhandled host.
     # {unavailable: true} when the provider couldn't answer, so the gem is marked
     # rather than its blank archived flag read as "not archived".
-    def repo_signals(source:, repository_owner:, repository_name:)
-      provider_for(source)&.repo_signals(owner: repository_owner, name: repository_name) || {}
+    # `public:` says the gem came from a public registry, which lets GitHub fall
+    # back to ecosyste.ms without sending a private repo's name to a third party.
+    def repo_signals(source:, repository_owner:, repository_name:, public: false)
+      provider = provider_for(source)
+      return {} if provider.nil?
+
+      if provider == GithubClient
+        provider.repo_signals(owner: repository_owner, name: repository_name, public: public)
+      else
+        provider.repo_signals(owner: repository_owner, name: repository_name)
+      end || {}
     rescue RepoSignalsUnavailable
       warn("warning: #{repository_owner}/#{repository_name}: no repository source answered; archived status unknown")
       {unavailable: true}
+    end
+
+    # rubygems.org, as opposed to a private registry the lockfile names.
+    def public_source?(source_uri)
+      !(github_packages_uri?(source_uri) || ArtifactoryClient.artifactory_uri?(source_uri) || unqueryable_private_source?(source_uri))
     end
 
     def repository_availability(signals)

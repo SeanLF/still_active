@@ -160,7 +160,7 @@ module StillActive
       # goes through the gates as unchecked rather than dropping out of them.
       # Reader-level unassessables (a private registry, no version) stay out: those
       # are known limits of what can be assessed, not failures.
-      failed = outcome.failures.to_h { ["#{_1[:ecosystem]}/#{_1[:name]}@#{_1[:version]}", _1.merge(vulnerabilities_checked: false)] }
+      failed = outcome.failures.to_h { ["#{_1[:ecosystem]}/#{_1[:name]}@#{_1[:version]}", _1.merge(vulnerabilities_checked: false, repository_unavailable: true)] }
       check_exit_status(outcome.assessed.merge(failed))
     end
 

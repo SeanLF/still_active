@@ -242,13 +242,13 @@ RSpec.describe(StillActive::Workflow) do
         expect(result["flaky"]).to(include(vulnerabilities_checked: false))
       end
 
-      it("marks a gem whose assessment raised unchecked") do
+      it("marks a gem whose assessment raised unchecked, and its repository unavailable") do
         StillActive.config.gems = [{name: "boom", version: "1.0.0"}]
         allow(described_class).to(receive(:versions).and_raise(RuntimeError, "boom"))
 
         data = nil
         expect { data = result["boom"] }.to(output(/error occurred for boom/).to_stderr)
-        expect(data).to(include(vulnerabilities_checked: false))
+        expect(data).to(include(vulnerabilities_checked: false, repository_unavailable: true))
       end
     end
 
@@ -271,6 +271,18 @@ RSpec.describe(StillActive::Workflow) do
         expect { data = result["rack"] }.to(output(/archived status unknown/).to_stderr)
 
         expect(data).to(include(repository_unavailable: true, archived: nil))
+      end
+
+      it("lets GitHub fall back to ecosyste.ms for a public-registry gem, but not for a private source") do
+        allow(StillActive::GithubClient).to(receive(:repo_signals).and_call_original)
+        StillActive.config.github_oauth_token = "t"
+        allow(StillActive.config).to(receive(:github_client).and_return(instance_double(Octokit::Client, repository: nil).tap { allow(_1).to(receive(:repository).and_raise(Octokit::BadGateway)) }))
+
+        expect { result }.to(output.to_stderr)
+        expect(StillActive::GithubClient).to(have_received(:repo_signals).with(owner: "rack", name: "rack", public: true))
+
+        expect(described_class.send(:public_source?, "https://rubygems.pkg.github.com/acme")).to(be(false))
+        expect(described_class.send(:public_source?, nil)).to(be(true))
       end
     end
 

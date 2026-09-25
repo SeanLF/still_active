@@ -58,9 +58,32 @@ RSpec.describe(StillActive::GithubClient) do
         .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
     end
 
-    it("returns {} when the repository can't be read") do
-      allow(client).to(receive(:repository).and_return(nil))
-      expect(described_class.repo_signals(owner: owner, name: name)).to(eq({}))
+    # ecosyste.ms 404s a repo it hasn't crawled, and every private one: after
+    # GitHub failed, that's nobody answering, not "not archived".
+    it("reads a fallback that doesn't know the repo, or its archived state, as unavailable") do
+      allow(client).to(receive(:repository).and_raise(Octokit::InternalServerError))
+      [{}, {last_commit_date: Time.now}].each do |answer|
+        allow(StillActive::EcosystemsClient).to(receive(:repo_signals).and_return(answer))
+        expect { described_class.repo_signals(owner: owner, name: name) }
+          .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
+      end
+    end
+
+    # A private repo's name must not go to a third party: no fallback for a
+    # dependency that didn't come from a public registry, nor on a 401/403.
+    it("doesn't ask ecosyste.ms about a repo that may be private") do
+      allow(StillActive::EcosystemsClient).to(receive(:repo_signals))
+
+      allow(client).to(receive(:repository).and_raise(Octokit::InternalServerError))
+      expect { described_class.repo_signals(owner: owner, name: name, public: false) }
+        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
+
+      [Octokit::Unauthorized, Octokit::Forbidden].each do |error|
+        allow(client).to(receive(:repository).and_raise(error))
+        expect { described_class.repo_signals(owner: owner, name: name) }
+          .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
+      end
+      expect(StillActive::EcosystemsClient).not_to(have_received(:repo_signals))
     end
 
     it("warns and leaves the date nil on an unparseable pushed_at") do

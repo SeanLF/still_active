@@ -1338,6 +1338,16 @@ RSpec.describe(StillActive::CLI) do
         .and(output(%r{pypi/flask: advisories could not be checked}).to_stderr))
     end
 
+    it("fails --fail-if-critical on a dependency whose assessment raised, since its repository was never read") do
+      failure = {ecosystem: :pypi, name: "flask", version: "2.0.0", reason: :assessment_error, error: "Net::ReadTimeout: timed out"}
+      allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({}, failures: [failure])))
+      allow($stdout).to(receive(:puts))
+
+      expect { cli.run(["--sbom=sbom.json", "--fail-if-critical"]) }
+        .to(raise_error(SystemExit) { |e| expect(e.status).to(eq(1)) }
+        .and(output(%r{pypi/flask: its repository couldn't be read}).to_stderr))
+    end
+
     it("counts unchecked dependencies in the summary") do
       allow(StillActive::SbomWorkflow).to(receive(:call).and_return(outcome({"pypi/flask@2.0.0" => lens_data.merge(vulnerabilities_checked: false)})))
       captured = nil

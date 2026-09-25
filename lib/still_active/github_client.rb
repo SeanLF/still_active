@@ -27,21 +27,27 @@ module StillActive
     # mirrors the same two fields, so it is asked instead; if it can't answer
     # either, RepoSignalsUnavailable, never a blank archived flag that reads as
     # "not archived".
-    def repo_signals(owner:, name:)
+    #
+    # The fallback sends the repo's name to a third party, so it runs only for
+    # `public:` repos (the dependency came from a public registry) and never on a
+    # 401/403, which suggest a private repo the token can't see.
+    def repo_signals(owner:, name:, public: true)
       return {} if owner.nil? || name.nil?
 
       repo = with_rate_limit_retry("repo #{owner}/#{name}") do
         StillActive.config.github_client.repository("#{owner}/#{name}")
       end
-      return fallback_signals(owner, name) if repo == :rate_limited
-      return {} unless repo
+      return fallback_signals(owner, name, public) if repo == :rate_limited
 
       {archived: repo.archived, last_commit_date: as_time(repo.pushed_at, owner, name)}
     rescue Octokit::NotFound
       {}
+    rescue Octokit::Unauthorized, Octokit::Forbidden => e
+      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}")
+      raise RepoSignalsUnavailable, "#{owner}/#{name}: #{e.class}"
     rescue Octokit::Error, Faraday::Error => e
-      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}; asking ecosyste.ms")
-      fallback_signals(owner, name)
+      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}#{"; asking ecosyste.ms" if public}")
+      fallback_signals(owner, name, public)
     end
 
     # Commits on the default branch since the latest release's tag: the
@@ -70,8 +76,16 @@ module StillActive
 
     private
 
-    def fallback_signals(owner, name)
-      EcosystemsClient.repo_signals(owner: owner, name: name)
+    # Only an answer that says whether the repo is archived counts: ecosyste.ms
+    # 404s a repo it hasn't crawled, and after GitHub failed that is nobody
+    # answering.
+    def fallback_signals(owner, name, public)
+      raise RepoSignalsUnavailable, "#{owner}/#{name}: GitHub couldn't answer" unless public
+
+      signals = EcosystemsClient.repo_signals(owner: owner, name: name)
+      raise RepoSignalsUnavailable, "#{owner}/#{name}: ecosyste.ms doesn't know its archived state" unless signals.key?(:archived)
+
+      signals
     end
 
     # Pause-and-retry on a rate-limit response when the reset is near, so a
