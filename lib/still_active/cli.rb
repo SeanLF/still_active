@@ -164,7 +164,9 @@ module StillActive
       # are known limits of what can be assessed, not failures.
       failed = outcome.failures.to_h do |failure|
         fields = failure.slice(:ecosystem, :name, :purl, :production, :direct, :dependency_path)
-        ["#{failure[:ecosystem]}/#{failure[:name]}@#{failure[:version]}", Assessment.from(fields.merge(version_used: failure[:version], vulnerabilities_checked: false, repository_check: "failed"))]
+        # Never assessed, so Assessment.from reads its advisories unchecked and
+        # its repository check failed.
+        ["#{failure[:ecosystem]}/#{failure[:name]}@#{failure[:version]}", Assessment.from(fields.merge(version_used: failure[:version]))]
       end
       check_exit_status(outcome.assessed.merge(failed))
     end

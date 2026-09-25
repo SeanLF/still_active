@@ -97,11 +97,8 @@ module StillActive
             $stderr.print("\r\e[K") if on_progress
             warn("error occurred for #{gem[:name]}: #{e.class}\n\t#{e.message}")
           ensure
-            # An assessment that raised part-way never reached the advisory lookup;
-            # its entry must not read as checked.
-            hash[gem[:name]][:vulnerabilities_checked] = false if hash[gem[:name]] && !hash[gem[:name]].key?(:vulnerabilities_checked)
-            # Likewise its repository: every completed path sets :repository_check.
-            hash[gem[:name]][:repository_check] = "failed" if hash[gem[:name]] && !hash[gem[:name]].key?(:repository_check)
+            # An assessment that raised part-way is left without its answers;
+            # Assessment.from reads those as unchecked and failed.
             completed += 1
             on_progress&.call(completed, total)
           end

@@ -24,6 +24,25 @@ RSpec.describe(StillActive::Assessment) do
     expect(StillActive::StatusHelper.gem_status(assessment)).to(eq(:unknown))
   end
 
+  # Only an explicit answer counts: nil or an unrecognised value isn't one.
+  it("reads a nil or unrecognised answer as not given") do
+    assessment = described_class.from(name: "x", vulnerabilities_checked: nil, repository_check: "bogus")
+
+    expect(assessment).to(have_attributes(vulnerabilities_checked: false, repository_check: "failed"))
+  end
+
+  # Specs run strict (spec_helper), so a stray field fails CI; a user's audit
+  # warns and drops it rather than losing every result it paid for.
+  it("warns and drops an unknown field, instead of raising, outside strict mode") do
+    described_class.strict = false
+    assessment = nil
+    expect { assessment = described_class.from(name: "x", homepage: "h") }.to(output(/unknown assessment field.*homepage/).to_stderr)
+    expect(assessment.to_h).not_to(have_key(:homepage))
+    expect { expect(assessment[:homepage]).to(be_nil) }.to(output(/unknown assessment field.*homepage/).to_stderr)
+  ensure
+    described_class.strict = true
+  end
+
   it("keeps the answers a hash did give") do
     assessment = described_class.from(name: "x", vulnerabilities_checked: true, repository_check: "answered")
 

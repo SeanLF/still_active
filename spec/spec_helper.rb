@@ -45,6 +45,8 @@ RSpec.configure do |config|
     # (e.g. a widened warning_range_end silently demoting an "abandoned" SARIF gem).
     # Runs before any describe-level `before`, so per-example config setup still wins.
     StillActive.reset
+    # A stray assessment field fails the spec; in a user's run it's warned about.
+    StillActive::Assessment.strict = true
     # Pooled connections hold WebMock's fake sockets; a spec must not inherit one.
     StillActive::HttpHelper.reset_connections!
     # The on-disk cache would carry answers between examples and write to the

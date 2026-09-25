@@ -5,8 +5,10 @@ module StillActive
   # reads it. Both audit paths assemble a hash field by field, then build this
   # once every pass over it is done, so what reaches a consumer is complete:
   #
-  # - Every field is declared here. An unknown one raises, when building and
-  #   when reading, so a typo'd or unregistered field is an error, not a nil.
+  # - Every field is declared here. An unknown one, when building or reading, is
+  #   an error in the specs (strict, set by spec_helper) and a warning in a
+  #   user's run, where it's dropped: the build happens after every lookup is
+  #   paid for, and one stray field mustn't cost the whole audit's output.
   # - The answers that decide "clean or unknown" are never missing. A hash that
   #   never had its advisories looked up is vulnerabilities_checked: false; one
   #   that never reached its repository is repository_check: "failed". A missing
@@ -28,21 +30,39 @@ module StillActive
     :given
   )
     FIELDS = (members - [:given]).freeze
+    REPOSITORY_CHECKS = ["answered", "failed", "unknowable", "not_applicable"].freeze
 
-    def self.from(hash)
-      unknown = hash.keys - FIELDS
-      raise ArgumentError, "unknown assessment field(s): #{unknown.join(", ")}" unless unknown.empty?
+    class << self
+      attr_accessor :strict
 
-      decided = {
-        vulnerabilities_checked: hash.fetch(:vulnerabilities_checked, false),
-        repository_check: hash.fetch(:repository_check, "failed")
-      }
-      values = FIELDS.to_h { [_1, nil] }.merge(hash, decided)
-      new(**values, given: (hash.keys | decided.keys).freeze)
+      def from(hash)
+        unknown = hash.keys - FIELDS
+        unless unknown.empty?
+          unknown_field!(ArgumentError, "unknown assessment field(s): #{unknown.join(", ")}")
+          hash = hash.slice(*FIELDS)
+        end
+
+        # Only an explicit answer counts: missing, nil or unrecognised is not one.
+        decided = {
+          vulnerabilities_checked: hash[:vulnerabilities_checked] == true,
+          repository_check: REPOSITORY_CHECKS.include?(hash[:repository_check]) ? hash[:repository_check] : "failed"
+        }
+        values = FIELDS.to_h { [_1, nil] }.merge(hash, decided)
+        new(**values, given: (hash.keys | decided.keys).freeze)
+      end
+
+      def unknown_field!(error, message)
+        raise error, message if strict
+
+        warn("warning: #{message} (an internal bug; please report it)")
+      end
     end
 
     def [](field)
-      raise KeyError, "unknown assessment field: #{field.inspect}" unless FIELDS.include?(field)
+      unless FIELDS.include?(field)
+        self.class.unknown_field!(KeyError, "unknown assessment field: #{field.inspect}")
+        return
+      end
 
       public_send(field)
     end

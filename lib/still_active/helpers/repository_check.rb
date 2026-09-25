@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../assessment"
+
 module StillActive
   # Reading a dependency's repository_check the same way everywhere: "answered",
   # "failed" or "unknowable" (see RepositorySignals), or "not_applicable" for the
@@ -8,7 +10,7 @@ module StillActive
   module RepositoryCheck
     extend self
 
-    VALUES = ["answered", "failed", "unknowable", "not_applicable"].freeze
+    VALUES = Assessment::REPOSITORY_CHECKS
     SETTLED = ["answered", "not_applicable"].freeze
 
     def unanswered?(data) = !SETTLED.include?(data[:repository_check])
