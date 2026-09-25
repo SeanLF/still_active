@@ -3,7 +3,6 @@
 require "time"
 require "octokit"
 require_relative "errors"
-require_relative "ecosystems_client"
 
 module StillActive
   # Repo signals (archived?, last commit date) for github.com-hosted gems.
@@ -22,32 +21,32 @@ module StillActive
     # object's pushed_at (last push) stands in for the last-commit date: it
     # matches the default-branch commit date to the day in practice, and folding
     # the two signals into one call halves the per-gem GitHub requests. Returns
-    # {} when GitHub says the repo isn't there. When GitHub can't answer (a rate
-    # limit past its short wait, an error status, a network failure), ecosyste.ms
-    # mirrors the same two fields, so it is asked instead; if it can't answer
-    # either, RepoSignalsUnavailable, never a blank archived flag that reads as
-    # "not archived".
-    #
-    # The fallback sends the repo's name to a third party, so it runs only for
-    # `public:` repos (the dependency came from a public registry) and never on a
-    # 401/403, which suggest a private repo the token can't see.
-    def repo_signals(owner:, name:, public: true)
+    # {} when GitHub says the repo doesn't exist; raises RepoAccessDenied when it
+    # refuses the token, and RepoSignalsUnavailable when it can't answer (a rate
+    # limit past its short wait, an error status, a network failure).
+    # RepositorySignals decides what to ask next.
+    def repo_signals(owner:, name:)
       return {} if owner.nil? || name.nil?
 
       repo = with_rate_limit_retry("repo #{owner}/#{name}") do
         StillActive.config.github_client.repository("#{owner}/#{name}")
       end
-      return fallback_signals(owner, name, public) if repo == :rate_limited
+      raise RepoSignalsUnavailable, "#{owner}/#{name}: rate limited" if repo == :rate_limited
 
       {archived: repo.archived, last_commit_date: as_time(repo.pushed_at, owner, name)}
     rescue Octokit::NotFound
       {}
-    rescue Octokit::Unauthorized, Octokit::Forbidden => e
+    # Rate limits are Forbidden subclasses in Octokit (a 403), but they say
+    # nothing about the repository being private, so they don't stop the chain.
+    rescue Octokit::TooManyRequests, Octokit::AbuseDetected, Octokit::TooManyLoginAttempts => e
       warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}")
       raise RepoSignalsUnavailable, "#{owner}/#{name}: #{e.class}"
+    rescue Octokit::Unauthorized, Octokit::Forbidden => e
+      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}")
+      raise RepoAccessDenied, "#{owner}/#{name}: #{e.class}"
     rescue Octokit::Error, Faraday::Error => e
-      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}#{"; asking ecosyste.ms" if public}")
-      fallback_signals(owner, name, public)
+      warn("warning: repo signals failed for #{owner}/#{name}: #{e.class}")
+      raise RepoSignalsUnavailable, "#{owner}/#{name}: #{e.class}"
     end
 
     # Commits on the default branch since the latest release's tag: the
@@ -79,15 +78,6 @@ module StillActive
     # Only an answer that says whether the repo is archived counts: ecosyste.ms
     # 404s a repo it hasn't crawled, and after GitHub failed that is nobody
     # answering.
-    def fallback_signals(owner, name, public)
-      raise RepoSignalsUnavailable, "#{owner}/#{name}: GitHub couldn't answer" unless public
-
-      signals = EcosystemsClient.repo_signals(owner: owner, name: name)
-      raise RepoSignalsUnavailable, "#{owner}/#{name}: ecosyste.ms doesn't know its archived state" unless signals.key?(:archived)
-
-      signals
-    end
-
     # Pause-and-retry on a rate-limit response when the reset is near, so a
     # transient secondary/burst limit (which GitHub's concurrent fan-out can
     # trip even with a token) self-heals instead of dropping the gem's signal.

@@ -318,6 +318,16 @@
             "critical"
           ]
         },
+        "repository_source": {
+          "type": "string",
+          "enum": [
+            "github",
+            "ecosyste.ms",
+            "gitlab",
+            "codeberg"
+          ],
+          "description": "Which service answered for archived and last_commit_date. Absent when none was asked or none answered."
+        },
         "repository_unavailable": {
           "type": "boolean",
           "description": "Present, and true, when no source could read the repository (a rate limit, an error), so archived is unknown rather than false."

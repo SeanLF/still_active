@@ -33,7 +33,7 @@ RSpec.describe("--sbom JSON Schema conformance") do # rubocop:disable RSpec/Desc
         production: true, direct: true, version_used_release_date: "2025-03-31T00:00:00Z",
         latest_version: "5.2.1", latest_version_release_date: "2026-01-01T00:00:00Z", libyear: 0.8,
         up_to_date: false, license: "MIT", deprecated: false, deprecation_reason: nil,
-        repository_url: "https://github.com/expressjs/express", last_commit_date: recent, archived: false,
+        repository_url: "https://github.com/expressjs/express", repository_source: "ecosyste.ms", last_commit_date: recent, archived: false,
         scorecard_score: 8.5, scorecard_maintained: 10, vulnerability_count: 1, vulnerabilities_checked: true,
         vulnerabilities: [{id: "CVE-2024-1", url: "https://example/x", title: "t", aliases: ["GHSA-x"], cvss3_score: 7.5, cvss3_vector: "AV:N", cvss2_score: nil, source: "osv", osv_severity: "HIGH", osv_cvss_score: 7.5, cvss_version: "3.1", cvss_vector: "CVSS:3.1/AV:N", fixed_versions: ["5.2.0"]}]
       },

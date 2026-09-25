@@ -325,6 +325,7 @@ RSpec.describe(StillActive::CLI) do
             latest_pre_release_version: "7.2.0.beta1",
             latest_pre_release_version_release_date: Time.new(2026, 2, 1, 0, 0, 0, "+00:00"),
             repository_url: "https://github.com/rails/rails",
+            repository_source: "github",
             last_commit_date: recent_date,
             archived: false,
             scorecard_score: 8.5,

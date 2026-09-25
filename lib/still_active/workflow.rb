@@ -5,6 +5,7 @@ require_relative "compact_index_client"
 require_relative "source_credentials"
 require_relative "ceiling_reconciler"
 require_relative "errors"
+require_relative "repository_signals"
 require_relative "deps_dev_client"
 require_relative "osv_client"
 require_relative "poison_security_correlator"
@@ -58,7 +59,7 @@ module StillActive
             nil
           end
         # Resolve the GitHub token once here, single-fibered, before the fan-out:
-        # provider_for reads it per gem across fibers and gh_cli_token shells out,
+        # RepositorySignals reads it per gem across fibers and gh_cli_token shells out,
         # so resolving eagerly keeps that off the concurrent path and guarantees
         # every fiber sees one consistent value (token -> live GitHub, incl. private
         # repos; only a genuinely absent token falls back to ecosyste.ms).
@@ -576,42 +577,12 @@ module StillActive
       ].compact.uniq
     end
 
-    # The repo-signal provider for a source, or nil for an unhandled host. Every
-    # provider answers archived/last_commit_date; richer signals (e.g.
-    # commits_since_release) are duck-typed and dispatched by respond_to?, so a
-    # provider opts into them by defining the method, with no base class and no
-    # assumption that every source supports every signal.
-    def provider_for(source)
-      case source
-      # Without a GitHub token, the live API caps at 60 req/hr -- unusable past a
-      # handful of gems. Fall back to ecosyste.ms (5000 anonymous) so a large
-      # Gemfile still resolves. With a token, the live API stays primary (freshest,
-      # and it carries commits_since_release, which ecosyste.ms doesn't).
-      when :github then StillActive.config.github_oauth_token ? GithubClient : EcosystemsClient
-      when :gitlab then GitlabClient
-      when :forgejo then ForgejoClient
-      end
-    end
-
-    # One provider call yields both archived and the last-activity date (the
-    # repo object carries both), so a gem's repo signals cost a single request
-    # instead of two. Returns {} for an unhandled host.
-    # {unavailable: true} when the provider couldn't answer, so the gem is marked
-    # rather than its blank archived flag read as "not archived".
-    # `public:` says the gem came from a public registry, which lets GitHub fall
-    # back to ecosyste.ms without sending a private repo's name to a third party.
+    # archived + last-activity date, and which service answered, from
+    # RepositorySignals. `public:` says the gem came from a public registry, so
+    # its repository's name may go to ecosyste.ms.
     def repo_signals(source:, repository_owner:, repository_name:, public: false)
-      provider = provider_for(source)
-      return {} if provider.nil?
-
-      if provider == GithubClient
-        provider.repo_signals(owner: repository_owner, name: repository_name, public: public)
-      else
-        provider.repo_signals(owner: repository_owner, name: repository_name)
-      end || {}
-    rescue RepoSignalsUnavailable
-      warn("warning: #{repository_owner}/#{repository_name}: no repository source answered; archived status unknown")
-      {unavailable: true}
+      host = Repository::SOURCE_BY_HOST.key(source)
+      RepositorySignals.for(host: host, owner: repository_owner, name: repository_name, public: public)
     end
 
     # rubygems.org, as opposed to a private registry the lockfile names.
@@ -620,14 +591,17 @@ module StillActive
     end
 
     def repository_availability(signals)
-      signals[:unavailable] ? {repository_unavailable: true} : {}
+      return {repository_unavailable: true} if signals[:unavailable]
+
+      signals[:source] ? {repository_source: signals[:source]} : {}
     end
 
+    # GitHub's compare endpoint, and only with a token: it's a per-gem call, and
+    # 60 anonymous requests an hour would starve the repository lookups.
     def unreleased_commits(source:, repository_owner:, repository_name:, version:)
-      provider = provider_for(source)
-      return unless provider.respond_to?(:commits_since_release)
+      return unless source == :github && StillActive.config.github_oauth_token
 
-      provider.commits_since_release(owner: repository_owner, name: repository_name, version: version)
+      GithubClient.commits_since_release(owner: repository_owner, name: repository_name, version: version)
     end
   end
 end

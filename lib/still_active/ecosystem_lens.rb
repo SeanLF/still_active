@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "errors"
+require_relative "repository_signals"
 require_relative "deps_dev_client"
 require_relative "osv_client"
 require_relative "ecosystems_client"
@@ -118,6 +119,7 @@ module StillActive
       gem_data[:version_unresolved] = true if version_unresolved
       # The repository couldn't be read, so a blank archived flag isn't "not archived".
       gem_data[:repository_unavailable] = true if repo[:unavailable]
+      gem_data[:repository_source] = repo[:source] if repo[:source]
       attach_constraints(gem_data, ecosystem: ecosystem, name: name, version: version, cache: constraint_cache)
       attach_language_ceiling(gem_data, ecosystem: ecosystem, name: name, version: version, latest_version: default&.dig(:version), runtime_ranges: runtime_ranges)
       gem_data
@@ -320,26 +322,14 @@ module StillActive
       nil
     end
 
-    # archived + last-commit for a flat github.com/owner/repo project, or {} for
-    # anything else. deps.dev indexes github.com and gitlab.com only, but gitlab
-    # subgroups nest arbitrarily and ecosyste.ms's repo crawler is GitHub-centric,
-    # so a gitlab (or nested, or unresolved) project keeps archived unknown rather
-    # than risk a bogus owner/name lookup.
+    # archived + last-activity date, and which service answered, for the
+    # project deps.dev linked (host/owner/name, or host/group/.../name on GitLab).
+    # Every dependency here came through deps.dev, so from a public registry.
     def repo_signals(project_id)
-      host, owner, name, *rest = project_id.to_s.split("/")
-      return {} unless host == "github.com" && owner && name && rest.empty?
+      host, *path = project_id.to_s.split("/")
+      return {} if path.size < 2
 
-      repo_provider.repo_signals(owner: owner, name: name) || {}
-    rescue RepoSignalsUnavailable
-      warn("warning: #{owner}/#{name}: no repository source answered; archived status unknown")
-      {unavailable: true}
-    end
-
-    # Mirrors Workflow#provider_for(:github): the live GitHub API when a token is
-    # configured (freshest), else ecosyste.ms (5000 anonymous req/hr vs GitHub's
-    # 60), so an untokened cross-ecosystem run still resolves a large SBOM.
-    def repo_provider
-      StillActive.config.github_oauth_token ? GithubClient : EcosystemsClient
+      RepositorySignals.for(host: host, owner: path[0..-2].join("/"), name: path.last, public: true)
     end
 
     # Is the pinned version at or ahead of latest stable? nil when latest is unknown.

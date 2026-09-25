@@ -171,6 +171,9 @@
           "type": "string",
           "description": "The input SBOM's package URL, verbatim."
         },
+        "repository_source": {
+          "$ref": "still_active.schema.json#/$defs/gem/properties/repository_source"
+        },
         "repository_unavailable": {
           "$ref": "still_active.schema.json#/$defs/gem/properties/repository_unavailable"
         },
