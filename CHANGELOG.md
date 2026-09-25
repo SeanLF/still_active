@@ -8,6 +8,10 @@
 
 ### Changed
 
+- **About 30% faster on an SBOM, from reusing connections.** Every request used to open its own TLS connection; HttpHelper now keeps one open per host and reuses it. On a 300-component, four-ecosystem SBOM, connections to deps.dev went from 705 to 12 and the run from about 24s to 17s, with identical output. A rate limit that says when to come back (a 429 or 503 with `Retry-After` of 10 seconds or less) now gets one retry after that wait instead of failing the lookup.
+
+### Changed
+
 - **A failed advisory lookup is no longer reported as "0 vulnerabilities".** Before, a deps.dev timeout, 5xx or 429 on a dependency's version record read exactly like a clean one, so a network blip could pass `--fail-if-vulnerable` with a vulnerable dependency in the tree. Now the lookup is retried once, and if no source answers (including a version record with no `advisoryKeys` list, which is what deps.dev schema drift looks like) the dependency carries `vulnerabilities_checked: false`, as does one whose assessment raised part-way: its status reads `unknown` rather than `ok` or `legacy` (the two verdicts that claim clean), the terminal and markdown show `?`, both JSON summaries count `vulnerabilities_unchecked`, the enriched CycloneDX marks it, **`--fail-if-vulnerable` fails closed on it** with a warning naming it, and the `--baseline` diff reports a bump to an unchecked version as a regression instead of "closed vulns". A 404 is still an answer (a private package deps.dev has never seen stays checked), and on the native path a loaded ruby-advisory-db answers on its own. If this turns a run red, rerun it, or `--ignore` the dependency.
 - **One fewer runtime dependency: `gems` is gone.** Its two rubygems.org calls now go through the same HTTP layer as every other source, so they get the same timeouts, body cap and redirect rules. That also fixes a crash path: a 5xx or 429 from rubygems.org's gem-info endpoint escaped as an exception and cost the gem every signal, not just its repository link. Artifactory's copy of the same API shares the client.
 
