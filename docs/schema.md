@@ -164,7 +164,7 @@ Fields specific to this path:
 | `dependency_path` | array | Present only for a transitive package, head-first, naming the declared dependency that pulls it in as `ecosystem/name`. |
 | `version_unresolved` | bool | The pinned version could not be resolved while the package could. The cross-ecosystem analogue of `version_yanked`. |
 
-Each `unassessable` entry carries `ecosystem`, `name` and a `reason` (an unsupported ecosystem, a missing version or PURL, a private registry, a malformed PURL, or a failed lookup), plus `version` and `production` when known.
+Each `unassessable` entry carries `ecosystem`, `name` and a `reason` (an unsupported ecosystem, a missing version or PURL, a private registry, a malformed PURL, or a failed lookup), plus `version` when known. An entry whose lookup failed (`assessment_error`) also carries the `error`, and the `purl`, `production`, `direct` and `dependency_path` the dependency had.
 
 ## The supported integration surface
 

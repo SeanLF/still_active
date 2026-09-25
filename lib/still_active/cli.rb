@@ -274,9 +274,8 @@ module StillActive
       exit(2)
     end
 
-    # SBOM output deliberately omits the Ruby audit's `$schema`: the shape differs
-    # (composite keys, an unassessable list, no Ruby/PR-context blocks), so it
-    # would be a false claim to point at that contract. schema_version stays 1.
+    # The SBOM output names its own schema, not the Ruby audit's: the shape differs
+    # (composite keys, an unassessable list, no Ruby/PR-context blocks).
     def emit_sbom_json(result, unassessable, health)
       output = {
         "$schema": SBOM_SCHEMA_URL,
