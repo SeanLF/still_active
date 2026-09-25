@@ -75,6 +75,7 @@ module StillActive
       used_release_date = info&.dig(:published_at)
       latest_release_date = default&.dig(:published_at)
       latest_version = default&.dig(:version)
+      deprecation = deprecation(ecosystem, name, version, info, default)
       gem_data = {
         ecosystem: ecosystem,
         name: name,
@@ -105,8 +106,8 @@ module StillActive
         # it. A declared fact rather than a date heuristic, and the one signal a
         # release-recency check can never produce: a package deprecated last month
         # with a release last week looks perfectly healthy by dates alone.
-        deprecated: info&.dig(:deprecated) == true,
-        deprecation_reason: info&.dig(:deprecation_reason),
+        deprecated: deprecation[:deprecated],
+        deprecation_reason: deprecation[:deprecation_reason],
         repository_url: project_id && "https://#{project_id}",
         last_commit_date: repo[:last_commit_date],
         archived: repo[:archived],
@@ -163,6 +164,29 @@ module StillActive
       # correcting deps.dev's lag on an advisory amended with backport fixes.
       vulnerabilities = OsvClient.enrich(vulnerabilities, ecosystem: ecosystem, name: name, version: version)
       {info: info, default: default, vulnerabilities: vulnerabilities, vulnerabilities_checked: checked, project_id: project_id, version_unresolved: version_unresolved}
+    end
+
+    # The maintainer's deprecation, from the pinned version's record. Go deprecates
+    # a module, not a version: `// Deprecated:` in the latest go.mod covers every
+    # version (it's what `go list -m -u` reports), but deps.dev flags only the
+    # version whose go.mod carries it, so a Go module pinned below its latest is
+    # also read from the latest version. npm deprecates versions, so it stays
+    # per version.
+    def deprecation(ecosystem, name, version, info, default)
+      if info&.dig(:deprecated) != true && ecosystem == :go && !GoToolchain.toolchain?(ecosystem, name)
+        latest = default&.dig(:version)
+        latest_info = (latest && latest != version) ? latest_version_info(name, latest) : nil
+        return {deprecated: true, deprecation_reason: latest_info[:deprecation_reason]} if latest_info&.dig(:deprecated) == true
+      end
+
+      {deprecated: info&.dig(:deprecated) == true, deprecation_reason: info&.dig(:deprecation_reason)}
+    end
+
+    # A failed lookup just leaves the module's deprecation unread.
+    def latest_version_info(name, version)
+      DepsDevClient.version_info(gem_name: name, version: version, system: :go)
+    rescue HttpHelper::Unavailable
+      nil
     end
 
     # Language-runtime ceiling for the cross-ecosystem path, the sibling of the

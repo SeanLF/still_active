@@ -229,6 +229,23 @@ RSpec.describe(StillActive::DepsDevClient) do
       expect(described_class.latest_release_date(name: "requests", system: :pypi)).to(eq("2025-08-18T20:46:00Z"))
     end
 
+    # A deprecated Go module flags every version since its go.mod gained the
+    # comment, so skipping deprecated versions (right for npm, where one bad
+    # release is deprecated) would call a years-old version the latest.
+    it("counts a deprecated Go module's deprecated versions toward its latest, but not npm's") do
+      versions = [
+        {"versionKey" => {"version" => "v1.5.1"}, "publishedAt" => "2021-03-18T00:00:00Z"},
+        {"versionKey" => {"version" => "v1.5.4"}, "isDeprecated" => true, "isDefault" => true, "publishedAt" => "2024-03-05T00:00:00Z"}
+      ]
+      stub_request(:get, %r{/systems/go/packages/github\.com%2Fgolang%2Fprotobuf\z})
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: package_body(versions))
+      stub_request(:get, %r{/systems/npm/packages/left-pad\z})
+        .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: package_body(versions.map { _1.merge("versionKey" => {"version" => _1.dig("versionKey", "version").delete_prefix("v")}) }))
+
+      expect(described_class.default_version_info(name: "github.com/golang/protobuf", system: :go)[:version]).to(eq("v1.5.4"))
+      expect(described_class.default_version_info(name: "left-pad", system: :npm)[:version]).to(eq("1.5.1"))
+    end
+
     it("queries the rubygems system by default") do
       stub = stub_request(:get, %r{api\.deps\.dev/v3alpha/systems/rubygems/packages/nokogiri\z})
         .to_return(status: 200, headers: {"Content-Type" => "application/json"}, body: package_body([]))
