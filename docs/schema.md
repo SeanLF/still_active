@@ -29,6 +29,7 @@ A machine-readable JSON Schema lives at [`docs/still_active.schema.json`](still_
 | `generated_at` | string | ISO-8601 UTC timestamp (e.g. `"2026-05-22T14:33:00Z"`). |
 | `gems` | object | Map of gem name → gem data (see below). |
 | `ruby` | object \| absent | Ruby freshness info; absent when not detectable. |
+| `source_health` | object | Whether deps.dev answered in shape and is current, checked once before the audit: `{ status: "ok" \| "degraded", deps_dev_advisories: "ok" \| "failed", deps_dev_stale_ecosystems: [...] }`. The advisory check asks for a package with permanent advisories; the freshness check asks, per audited ecosystem, for a package that releases every few days and expects a release within 30 days. Where it is degraded, deps.dev's advisories count as unchecked (`vulnerabilities_checked: false`), except where ruby-advisory-db answered or the source isn't deps.dev (the Go toolchain). |
 | `pr_context` | object \| absent | Present only when the run is detected as Dependabot/Renovate-authored. `{ "bot": "dependabot" \| "renovate", "bumps": [{ "gem", "from", "to" }] }`. `from` is `null` for Renovate (its commit subject carries no source version); `bumps` is `[]` for grouped/unparseable subjects. Best-effort detection — absence does not guarantee the run is not a bot's. |
 
 ## Summary fields
@@ -145,6 +146,7 @@ The SBOM output is **not** covered by the JSON Schema file. It is documented her
 | `summary` | object | `total_assessed`, `unassessable_count`, `status` (worst per-dependency verdict), `status_counts` (a tally per status), `vulnerabilities_unchecked` (dependencies whose advisories no source could answer for). |
 | `dependencies` | object | Keyed `ecosystem/name@version`, so a package appearing at two versions in a merged SBOM does not collide. |
 | `unassessable` | array | Components that could not be assessed. Never silently dropped. |
+| `source_health` | object | As in the native output, for the SBOM's ecosystems. |
 
 ### Per dependency
 

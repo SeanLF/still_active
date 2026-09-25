@@ -74,6 +74,17 @@ RSpec.describe(StillActive::Workflow) do
         allow(described_class).to(receive(:repo_signals).and_return({}))
       end
 
+      it("marks deps.dev's advisories unchecked when source health distrusts rubygems, unless ruby-advisory-db answered") do
+        allow(StillActive::DepsDevClient).to(receive(:version_info).and_return({advisory_keys: [], project_id: nil}))
+        health = StillActive::SourceHealth::Report.new(advisory_schema_ok: false, stale_ecosystems: [])
+
+        allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil))
+        expect(described_class.call(health: health)["rack"]).to(include(vulnerabilities_checked: false))
+
+        allow(StillActive::RubyAdvisoryDb).to(receive_messages(load: :fake_db, advisories_for: []))
+        expect(described_class.call(health: health)["rack"]).to(include(vulnerabilities_checked: true))
+      end
+
       it("marks the advisories unchecked without ruby-advisory-db") do
         allow(StillActive::RubyAdvisoryDb).to(receive(:load).and_return(nil))
 

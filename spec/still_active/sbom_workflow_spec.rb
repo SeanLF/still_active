@@ -36,6 +36,27 @@ RSpec.describe(StillActive::SbomWorkflow) do
       expect(ceiling[:upgrade_blocked]).to(be(true))
     end
 
+    # A stale or drifted deps.dev can't vouch for its advisories, so they count as
+    # unchecked in the ecosystems it failed for. The Go toolchain's come from OSV.
+    it("marks deps.dev-sourced advisories unchecked in the ecosystems source health distrusts") do
+      allow(StillActive::PythonHelper).to(receive(:supported_python_range).and_return(nil))
+      allow(StillActive::DotnetHelper).to(receive_messages(supported_dotnet_range: nil, supported_dotnetfx_range: nil))
+      allow(StillActive::EcosystemLens).to(receive(:assess)) do |ecosystem:, name:, version:, **_|
+        {ecosystem:, name:, version_used: version, vulnerability_count: 0, vulnerabilities: [], vulnerabilities_checked: true}
+      end
+      health = StillActive::SourceHealth::Report.new(advisory_schema_ok: true, stale_ecosystems: [:npm, :go])
+
+      out = described_class.call(result_with([
+        {ecosystem: :npm, name: "left-pad", version: "1.3.0"},
+        {ecosystem: :pypi, name: "flask", version: "3.0.0"},
+        {ecosystem: :go, name: "stdlib", version: "1.27.1"}
+      ]), health: health)
+
+      expect(out.assessed["npm/left-pad@1.3.0"][:vulnerabilities_checked]).to(be(false))
+      expect(out.assessed["pypi/flask@3.0.0"][:vulnerabilities_checked]).to(be(true))
+      expect(out.assessed["go/stdlib@1.27.1"][:vulnerabilities_checked]).to(be(true))
+    end
+
     it("runs the lens over each dependency, keyed by ecosystem/name@version") do
       deps = [
         {ecosystem: :npm, name: "express", version: "5.2.1"},

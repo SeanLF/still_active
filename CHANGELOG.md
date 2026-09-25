@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **A source-health check before every audit, on both paths.** deps.dev is an alpha API and the advisory source for nearly everything, so still_active now checks once that it answers in shape (the advisory canary, which the Gemfile audit never ran before) and, per audited ecosystem, that its index is current: a package that releases every few days (`@types/node`, `boto3`, `aws-sdk-core`, ...) must show a release in the last 30 days. Where either fails, deps.dev's advisories for that ecosystem count as unchecked (so `--fail-if-vulnerable` fails closed on them), a warning says why, and both JSON outputs carry a `source_health` block. ruby-advisory-db and the Go toolchain's OSV lookup still answer on their own. It costs one request plus one per ecosystem. It can't catch a single stale package in a live index.
+
 ### Changed
 
 - **A failed advisory lookup is no longer reported as "0 vulnerabilities".** Before, a deps.dev timeout, 5xx or 429 on a dependency's version record read exactly like a clean one, so a network blip could pass `--fail-if-vulnerable` with a vulnerable dependency in the tree. Now the lookup is retried once, and if no source answers (including a version record with no `advisoryKeys` list, which is what deps.dev schema drift looks like) the dependency carries `vulnerabilities_checked: false`, as does one whose assessment raised part-way: its status reads `unknown` rather than `ok` or `legacy` (the two verdicts that claim clean), the terminal and markdown show `?`, both JSON summaries count `vulnerabilities_unchecked`, the enriched CycloneDX marks it, **`--fail-if-vulnerable` fails closed on it** with a warning naming it, and the `--baseline` diff reports a bump to an unchecked version as a regression instead of "closed vulns". A 404 is still an answer (a private package deps.dev has never seen stays checked), and on the native path a loaded ruby-advisory-db answers on its own. If this turns a run red, rerun it, or `--ignore` the dependency.

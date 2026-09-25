@@ -19,6 +19,7 @@ require_relative "helpers/constraint_helper"
 require_relative "helpers/http_helper"
 require_relative "helpers/libyear_helper"
 require_relative "helpers/ruby_advisory_db"
+require_relative "source_health"
 require_relative "helpers/ruby_helper"
 require_relative "helpers/runtime_ceiling_helper"
 require_relative "helpers/version_helper"
@@ -33,7 +34,10 @@ module StillActive
   module Workflow
     extend self
 
-    def call(&on_progress)
+    # `health` is the run's SourceHealth report: when it distrusts deps.dev for
+    # rubygems, deps.dev's advisories count as unchecked unless ruby-advisory-db
+    # answered for them.
+    def call(health: SourceHealth::Report.healthy, &on_progress)
       task = Async do
         # Load the optional ruby-advisory-db once, before the fan-out, so the
         # read-only Database is shared across fibers rather than reloaded per gem.
@@ -98,6 +102,9 @@ module StillActive
           end
         end
         barrier.wait
+        unless health.deps_dev_trusted?(:rubygems) || advisory_db
+          result_object.each_value { |data| data[:vulnerabilities_checked] = false }
+        end
         # Whole-tree correlation, once every gem's signals are in: a ceiling's
         # "upgrade to lift it" must not contradict a poison finding that caps the
         # same gem below that upgrade.

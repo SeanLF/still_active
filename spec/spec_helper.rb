@@ -61,5 +61,9 @@ RSpec.configure do |config|
     # default, so advisories are kept and specs that aren't about confirmation see the
     # unfiltered list; the ones that are register their own stub_request.
     stub_request(:post, "https://api.osv.dev/v1/query").to_return(status: 404)
+
+    # The run-level source check (a canary per ecosystem, before every audit) reads
+    # healthy unless a spec is about it; source_health_spec calls the original.
+    allow(StillActive::SourceHealth).to(receive(:check).and_return(StillActive::SourceHealth::Report.healthy))
   end
 end

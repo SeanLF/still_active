@@ -411,6 +411,18 @@ RSpec.describe(StillActive::CLI) do
         JSON.parse(captured)
       end
 
+      it("checks deps.dev's rubygems health before the audit, warns when degraded, and reports it") do
+        degraded = StillActive::SourceHealth::Report.new(advisory_schema_ok: true, stale_ecosystems: [:rubygems])
+        allow(StillActive::SourceHealth).to(receive(:check).and_return(degraded))
+
+        payload = nil
+        expect { payload = emit_payload }.to(output(/rubygems index.*looks stale/).to_stderr)
+        expect(StillActive::SourceHealth).to(have_received(:check).with(ecosystems: [:rubygems]))
+        expect(StillActive::Workflow).to(have_received(:call).with(health: degraded))
+        expect(payload["source_health"]).to(eq("status" => "degraded", "deps_dev_advisories" => "ok", "deps_dev_stale_ecosystems" => ["rubygems"]))
+        expect(JSONSchemer.schema(Pathname.new(schema_path)).validate(payload).to_a).to(be_empty)
+      end
+
       it("emits JSON that validates against the published JSON Schema and carries a summary digest") do
         payload = emit_payload
         errors = JSONSchemer.schema(Pathname.new(schema_path)).validate(payload).to_a
@@ -1198,11 +1210,16 @@ RSpec.describe(StillActive::CLI) do
       allow(StillActive::DepsDevClient).to(receive(:advisory_schema_ok?).and_return(true))
     end
 
-    it("warns loudly (does not present an authoritative all-clear) when the deps.dev vuln schema canary fails") do
-      allow(StillActive::DepsDevClient).to(receive(:advisory_schema_ok?).and_return(false))
-      allow($stdout).to(receive(:puts))
-      expect { cli.run(["--sbom=sbom.json"]) }
-        .to(output(/deps\.dev vulnerability schema check failed.*not authoritative/im).to_stderr)
+    it("checks source health for the SBOM's ecosystems, warns when degraded, and reports it in the JSON") do
+      degraded = StillActive::SourceHealth::Report.new(advisory_schema_ok: false, stale_ecosystems: [])
+      allow(StillActive::SourceHealth).to(receive(:check).and_return(degraded))
+      captured = nil
+      allow($stdout).to(receive(:puts)) { |arg| captured = arg }
+
+      expect { cli.run(["--sbom=sbom.json"]) }.to(output(/advisory check failed.*treated as unchecked/).to_stderr)
+      expect(StillActive::SourceHealth).to(have_received(:check).with(ecosystems: [:pypi]))
+      expect(StillActive::SbomWorkflow).to(have_received(:call).with(anything, health: degraded))
+      expect(JSON.parse(captured)["source_health"]).to(include("status" => "degraded", "deps_dev_advisories" => "failed"))
     end
 
     it("dispatches on --sbom without a Gemfile, emitting an SBOM-shaped JSON report") do

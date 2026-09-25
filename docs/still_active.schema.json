@@ -55,6 +55,37 @@
     },
     "pr_context": {
       "$ref": "#/$defs/pr_context"
+    },
+    "source_health": {
+      "type": "object",
+      "required": [
+        "status",
+        "deps_dev_advisories",
+        "deps_dev_stale_ecosystems"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "degraded"
+          ]
+        },
+        "deps_dev_advisories": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "failed"
+          ]
+        },
+        "deps_dev_stale_ecosystems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "$defs": {

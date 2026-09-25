@@ -65,11 +65,12 @@ module StillActive
       end
 
       warn_stale_suppressions
+      health = checked_source_health([:rubygems])
 
       result = if $stderr.tty?
-        Workflow.call { |done, total| $stderr.print("\rChecking #{done}/#{total} gems...") }
+        Workflow.call(health: health) { |done, total| $stderr.print("\rChecking #{done}/#{total} gems...") }
       else
-        Workflow.call
+        Workflow.call(health: health)
       end
       $stderr.print("\r\e[K") if $stderr.tty?
 
@@ -104,6 +105,7 @@ module StillActive
           }
           output[:ruby] = ruby_info if ruby_info
           output[:pr_context] = pr_context if pr_context
+          output[:source_health] = health.as_json
           puts iso8601_times(output).to_json
         when :terminal
           puts BotContext.summary(pr_context) if pr_context
@@ -118,6 +120,13 @@ module StillActive
 
     private
 
+    # deps.dev is an alpha API and the advisory source for almost everything, so
+    # check once, before the audit, that it answers in shape and is current for
+    # these ecosystems; a degraded check makes its advisories count as unchecked.
+    def checked_source_health(ecosystems)
+      SourceHealth.check(ecosystems: ecosystems).tap { |health| health.warnings.each { warn("warning: #{_1}") } }
+    end
+
     # The --sbom path: assess a CycloneDX SBOM's packages cross-ecosystem via
     # EcosystemLens, then emit a JSON report shaped like the native audit's but
     # keyed "ecosystem/name@version" and carrying an `unassessable` list of every
@@ -131,17 +140,12 @@ module StillActive
       # produce a result that was then thrown away.
       unsupported_sbom_format!("--baseline") if StillActive.config.baseline_path
       require_parseable_sbom(path)
-      # deps.dev is the SBOM path's sole vulnerability source and an alpha API; a
-      # field rename would silently zero every vuln count. Canary the schema once
-      # and warn loudly so a degraded run never reads as an authoritative all-clear.
-      unless DepsDevClient.advisory_schema_ok?
-        warn("warning: deps.dev vulnerability schema check failed (its `advisoryKeys` field may have changed, or the API is unreachable); vulnerability counts may be understated -- a clean result is NOT authoritative")
-      end
       sbom = restrict_to_direct(SbomReader.parse(path))
+      health = checked_source_health(sbom.dependencies.map { _1[:ecosystem] }.uniq)
       outcome = if $stderr.tty?
-        SbomWorkflow.call(sbom) { |done, total| $stderr.print("\rAssessing #{done}/#{total} dependencies...") }
+        SbomWorkflow.call(sbom, health: health) { |done, total| $stderr.print("\rAssessing #{done}/#{total} dependencies...") }
       else
-        SbomWorkflow.call(sbom)
+        SbomWorkflow.call(sbom, health: health)
       end
       $stderr.print("\r\e[K") if $stderr.tty?
 
@@ -149,7 +153,7 @@ module StillActive
       # assessment-time failure (a raised lens call) both mean "not assessed":
       # surface them together so neither is a silent hole in the reported coverage.
       unassessable = sbom.unassessable + outcome.failures
-      render_sbom_output(outcome.assessed, unassessable, path)
+      render_sbom_output(outcome.assessed, unassessable, path, health)
       warn_unassessable(unassessable)
       # A dependency whose assessment raised was never checked for advisories, so it
       # goes through the gates as unchecked rather than dropping out of them.
@@ -194,7 +198,7 @@ module StillActive
     # --cyclonedx used to error here too, on the grounds that SBOM-in/SBOM-out
     # would need per-ecosystem PURL reconstruction; it is supported now because it
     # turned out not to need any, the input's own PURLs being threaded through.
-    def render_sbom_output(result, unassessable, sbom_path)
+    def render_sbom_output(result, unassessable, sbom_path, health)
       config = StillActive.config
       # Same precedence as the native path and as active_output_modes, which is
       # what the "using X, ignoring Y" warning reads from: the two flags must not
@@ -207,7 +211,7 @@ module StillActive
         emit_sbom_cyclonedx(result, config.cyclonedx_path)
       else
         case resolve_format
-        when :json then emit_sbom_json(result, unassessable)
+        when :json then emit_sbom_json(result, unassessable, health)
         when :terminal then puts TerminalHelper.render(result)
         when :markdown then render_markdown(result)
         end
@@ -272,7 +276,7 @@ module StillActive
     # SBOM output deliberately omits the Ruby audit's `$schema`: the shape differs
     # (composite keys, an unassessable list, no Ruby/PR-context blocks), so it
     # would be a false claim to point at that contract. schema_version stays 1.
-    def emit_sbom_json(result, unassessable)
+    def emit_sbom_json(result, unassessable, health)
       output = {
         schema_version: 1,
         tool: {name: "still_active", version: StillActive::VERSION},
@@ -284,7 +288,8 @@ module StillActive
             status: StatusHelper.gem_status(data)
           )
         end,
-        unassessable:
+        unassessable:,
+        source_health: health.as_json
       }
       puts iso8601_times(output).to_json
     end
@@ -533,7 +538,7 @@ module StillActive
         gem = DependencyHelper.identity(name, data)
         next if config.ignored_gems.include?(gem)
 
-        warn("warning: #{gem}: advisories could not be checked (no source answered for this version); failing --fail-if-vulnerable rather than reading it as clean (rerun, or --ignore it)")
+        warn("warning: #{gem}: advisories could not be checked (no source answered for this version, or its source failed the health check above); failing --fail-if-vulnerable rather than reading it as clean (rerun, or --ignore it)")
       end
     end
 
