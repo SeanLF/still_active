@@ -56,6 +56,17 @@ RSpec.describe(StillActive::Diff) do
       expect(kinds.map(&:last)).not_to(include("go_x"))
       expect(described_class.suppressible_signal(:repository_unchecked)).to(eq(:activity))
     end
+
+    # A 3.1.0 baseline has no repository_check: only a gem whose archived state
+    # was known then (true or false) was answered.
+    it("doesn't flag a gem an older baseline never had an archived answer for") do
+      diff = described_class.call(
+        baseline: doc("localengine" => {"version_used" => "1.0", "source_type" => "path", "archived" => nil}),
+        current: doc("localengine" => {"version_used" => "1.0", "repository_check" => "unknowable"})
+      )
+
+      expect(diff.regressions).to(be_empty)
+    end
   end
 
   describe(".suppressible_signal") do

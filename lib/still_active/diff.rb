@@ -230,9 +230,8 @@ module StillActive
       end
 
       # An archived repo would be a regression; one no longer checked might be one
-      # (a check that failed, or a repository that has gone private or away). A
-      # baseline from before the field existed was answered.
-      if before.fetch("repository_check", "answered") == "answered" && after.fetch("repository_check", "answered") != "answered"
+      # (a check that failed, or a repository that has gone private or away).
+      if repository_answered?(before) && !repository_answered?(after)
         changes << {kind: :repository_unchecked, check: after["repository_check"]}
       end
 
@@ -316,6 +315,14 @@ module StillActive
         libyear_before: before["libyear"],
         libyear_after: after["libyear"]
       }
+    end
+
+    # A baseline from before repository_check existed (3.1.0) was answered only
+    # where its archived state was known.
+    def repository_answered?(data)
+      return data["repository_check"] == "answered" if data.key?("repository_check")
+
+      [true, false].include?(data["archived"])
     end
 
     def unchecked?(data)

@@ -55,10 +55,14 @@ RSpec.describe(StillActive::GithubClient) do
       end
     end
 
-    it("raises RepoSignalsUnavailable, not an ArgumentError, for a name Octokit won't accept") do
-      allow(client).to(receive(:repository).and_raise(Octokit::InvalidRepository))
-      expect { described_class.repo_signals(owner: "foo", name: "bar#main") }
-        .to(raise_error(StillActive::RepoSignalsUnavailable).and(output.to_stderr))
+    # Permanent: a rerun won't change a malformed name, a repository GitHub has
+    # blocked (DMCA, terms of service), or one withheld for legal reasons, so
+    # they're "don't know" like a 404, not a failure that fails the gates.
+    it("returns {} for a name Octokit won't accept, or a repository GitHub blocks") do
+      [Octokit::InvalidRepository, Octokit::RepositoryUnavailable, Octokit::UnavailableForLegalReasons].each do |error|
+        allow(client).to(receive(:repository).and_raise(error))
+        expect(described_class.repo_signals(owner: "foo", name: "bar")).to(eq({}))
+      end
     end
 
     it("raises RepoAccessDenied when GitHub refuses the token") do

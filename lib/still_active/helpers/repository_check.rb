@@ -13,7 +13,9 @@ module StillActive
 
     def unanswered?(data) = !SETTLED.include?(data[:repository_check])
 
-    def failed?(data) = data[:repository_check] == "failed"
+    # A missing or unrecognised check means the repository step never ran (an
+    # assessment that raised part-way), so it counts as failed, as in tally.
+    def failed?(data) = !VALUES.include?(data[:repository_check]) || data[:repository_check] == "failed"
 
     # {answered:, failed:, unknowable:} across dependencies.
     def tally(dependencies)

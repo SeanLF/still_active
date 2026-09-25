@@ -81,12 +81,16 @@ module StillActive
 
     GOPKG_VERSIONED = /\A(?<name>.+)\.v\d+(?:-unstable)?\z/
 
+    # The version suffix marks the module: gopkg.in/pkg.vN[/sub...] or
+    # gopkg.in/user/pkg.vN[/sub...]; anything after it is a subpackage.
     def gopkg_in(path)
-      match = path.last&.match(GOPKG_VERSIONED)
-      return [nil, []] unless match
-
-      owner = (path.size == 1) ? "go-#{match[:name]}" : path.first
-      ["github.com", [owner, match[:name]]]
+      if (match = path[0]&.match(GOPKG_VERSIONED))
+        ["github.com", ["go-#{match[:name]}", match[:name]]]
+      elsif (match = path[1]&.match(GOPKG_VERSIONED))
+        ["github.com", [path[0], match[:name]]]
+      else
+        [nil, []]
+      end
     end
 
     def chain(host, public)

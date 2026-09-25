@@ -1425,6 +1425,7 @@ RSpec.describe(StillActive::CLI) do
           archived: true,
           repository_url: "https://github.com/stevemao/left-pad",
           scorecard_score: 3.0,
+          repository_check: "answered",
           vulnerability_count: 0,
           vulnerabilities: []
         }
@@ -1440,6 +1441,7 @@ RSpec.describe(StillActive::CLI) do
           latest_version_release_date: recent_date.iso8601,
           last_commit_date: recent_date.iso8601,
           archived: false,
+          repository_check: "answered",
           vulnerability_count: 0,
           vulnerabilities: []
         }

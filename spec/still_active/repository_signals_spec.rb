@@ -117,6 +117,15 @@ RSpec.describe(StillActive::RepositorySignals) do
       expect(StillActive::GithubClient).to(have_received(:repo_signals).with(owner: "go-mgo", name: "mgo"))
     end
 
+    it("maps a gopkg.in subpackage to its module's repository") do
+      with_token("t")
+      allow(StillActive::GithubClient).to(receive(:repo_signals).and_return(answer))
+
+      described_class.for_project("gopkg.in/yaml.v3/sub", public: true)
+
+      expect(StillActive::GithubClient).to(have_received(:repo_signals).with(owner: "go-yaml", name: "yaml"))
+    end
+
     it("is unknowable for a project id it can't split") do
       expect(described_class.for_project(nil, public: true)).to(eq(check: "unknowable"))
       expect(described_class.for_project("gopkg.in/notversioned", public: true)).to(eq(check: "unknowable"))
