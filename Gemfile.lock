@@ -79,7 +79,7 @@ GEM
       faraday (>= 1, < 3)
       sawyer (~> 0.9)
     packageurl-ruby (0.2.0)
-    parallel (2.2.0)
+    parallel (2.3.0)
     parser (3.3.12.0)
       ast (~> 2.4.1)
       racc
@@ -100,7 +100,7 @@ GEM
       prism (>= 1.6.0)
       rbs (>= 4.0.0)
       tsort
-    regexp_parser (2.13.0)
+    regexp_parser (2.13.1)
     reline (0.7.0)
       io-console (~> 0.5)
     rexml (3.4.4)
@@ -154,7 +154,7 @@ GEM
       addressable (>= 2.3.5)
       faraday (>= 0.17.3, < 3)
     semantic_range (3.1.1)
-    simplecov (1.3.1)
+    simplecov (1.3.2)
     simpleidn (0.3.0)
     standard (1.56.0)
       language_server-protocol (~> 3.17.0.2)
@@ -168,7 +168,7 @@ GEM
     standard-performance (1.9.0)
       lint_roller (~> 1.1)
       rubocop-performance (~> 1.26.0)
-    standard-rspec (0.5.0)
+    standard-rspec (0.5.1)
       lint_roller (>= 1.0)
       rubocop-capybara (~> 2.23)
       rubocop-factory_bot (~> 2.27)
@@ -197,7 +197,7 @@ DEPENDENCIES
   json_schemer
   rake (>= 13.0)
   rspec (>= 4.0.0.beta1)
-  simplecov (~> 1.0)
+  simplecov (~> 1.3)
   standard
   standard-rspec
   still_active!
@@ -239,7 +239,7 @@ CHECKSUMS
   net-http (0.9.1) sha256=25ba0b67c63e89df626ed8fac771d0ad24ad151a858af2cc8e6a716ca4336996
   octokit (10.0.0) sha256=82e99a539b7637b7e905e6d277bb0c1a4bed56735935cc33db6da7eae49a24e8
   packageurl-ruby (0.2.0) sha256=9bef22c96622b7d3a0087a7fbca8903f9187b66fbfd6a78299ef115768f5012b
-  parallel (2.2.0) sha256=e1059c5fd7b649558a0aec38a769f06a42942bdb40503d005a59c352fe011cd8
+  parallel (2.3.0) sha256=f75a3e904101ce6a1ccb6b8dc800cbafd42166d83330192438dcf29395167a6f
   parser (3.3.12.0) sha256=21a6d7f755d5a24dfbdc6e6b772e4e879a52e7631a88bc5a3a134606052c9828
   pp (0.6.4) sha256=dfcb0fce700c41456265922884f9fe195d7fbb0674a3578e6c0f69588e82b570
   prettyprint (0.2.0) sha256=2bc9e15581a94742064a3cc8b0fb9d45aae3d03a1baa6ef80922627a0766f193
@@ -250,7 +250,7 @@ CHECKSUMS
   rake (13.4.2) sha256=cb825b2bd5f1f8e91ca37bddb4b9aaf345551b4731da62949be002fa89283701
   rbs (4.2.0) sha256=51f7b886dcc05bc09e10b901daa6a81829f6adc03101d6ca9ea4aac6103e0674
   rdoc (8.0.0) sha256=03bf8c08a9639658855a0cfd77c0abca8325c227693f7f33f82957811348c469
-  regexp_parser (2.13.0) sha256=d105d95d2138954e73914d2fbfb3d0a8f8605a49a3e89864c32e78b9107cb770
+  regexp_parser (2.13.1) sha256=5aedb6b7c35688f51e86eef17a15374dfd287c83f4ca644b2c5f3ec50a33b44b
   reline (0.7.0) sha256=5b012d8e55dbf9d450f12bde2cf7d15ff546ae80b3f8f3b30e570d431815583d
   rexml (3.4.4) sha256=19e0a2c3425dfbf2d4fc1189747bdb2f849b6c5e74180401b15734bc97b5d142
   rspec (4.0.0.beta1) sha256=7edd7fb4e25fe5544146268196bc43b610851ea61581f38fe6ac1f03f4ca6114
@@ -268,12 +268,12 @@ CHECKSUMS
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
   sawyer (0.9.3) sha256=0d0f19298408047037638639fe62f4794483fb04320269169bd41af2bdcf5e41
   semantic_range (3.1.1) sha256=508333196ef0c7ba33e79579d4df7eb0a41080595e6a655c2515b03d634ec4a9
-  simplecov (1.3.1) sha256=b326d38e819053499aa2ebe35d544d8bd780eba143a50f48a624b450ad87feec
+  simplecov (1.3.2) sha256=2a22ec1759f1b8db60881a2e038758956fc69ef93ed669be0bde0678de6d0e85
   simpleidn (0.3.0) sha256=12ca730bed2f3db04d11e9bfd1bca3e11fb37f55b21eb2e9793fb5814bf54d03
   standard (1.56.0) sha256=ae2af4d9669589162ac69ed5ef59dcf9f346d4afc81f7e62b84339310dfcb787
   standard-custom (1.0.2) sha256=424adc84179a074f1a2a309bb9cf7cd6bfdb2b6541f20c6bf9436c0ba22a652b
   standard-performance (1.9.0) sha256=49483d31be448292951d80e5e67cdcb576c2502103c7b40aec6f1b6e9c88e3f2
-  standard-rspec (0.5.0) sha256=64d396524a65af47f5331b423d8cdd313e0267401647bb7892489ca89dad2973
+  standard-rspec (0.5.1) sha256=94c6a0c94f6d303867df5cc403a0d4994cf0d72973e86c0a0c82e3b89843989a
   still_active (3.2.0)
   thor (1.5.0) sha256=e3a9e55fe857e44859ce104a84675ab6e8cd59c650a49106a05f55f136425e73
   tsort (0.2.0) sha256=9650a793f6859a43b6641671278f79cfead60ac714148aabe4e3f0060480089f
